@@ -1,0 +1,209 @@
+import { createClient } from "./supabase/client";
+import { useAuthStore } from "@/store/authStore";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
+
+async function getAuthToken() {
+  if (typeof window === "undefined") return null;
+
+  const cached = useAuthStore.getState().session?.access_token;
+  if (cached) return cached;
+
+  try {
+    const supabase = createClient();
+    const {
+      data: { session }
+    } = await supabase.auth.getSession();
+    return session?.access_token || localStorage.getItem("peak_token");
+  } catch {
+    return localStorage.getItem("peak_token");
+  }
+}
+
+export async function apiRequest(path, options = {}, tokenOverride = null) {
+  const token = tokenOverride ?? (await getAuthToken());
+  const headers = {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(options.headers || {})
+  };
+
+  const res = await fetch(`${API_URL}${path}`, { ...options, headers, cache: "no-store" });
+  let payload = null;
+  try {
+    payload = await res.json();
+  } catch {
+    payload = null;
+  }
+
+  if (!res.ok || payload?.success === false) {
+    const apiVersion = res.headers.get("x-peak-api-version");
+    let message = payload?.error || payload?.message || `Request failed (${res.status})`;
+    if (res.status === 503) {
+      message =
+        apiVersion && String(apiVersion).includes("sessions-v5")
+          ? message
+          : `الخادم على المنفذ 4000 قديم. أوقف كل نوافذ backend ثم من مجلد backend شغّل: npm run dev — ثم تحقق من ${API_URL.replace(/\/api$/, "")}/api/health (يجب أن يظهر sessions-v5).`;
+    }
+    const requestError = new Error(message);
+    requestError.status = res.status;
+    requestError.details = payload?.details;
+    requestError.apiVersion = apiVersion;
+    throw requestError;
+  }
+
+  return payload;
+}
+
+export const authApi = {
+  me: (token) => apiRequest("/auth/me", {}, token),
+  setupProfile: (body) =>
+    apiRequest("/auth/setup-profile", {
+      method: "POST",
+      body: JSON.stringify(body)
+    }),
+  updateProfile: (body) =>
+    apiRequest("/auth/profile", {
+      method: "PUT",
+      body: JSON.stringify(body)
+    })
+};
+
+export const sessionsApi = {
+  list: (query = "") => apiRequest(`/sessions${query ? `?${query}` : ""}`),
+  cancel: (sessionId) => apiRequest(`/sessions/${sessionId}/cancel`, { method: "PATCH" }),
+  start: (sessionId) => apiRequest(`/sessions/${sessionId}/start`, { method: "POST" }),
+  end: (sessionId) => apiRequest(`/sessions/${sessionId}/end`, { method: "POST" }),
+  get: (sessionId) => apiRequest(`/sessions/${sessionId}`),
+  create: (body) =>
+    apiRequest("/sessions", {
+      method: "POST",
+      body: JSON.stringify(body)
+    }),
+  enroll: (sessionId, paymentId) =>
+    apiRequest(`/sessions/${sessionId}/enroll`, {
+      method: "POST",
+      body: JSON.stringify({ payment_id: paymentId })
+    }),
+  getRoom: (sessionId) => apiRequest(`/sessions/${sessionId}/room`),
+  getEnrollments: (sessionId) => apiRequest(`/sessions/${sessionId}/enrollments`)
+};
+
+export const paymentsApi = {
+  initiate: (amount, sessionId) =>
+    apiRequest("/payments/initiate", {
+      method: "POST",
+      body: JSON.stringify({
+        amount: Number(amount),
+        session_id: sessionId,
+        type: "session_payment"
+      })
+    }),
+  initiateQuestion: (amount, { subject, content, grade }) =>
+    apiRequest("/payments/initiate", {
+      method: "POST",
+      body: JSON.stringify({
+        amount: Number(amount),
+        type: "question_payment",
+        subject,
+        content,
+        grade
+      })
+    })
+};
+
+export const studentApi = {
+  dashboard: () => apiRequest("/student/dashboard"),
+  profile: () => apiRequest("/student/profile"),
+  updateProfile: (body) => authApi.updateProfile(body),
+  sessions: (query = "") => apiRequest(`/student/sessions${query ? `?${query}` : ""}`),
+  session: (id) => apiRequest(`/student/sessions/${id}`)
+};
+
+export const questionsApi = {
+  overview: () => apiRequest("/questions/overview"),
+  list: (query = "") => apiRequest(`/questions${query ? `?${query}` : ""}`),
+  get: (id) => apiRequest(`/questions/${id}`),
+  submit: (body) =>
+    apiRequest("/questions", {
+      method: "POST",
+      body: JSON.stringify(body)
+    })
+};
+
+export const studyRoomsApi = {
+  overview: () => apiRequest("/study-rooms"),
+  joinRandom: (body) =>
+    apiRequest("/study-rooms/join-random", {
+      method: "POST",
+      body: JSON.stringify(body)
+    }),
+  join: (roomId) =>
+    apiRequest(`/study-rooms/${roomId}/join`, {
+      method: "POST",
+      body: JSON.stringify({})
+    }),
+  leave: (roomId) =>
+    apiRequest(`/study-rooms/${roomId}/leave`, {
+      method: "POST",
+      body: JSON.stringify({})
+    })
+};
+
+export const dashboardApi = {
+  adminStats: () => apiRequest("/admin/stats"),
+  adminUsers: (query = "") => apiRequest(`/admin/users${query ? `?${query}` : ""}`),
+  adminVerifyUser: (userId) => apiRequest(`/admin/users/${userId}/verify`, { method: "PUT" }),
+  adminSuspendUser: (userId) => apiRequest(`/admin/users/${userId}/suspend`, { method: "PUT" }),
+  adminActivateUser: (userId) => apiRequest(`/admin/users/${userId}/activate`, { method: "PUT" }),
+  adminWithdrawals: (query = "") => apiRequest(`/admin/withdrawals${query ? `?${query}` : ""}`),
+  adminUpdateWithdrawal: (id, body) =>
+    apiRequest(`/admin/withdrawals/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body)
+    }),
+  adminReports: (period = "month") =>
+    apiRequest(`/admin/reports?period=${encodeURIComponent(period)}`),
+  teacherEarningsSummary: () => apiRequest("/earnings/summary"),
+  teacherEarnings: (query = "") => apiRequest(`/earnings${query ? `?${query}` : ""}`),
+  teacherWithdrawals: (query = "") => apiRequest(`/earnings/withdrawals${query ? `?${query}` : ""}`),
+  teacherRequestWithdrawal: (body) =>
+    apiRequest("/earnings/withdraw", {
+      method: "POST",
+      body: JSON.stringify(body)
+    }),
+  parentReport: (studentId) => apiRequest(`/parent/report/${studentId}`),
+  myProfile: () => apiRequest("/auth/me"),
+  updateMyProfile: (body) => authApi.updateProfile(body)
+};
+
+export const parentApi = {
+  dashboard: (studentId) =>
+    apiRequest(`/parent/dashboard${studentId ? `?student_id=${encodeURIComponent(studentId)}` : ""}`),
+  children: () => apiRequest("/parent/children"),
+  linkStudent: (studentCode) =>
+    apiRequest("/parent/link-student", {
+      method: "POST",
+      body: JSON.stringify({ student_code: studentCode })
+    }),
+  report: (studentId) => apiRequest(`/parent/report/${studentId}`),
+  downloadReport: async (studentId, token) => {
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
+    const authToken = token ?? (await getAuthToken());
+    const res = await fetch(`${API_URL}/parent/report/${studentId}/pdf`, {
+      headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+      cache: "no-store"
+    });
+    if (!res.ok) {
+      let message = "تعذر تنزيل التقرير";
+      try {
+        const payload = await res.json();
+        message = payload?.error || payload?.message || message;
+      } catch {
+        /* ignore */
+      }
+      throw new Error(message);
+    }
+    return res.blob();
+  }
+};

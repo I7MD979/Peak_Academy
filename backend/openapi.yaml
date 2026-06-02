@@ -1,0 +1,429 @@
+openapi: 3.0.3
+info:
+  title: Peak Academy API
+  version: 1.0.0
+servers:
+  - url: http://localhost:4000
+paths:
+  /api/health:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          description: OK
+  /api/auth/register:
+    post:
+      summary: Register user
+      responses:
+        "200":
+          description: Registered
+  /api/auth/login:
+    post:
+      summary: Login user
+      responses:
+        "200":
+          description: Logged in
+  /api/auth/me:
+    get:
+      summary: Current user profile
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: User profile
+  /api/sessions:
+    get:
+      summary: List sessions
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Sessions list
+    post:
+      summary: Create teacher session
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Session created
+  /api/sessions/{id}/enroll:
+    post:
+      summary: Enroll in session
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Enrollment success
+  /api/payment/initiate:
+    post:
+      summary: Initiate payment
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Payment initiated
+  /api/payment/webhook:
+    post:
+      summary: Payment webhook
+      responses:
+        "200":
+          description: Webhook accepted
+  /api/payment/history:
+    get:
+      summary: User payment history
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Transactions list
+  /api/earnings:
+    get:
+      summary: Teacher earnings
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Earnings list
+  /api/earnings/withdrawals:
+    post:
+      summary: Create withdrawal request
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Withdrawal created
+  /api/parent/link-student:
+    post:
+      summary: Link parent to student
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Link created
+  /api/parent/report/{studentId}:
+    get:
+      summary: Student report
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: studentId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Student report
+  /api/questions:
+    post:
+      summary: Ask question
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Question created
+    get:
+      summary: List unanswered questions
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Questions list
+  /api/questions/{id}/answer:
+    post:
+      summary: Answer question
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Question answered
+  /api/admin/stats:
+    get:
+      summary: Admin stats
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Stats data
+  /api/admin/users:
+    get:
+      summary: Admin users list
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Users list
+  /api/study-rooms/join-random:
+    post:
+      summary: Join random study room
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Joined room
+  /api/study-rooms/{roomId}/leave:
+    post:
+      summary: Leave study room
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: roomId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Left room
+  /api/notifications:
+    get:
+      summary: List notifications
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Notifications list
+    post:
+      summary: Create notification
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Notification created
+  /api/notifications/{id}/read:
+    post:
+      summary: Mark notification as read
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Marked read
+  /api/notifications/stream:
+    get:
+      summary: Notifications SSE stream
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Realtime stream
+  /api/reviews:
+    post:
+      summary: Create teacher review
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Review created
+  /api/reviews/teacher/{teacherId}:
+    get:
+      summary: List teacher reviews
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: teacherId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Reviews list
+  /api/reviews/{id}/respond:
+    post:
+      summary: Teacher reply to review
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Reply saved
+  /api/reports/parent/{studentId}/pdf:
+    get:
+      summary: Generate parent student report PDF
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: studentId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: PDF generated
+  /api/reports/parent/weekly-email-subscriptions:
+    post:
+      summary: Configure weekly report emails
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Subscription saved
+  /api/reports/parent/weekly-email-run:
+    post:
+      summary: Trigger weekly report email run
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Run completed
+  /api/marketplace/pricing:
+    get:
+      summary: Get ask-question pricing
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Pricing row
+    post:
+      summary: Upsert ask-question pricing
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Pricing updated
+  /api/marketplace/route-question:
+    post:
+      summary: Route question to teacher
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Route created
+  /api/marketplace/teacher-routes:
+    get:
+      summary: Teacher marketplace routes
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Routes list
+  /api/quizzes:
+    post:
+      summary: Create live quiz
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Quiz created
+  /api/quizzes/{quizId}:
+    get:
+      summary: Get quiz with questions
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: quizId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Quiz details
+  /api/quizzes/{quizId}/questions:
+    post:
+      summary: Add quiz question
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: quizId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Question added
+  /api/quizzes/{quizId}/start:
+    post:
+      summary: Start quiz
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: quizId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Quiz started
+  /api/quizzes/{quizId}/submit:
+    post:
+      summary: Submit quiz answers
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: quizId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Attempt submitted
+  /api/quizzes/{quizId}/analytics:
+    get:
+      summary: Quiz analytics
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: quizId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Analytics data
+  /api/recordings:
+    post:
+      summary: Create session recording
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Recording created
+  /api/recordings/{id}/playback:
+    get:
+      summary: Get recording playback URL
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Playback info
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
