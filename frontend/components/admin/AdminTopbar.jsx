@@ -1,7 +1,21 @@
-'use client'
+"use client";
 
-import AppTopbar from '@/components/shared/AppTopbar'
+import AppTopbar from "@/components/shared/AppTopbar";
+import { useSidebarProfile } from "@/hooks/useSidebarProfile";
 
+/** شريط علوي للإدارة — يعرض اسم المشرف من الملف الكامل */
 export default function AdminTopbar({ onOpenMobile }) {
-  return <AppTopbar role="admin" onOpenMobile={onOpenMobile} menuBreakpoint="md" />
+  const profile = useSidebarProfile();
+
+  return (
+    <AppTopbar
+      role="admin"
+      onOpenMobile={onOpenMobile}
+      menuBreakpoint="md"
+      displayName={profile.full_name}
+      displayAvatar={profile.avatar_url}
+      displayRoleLabel={profile.roleLabel}
+      displayEmail={profile.email}
+    />
+  );
 }

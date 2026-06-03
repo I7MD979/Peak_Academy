@@ -17,6 +17,7 @@ import {
   Plus,
   Radio,
   Search,
+  Shield,
   Star,
   TrendingUp,
   User,
@@ -25,7 +26,8 @@ import {
   Wallet,
   X,
   CheckCircle2,
-  CircleDollarSign
+  CircleDollarSign,
+  ChevronDown
 } from "lucide-react";
 
 /** @type {Record<string, import('lucide-react').LucideIcon>} */
@@ -57,6 +59,8 @@ export const iconMap = {
   live: Radio,
   money: CircleDollarSign,
   search: Search,
+  shield: Shield,
+  chevronDown: ChevronDown,
   arrowRight: ArrowRight
 };
 

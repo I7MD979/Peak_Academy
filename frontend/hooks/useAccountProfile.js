@@ -1,17 +1,22 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { authApi, dashboardApi } from "@/lib/api";
+import { authApi } from "@/lib/api";
+import { profileFromAuthUser } from "@/lib/auth-user-profile";
 import { validateBaseProfile } from "@/lib/profile-form";
+import { useAuth } from "@/hooks/useAuth";
+import { notifyProfileUpdated } from "@/hooks/useSidebarProfile";
 
-export function useAccountProfile() {
+export function useAccountProfile({ autoLoad = true } = {}) {
+  const { user: authUser, session } = useAuth();
   const [profile, setProfile] = useState(null);
   const [form, setForm] = useState({ full_name: "", phone: "", avatar_url: "" });
   const [fieldErrors, setFieldErrors] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [isAuthFallback, setIsAuthFallback] = useState(false);
 
   const applyUser = useCallback((user) => {
     setProfile(user);
@@ -25,16 +30,36 @@ export function useAccountProfile() {
   const loadProfile = useCallback(async () => {
     setLoading(true);
     setError("");
+    setIsAuthFallback(false);
     try {
-      const res = await dashboardApi.myProfile();
-      applyUser(res?.data || null);
+      const res = await authApi.me();
+      const user = res?.data || null;
+      if (user) {
+        applyUser(user);
+        return;
+      }
+      throw new Error("تعذر تحميل الملف الشخصي");
     } catch (err) {
-      setProfile(null);
-      setError(err.message || "تعذر تحميل الملف الشخصي");
+      const fallback = profileFromAuthUser(authUser);
+      if (fallback) {
+        applyUser(fallback);
+        setIsAuthFallback(true);
+        setError("");
+      } else {
+        setProfile(null);
+        setError(err.message || "تعذر تحميل الملف الشخصي");
+      }
     } finally {
       setLoading(false);
     }
-  }, [applyUser]);
+  }, [applyUser, authUser]);
+
+  useEffect(() => {
+    if (!autoLoad) return;
+    if (session?.access_token || authUser?.id) {
+      loadProfile();
+    }
+  }, [autoLoad, session?.access_token, authUser?.id, loadProfile]);
 
   const handleChange = (key) => (event) => {
     const value = event.target.value;
@@ -64,7 +89,10 @@ export function useAccountProfile() {
         avatar_url: form.avatar_url.trim() || undefined,
         ...extraBody
       });
-      applyUser(res?.data || profile);
+      const saved = res?.data || profile;
+      applyUser(saved);
+      setIsAuthFallback(false);
+      notifyProfileUpdated();
       toast.success(res?.message || "تم حفظ التغييرات");
       return true;
     } catch (err) {
@@ -82,6 +110,7 @@ export function useAccountProfile() {
     loading,
     saving,
     error,
+    isAuthFallback,
     loadProfile,
     handleChange,
     resetFormFromProfile,

@@ -30,19 +30,22 @@ export default function ParentProfilePage() {
 
   const [children, setChildren] = useState([]);
 
-  const loadAll = useCallback(async () => {
-    await loadProfile();
+  const loadChildren = useCallback(async () => {
     try {
       const res = await parentApi.children();
       setChildren(res?.data?.children || []);
     } catch {
       setChildren([]);
     }
-  }, [loadProfile]);
+  }, []);
 
   useEffect(() => {
-    loadAll();
-  }, [loadAll]);
+    loadChildren();
+  }, [loadChildren]);
+
+  const loadAll = useCallback(async () => {
+    await Promise.all([loadProfile(), loadChildren()]);
+  }, [loadProfile, loadChildren]);
 
   const onSubmit = async (event) => {
     event.preventDefault();

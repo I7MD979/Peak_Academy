@@ -1,5 +1,6 @@
 import { createClient } from "./supabase/client";
 import { useAuthStore } from "@/store/authStore";
+import { cachedApiRequest, clearApiCache, fetchAuthMe } from "@/lib/api-cache";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
@@ -20,7 +21,7 @@ async function getAuthToken() {
   }
 }
 
-export async function apiRequest(path, options = {}, tokenOverride = null) {
+async function performApiFetch(path, options = {}, tokenOverride = null) {
   const token = tokenOverride ?? (await getAuthToken());
   const headers = {
     "Content-Type": "application/json",
@@ -39,6 +40,10 @@ export async function apiRequest(path, options = {}, tokenOverride = null) {
   if (!res.ok || payload?.success === false) {
     const apiVersion = res.headers.get("x-peak-api-version");
     let message = payload?.error || payload?.message || `Request failed (${res.status})`;
+    if (res.status === 429) {
+      message =
+        "طلبات كثيرة على الخادم. انتظر قليلًا ثم حدّث الصفحة، أو أعد تشغيل واجهة التطوير بعد إعادة تشغيل backend.";
+    }
     if (res.status === 503) {
       message =
         apiVersion && String(apiVersion).includes("sessions-v5")
@@ -55,18 +60,33 @@ export async function apiRequest(path, options = {}, tokenOverride = null) {
   return payload;
 }
 
+export async function apiRequest(path, options = {}, tokenOverride = null) {
+  return cachedApiRequest(path, options, tokenOverride, () =>
+    performApiFetch(path, options, tokenOverride)
+  );
+}
+
+export { clearApiCache };
+
+function fetchMe(tokenOverride) {
+  return fetchAuthMe(() => performApiFetch("/auth/me", {}, tokenOverride));
+}
+
 export const authApi = {
-  me: (token) => apiRequest("/auth/me", {}, token),
+  me: (token) => fetchMe(token),
   setupProfile: (body) =>
     apiRequest("/auth/setup-profile", {
       method: "POST",
       body: JSON.stringify(body)
     }),
-  updateProfile: (body) =>
-    apiRequest("/auth/profile", {
+  updateProfile: async (body) => {
+    const result = await apiRequest("/auth/profile", {
       method: "PUT",
       body: JSON.stringify(body)
-    })
+    });
+    clearApiCache("/auth/me");
+    return result;
+  }
 };
 
 export const sessionsApi = {
@@ -173,7 +193,7 @@ export const dashboardApi = {
       body: JSON.stringify(body)
     }),
   parentReport: (studentId) => apiRequest(`/parent/report/${studentId}`),
-  myProfile: () => apiRequest("/auth/me"),
+  myProfile: () => fetchMe(),
   updateMyProfile: (body) => authApi.updateProfile(body)
 };
 

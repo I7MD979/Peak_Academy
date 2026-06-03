@@ -1,152 +1,198 @@
-'use client'
+"use client";
 
-import { useEffect, useMemo } from 'react'
-import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import Icon from '@/components/shared/Icon'
-import NavIcon from '@/components/shared/NavIcon'
-import PeakLogo from '@/components/shared/PeakLogo'
-import { useAuth } from '@/hooks/useAuth'
-import { getUserDisplay } from '@/lib/user-display'
-import { cn } from '@/lib/utils'
+import { useEffect } from "react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import Icon from "@/components/shared/Icon";
+import NavIcon from "@/components/shared/NavIcon";
+import PeakLogo from "@/components/shared/PeakLogo";
+import { useAuth } from "@/hooks/useAuth";
+import { useSidebarProfile } from "@/hooks/useSidebarProfile";
+import {
+  ADMIN_NAV_ACCOUNT,
+  ADMIN_NAV_MAIN,
+  isAdminNavActive
+} from "@/lib/admin-nav";
+import { cn } from "@/lib/utils";
 
 function Avatar({ fullName, avatarUrl }) {
-  const initial = (fullName || '?').trim().slice(0, 1)
+  const initial = (fullName || "م").trim().slice(0, 1);
   return (
-    <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-white/15 bg-white/10">
+    <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-white/15 bg-gradient-to-br from-accent/30 to-white/10 shadow-inner">
       {avatarUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={avatarUrl} alt={fullName || 'avatar'} className="h-full w-full object-cover" />
+        <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
       ) : (
-        <span className="text-sm font-bold text-white">{initial}</span>
+        <span className="text-sm font-black text-white">{initial}</span>
       )}
     </div>
-  )
+  );
 }
 
-export default function AdminSidebar({ mobileOpen, onCloseMobile }) {
-  const pathname = usePathname()
-  const router = useRouter()
-  const { user, signOut } = useAuth()
-  const profile = getUserDisplay(user)
+function NavLink({ item, pathname, onNavigate }) {
+  const active = isAdminNavActive(pathname, item.href);
 
-  useEffect(() => {
-    if (!mobileOpen) return
-    const onKeyDown = (e) => {
-      if (e.key === 'Escape') onCloseMobile?.()
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [mobileOpen, onCloseMobile])
+  return (
+    <Link
+      href={item.href}
+      onClick={onNavigate}
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-200",
+        "text-white/75 hover:bg-white/10 hover:text-white",
+        active &&
+          "border-e-4 border-accent bg-gradient-to-l from-accent/20 to-white/5 font-bold text-white shadow-sm"
+      )}
+    >
+      <NavIcon name={item.icon} active={active} />
+      <span className="truncate">{item.label}</span>
+    </Link>
+  );
+}
 
-  const navItems = useMemo(
-    () => [
-      { href: '/admin/dashboard', label: 'لوحة التحكم', icon: 'dashboard' },
-      { href: '/admin/users', label: 'المستخدمين', icon: 'users' },
-      { href: '/admin/sessions', label: 'الجلسات', icon: 'video' },
-      { href: '/admin/withdrawals', label: 'طلبات السحب', icon: 'creditCard' },
-      { href: '/admin/reports', label: 'التقارير', icon: 'barChart' },
-      { href: '/admin/profile', label: 'حسابي', icon: 'user' }
-    ],
-    []
-  )
+function NavSection({ title, items, pathname, onNavigate }) {
+  return (
+    <div className="space-y-1">
+      {title ? (
+        <p className="mb-2 px-3 text-[11px] font-bold tracking-wide text-white/45">{title}</p>
+      ) : null}
+      {items.map((item) => (
+        <NavLink key={item.href} item={item} pathname={pathname} onNavigate={onNavigate} />
+      ))}
+    </div>
+  );
+}
 
-  const activeItemClass =
-    'bg-accent/15 border-r-4 border-accent text-white hover:bg-accent/20'
+function SidebarShell({ children, className }) {
+  return (
+    <aside
+      className={cn(
+        "flex h-full w-[260px] flex-col border-l border-white/10 bg-gradient-to-b from-primary via-primary to-[#0f1320] text-white shadow-xl",
+        className
+      )}
+    >
+      {children}
+    </aside>
+  );
+}
 
-  const itemsView = (activeClass) => (
-    <nav className="flex flex-col gap-1" aria-label="تنقل الإدارة">
-      {navItems.map((item) => {
-        const active =
-          pathname === item.href || (pathname || '').startsWith(`${item.href}/`)
-
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            onClick={onCloseMobile}
-            className={cn(
-              'group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-white/80 transition-colors hover:bg-white/10',
-              active && activeClass
-            )}
-          >
-            <NavIcon name={item.icon} active={active} />
-            <span className="truncate font-bold">{item.label}</span>
-          </Link>
-        )
-      })}
-    </nav>
-  )
+function SidebarContent({ pathname, onCloseMobile }) {
+  const router = useRouter();
+  const { signOut } = useAuth();
+  const profile = useSidebarProfile();
+  const profileActive = isAdminNavActive(pathname, "/admin/profile");
 
   const handleLogout = async () => {
-    await signOut()
-    router.replace('/auth/login')
-  }
-
-  const sidebarFooter = (
-    <div className="border-t border-white/10 px-4 pb-5 pt-4">
-      <Link href="/admin/profile" onClick={onCloseMobile} className="flex items-center gap-3 rounded-xl transition-colors hover:bg-white/5">
-        <Avatar fullName={profile.full_name} avatarUrl={profile.avatar_url} />
-        <div className="min-w-0">
-          <div className="truncate text-sm font-bold">{profile.full_name || 'مشرف'}</div>
-          <div className="truncate text-xs text-white/70">
-            {profile.role === 'admin' ? 'مشرف النظام' : profile.role || 'مشرف'}
-          </div>
-        </div>
-      </Link>
-
-      <Button
-        type="button"
-        variant="outline"
-        className="mt-4 w-full rounded-xl border-white/20 bg-white/5 text-white hover:bg-white/10"
-        onClick={handleLogout}
-      >
-        <Icon name="logout" size={16} />
-        تسجيل الخروج
-      </Button>
-    </div>
-  )
-
-  const desktopSidebar = (
-    <aside className="hidden w-[248px] flex-col border-l border-white/10 bg-primary text-white md:flex">
-      <div className="px-5 pb-4 pt-5">
-        <PeakLogo subtitle="لوحة الإدارة" />
-      </div>
-      <div className="flex-1 px-3 pb-4">{itemsView(activeItemClass)}</div>
-      {sidebarFooter}
-    </aside>
-  )
-
-  const mobileDrawer = mobileOpen ? (
-    <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true">
-      <div className="absolute inset-0 bg-black/40" onClick={onCloseMobile} />
-      <div className="absolute inset-y-0 right-0 w-[248px]">
-        <aside className="flex h-full flex-col border-l border-white/10 bg-primary text-white">
-          <div className="px-5 pb-4 pt-5">
-            <div className="flex items-center justify-between gap-3">
-              <PeakLogo subtitle="لوحة الإدارة" />
-              <button
-                type="button"
-                className="rounded-lg p-2 text-white/80 hover:bg-white/10"
-                onClick={onCloseMobile}
-                aria-label="إغلاق القائمة"
-              >
-                <Icon name="close" size={20} />
-              </button>
-            </div>
-          </div>
-          <div className="flex-1 px-3 pb-4">{itemsView(activeItemClass)}</div>
-          {sidebarFooter}
-        </aside>
-      </div>
-    </div>
-  ) : null
+    onCloseMobile?.();
+    await signOut();
+    router.replace("/auth/login");
+  };
 
   return (
     <>
-      {desktopSidebar}
-      {mobileDrawer}
+      <div className="border-b border-white/10 px-5 py-5">
+        <div className="flex items-center justify-between gap-2">
+          <Link
+            href="/admin/dashboard"
+            onClick={onCloseMobile}
+            className="min-w-0 flex-1 rounded-xl transition-opacity hover:opacity-90"
+          >
+            <PeakLogo subtitle="لوحة الإدارة" />
+          </Link>
+          {onCloseMobile ? (
+            <button
+              type="button"
+              className="shrink-0 rounded-lg p-2 text-white/80 transition-colors hover:bg-white/10"
+              onClick={onCloseMobile}
+              aria-label="إغلاق القائمة"
+            >
+              <Icon name="close" size={20} />
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="flex-1 space-y-6 overflow-y-auto px-3 py-4">
+        <nav aria-label="القائمة الرئيسية">
+          <NavSection title="القائمة الرئيسية" items={ADMIN_NAV_MAIN} pathname={pathname} onNavigate={onCloseMobile} />
+        </nav>
+        <nav aria-label="الحساب">
+          <NavSection title="الحساب" items={ADMIN_NAV_ACCOUNT} pathname={pathname} onNavigate={onCloseMobile} />
+        </nav>
+      </div>
+
+      <div className="border-t border-white/10 px-4 pb-5 pt-4">
+        <Link
+          href="/admin/profile"
+          onClick={onCloseMobile}
+          className={cn(
+            "flex items-center gap-3 rounded-xl p-2 transition-all",
+            profileActive
+              ? "bg-white/10 ring-1 ring-accent/40"
+              : "hover:bg-white/5"
+          )}
+        >
+          <Avatar fullName={profile.full_name} avatarUrl={profile.avatar_url} />
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-bold">{profile.full_name || "مشرف"}</div>
+            <div className="truncate text-xs text-white/65">{profile.roleLabel || "مشرف النظام"}</div>
+          </div>
+          <Icon name="user" size={16} className="shrink-0 text-white/40" />
+        </Link>
+
+        <Button
+          type="button"
+          variant="outline"
+          className="mt-3 w-full rounded-xl border-white/20 bg-white/5 text-white hover:border-white/30 hover:bg-white/10"
+          onClick={handleLogout}
+        >
+          <Icon name="logout" size={16} />
+          تسجيل الخروج
+        </Button>
+      </div>
     </>
-  )
+  );
+}
+
+export default function AdminSidebar({ mobileOpen, onCloseMobile }) {
+  const pathname = usePathname();
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") onCloseMobile?.();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [mobileOpen, onCloseMobile]);
+
+  return (
+    <>
+      <SidebarShell className="hidden md:flex">
+        <SidebarContent pathname={pathname} onCloseMobile={undefined} />
+      </SidebarShell>
+
+      {mobileOpen ? (
+        <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true" aria-label="قائمة الإدارة">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/50 backdrop-blur-[2px]"
+            onClick={onCloseMobile}
+            aria-label="إغلاق القائمة"
+          />
+          <div className="absolute inset-y-0 right-0 w-[min(280px,88vw)] shadow-2xl">
+            <SidebarShell className="w-full">
+              <SidebarContent pathname={pathname} onCloseMobile={onCloseMobile} />
+            </SidebarShell>
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
 }
