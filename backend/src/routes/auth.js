@@ -8,6 +8,7 @@ import {
   fetchFullUserProfile,
   normalizeRole
 } from "../utils/ensure-user-profile.js";
+import { ensureReferralCode } from "../services/referralService.js";
 
 const router = Router();
 
@@ -23,6 +24,10 @@ router.get("/me", auth, async (req, res) => {
         role: req.user.role,
         phone: req.user.phone
       });
+    }
+
+    if (user?.role === "student") {
+      await ensureReferralCode(user);
     }
 
     return success(res, user);

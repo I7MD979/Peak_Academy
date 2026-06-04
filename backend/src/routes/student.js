@@ -10,6 +10,9 @@ import {
   querySessionById
 } from "../utils/session-select.js";
 import { ensureUserProfile, isRoleProfileComplete } from "../utils/ensure-user-profile.js";
+import { getEnrollmentOptionsForSession, getSessionForEnroll } from "../services/enrollmentService.js";
+import { countPaidSessionEnrollments } from "../services/subscriptionService.js";
+import { getActiveSubscription } from "../services/enrollmentService.js";
 
 const SESSION_SELECT = "*";
 
@@ -129,16 +132,20 @@ function applyAvailableFilters(query, { student, enrolledIds, onlyMyGrade, subje
   return query;
 }
 
-async function countAvailableSessions(ctx, queryParams) {
-  const { total } = await fetchAvailableSessionsPage(ctx, {
-    ...queryParams,
-    page: 1,
-    limit: 1
-  });
+async function countAvailableSessions(ctx, queryParams, userId) {
+  const { total } = await fetchAvailableSessionsPage(
+    ctx,
+    {
+      ...queryParams,
+      page: 1,
+      limit: 1
+    },
+    userId
+  );
   return total;
 }
 
-async function fetchAvailableSessionsPage(ctx, queryParams) {
+async function fetchAvailableSessionsPage(ctx, queryParams, userId) {
   const { student, enrolledIds } = ctx;
   const {
     page = 1,
@@ -178,7 +185,20 @@ async function fetchAvailableSessionsPage(ctx, queryParams) {
     const enriched = await enrichSessions(data);
     for (const session of enriched) {
       const row = mapSessionRow(session, { isEnrolled: false, enrollmentStatus: null });
-      if (!row.is_full) nonFull.push(row);
+      if (!row.is_full) {
+        const opts = await getEnrollmentOptionsForSession(userId, {
+          ...session,
+          enrolled_count: row.enrollment_count,
+          seats_left: Math.max(0, (row.max_students || 0) - (row.enrollment_count || 0))
+        });
+        nonFull.push({
+          ...row,
+          free_trial_available: opts.free_trial_available,
+          active_subscription: opts.active_subscription,
+          seats_left: opts.seats_left,
+          low_seats: opts.low_seats
+        });
+      }
     }
 
     dbOffset += batchSize;
@@ -411,7 +431,7 @@ router.get("/sessions", auth, checkRole("student"), async (req, res) => {
     let totalForPagination = 0;
 
     if (tab === "available") {
-      const available = await fetchAvailableSessionsPage(ctx, req.query);
+      const available = await fetchAvailableSessionsPage(ctx, req.query, req.user.id);
       sessions = available.sessions;
       totalForPagination = available.total;
     } else {
@@ -442,7 +462,7 @@ router.get("/sessions", auth, checkRole("student"), async (req, res) => {
     const [availableTotal, liveCountRes, completedCountRes] = await Promise.all([
       tab === "available"
         ? Promise.resolve(totalForPagination)
-        : countAvailableSessions(ctx, req.query),
+        : countAvailableSessions(ctx, req.query, req.user.id),
       enrolledIds.length
         ? supabase
             .from("sessions")
@@ -498,6 +518,16 @@ router.get("/sessions/:id", auth, checkRole("student"), async (req, res) => {
       !isEnrolled && normalized.status === "scheduled" && !isFull && !isPast;
     const canJoinLive = isEnrolled && normalized.status === "live";
 
+    const enrollOpts = await getEnrollmentOptionsForSession(req.user.id, {
+      ...normalized,
+      teacher_id: normalized.teacher_id,
+      enrolled_count: enrolledCount,
+      seats_left: Math.max(0, maxStudents - enrolledCount)
+    });
+
+    const paidSessions = await countPaidSessionEnrollments(req.user.id);
+    const subscription = await getActiveSubscription(req.user.id);
+
     return success(res, {
       ...mapSessionRow(normalized, { isEnrolled, enrollmentStatus }),
       description: normalized.description,
@@ -505,10 +535,35 @@ router.get("/sessions/:id", auth, checkRole("student"), async (req, res) => {
       max_students: maxStudents,
       can_enroll: canEnroll,
       can_join_live: canJoinLive,
-      is_full: isFull
+      is_full: isFull,
+      ...enrollOpts,
+      paid_session_count: paidSessions,
+      show_subscription_cta: paidSessions >= 3 && !subscription
     });
   } catch (_err) {
     return error(res, "تعذر تحميل تفاصيل الجلسة", 500);
+  }
+});
+
+router.get("/enrollment-options", auth, checkRole("student"), async (req, res) => {
+  try {
+    const { session_id } = req.query;
+    if (!session_id) return error(res, "معرّف الجلسة مطلوب", 400);
+
+    const session = await getSessionForEnroll(session_id);
+    if (!session) return error(res, "الجلسة غير موجودة", 404);
+
+    const options = await getEnrollmentOptionsForSession(req.user.id, session);
+    const paidSessions = await countPaidSessionEnrollments(req.user.id);
+
+    return success(res, {
+      session_id,
+      ...options,
+      paid_session_count: paidSessions,
+      show_subscription_cta: paidSessions >= 3 && !options.active_subscription
+    });
+  } catch (err) {
+    return error(res, err.message || "تعذر تحميل خيارات التسجيل", 500);
   }
 });
 

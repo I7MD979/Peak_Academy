@@ -68,3 +68,64 @@ test("health exposes api version header", async () => {
   const res = await request(app).get("/api/health");
   assert.ok(res.headers["x-peak-api-version"]);
 });
+
+test("validate-promo requires auth", async () => {
+  const res = await request(app)
+    .post("/api/payments/validate-promo")
+    .send({ code: "TEST", session_id: "sess-1" });
+  assert.equal(res.statusCode, 401);
+});
+
+test("subscriptions me requires auth", async () => {
+  const res = await request(app).get("/api/subscriptions/me");
+  assert.equal(res.statusCode, 401);
+});
+
+test("admin promotions requires auth", async () => {
+  const res = await request(app).get("/api/admin/promotions");
+  assert.equal(res.statusCode, 401);
+});
+
+test("refund calculator tiers", async () => {
+  const { calculateRefundAmount } = await import("../src/utils/refundCalculator.js");
+  const payment = { amount: 100 };
+  const session = { scheduled_at: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString() };
+  const full = calculateRefundAmount(payment, session, new Date());
+  assert.equal(full, 100);
+
+  const halfSession = {
+    scheduled_at: new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString()
+  };
+  const half = calculateRefundAmount(payment, halfSession, new Date());
+  assert.equal(half, 50);
+
+  const none = calculateRefundAmount(
+    payment,
+    { scheduled_at: new Date(Date.now() + 30 * 60 * 1000).toISOString() },
+    new Date()
+  );
+  assert.equal(none, 0);
+
+  const teacherCancel = calculateRefundAmount(
+    payment,
+    { scheduled_at: new Date(Date.now() + 30 * 60 * 1000).toISOString() },
+    new Date(),
+    { teacherCancelled: true }
+  );
+  assert.equal(teacherCancel, 100);
+});
+
+test("promo discount calculation", async () => {
+  const { calculateDiscount } = await import("../src/utils/promoValidator.js");
+  assert.equal(calculateDiscount(100, { discount_type: "percent", discount_value: 20 }), 20);
+  assert.equal(calculateDiscount(100, { discount_type: "fixed", discount_value: 150 }), 100);
+  assert.equal(calculateDiscount(80, { discount_type: "free_session", discount_value: 0 }), 80);
+});
+
+test("payments module exports refund and promo utilities", async () => {
+  const refund = await import("../src/utils/refundCalculator.js");
+  const promo = await import("../src/utils/promoValidator.js");
+  assert.equal(typeof refund.calculateRefundAmount, "function");
+  assert.equal(typeof promo.validatePromoCode, "function");
+  assert.equal(typeof promo.calculateDiscount, "function");
+});

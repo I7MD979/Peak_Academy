@@ -1,6 +1,9 @@
 import { supabase } from "../lib/supabase.js";
 import { enqueueJob } from "../lib/queue.js";
 import { invalidateSessionCaches } from "../lib/cache.js";
+import { recordPromoUse } from "./promoValidator.js";
+import { activateSubscriptionFromTransaction } from "../services/subscriptionService.js";
+import { creditReferrerOnFirstPaidEnrollment } from "../services/referralService.js";
 
 async function notifyEnrollment(transaction, sessionId) {
   const [{ data: user }, { data: session }] = await Promise.all([
@@ -17,7 +20,8 @@ async function notifyEnrollment(transaction, sessionId) {
       studentEmail: user?.email,
       studentName: user?.full_name,
       sessionTitle: session?.title,
-      startTime: session?.scheduled_at
+      startTime: session?.scheduled_at,
+      amountPaid: transaction.amount
     }),
     enqueueJob("notifications", "push-notification", {
       userId: transaction.user_id,
@@ -32,6 +36,14 @@ async function notifyEnrollment(transaction, sessionId) {
 export async function reconcileCompletedTransaction(transaction) {
   if (!transaction || transaction.status !== "completed") {
     return { reconciled: false };
+  }
+
+  if (transaction.type === "subscription_payment") {
+    const result = await activateSubscriptionFromTransaction(transaction);
+    if (transaction.promotion_id) {
+      await recordPromoUse(transaction.promotion_id, transaction.user_id, null, transaction.discount_amount);
+    }
+    return { subscription_activated: result.activated };
   }
 
   if (transaction.type === "question_payment") {
@@ -107,6 +119,16 @@ export async function reconcileCompletedTransaction(transaction) {
 
   if (enrollError) throw enrollError;
 
+  if (transaction.promotion_id) {
+    await recordPromoUse(
+      transaction.promotion_id,
+      transaction.user_id,
+      `en-${transaction.id}`,
+      transaction.discount_amount
+    );
+    await creditReferrerOnFirstPaidEnrollment(transaction.user_id, transaction.promotion_id);
+  }
+
   await invalidateSessionCaches(sessionId);
   await notifyEnrollment(transaction, sessionId);
 
@@ -148,4 +170,21 @@ export async function fulfillCompletedTransaction(transaction, paymobTxnId) {
   }
 
   return { reconciled: false };
+}
+
+export async function markTransactionFailed(transaction) {
+  if (!transaction || transaction.status !== "pending") return;
+
+  await supabase.from("transactions").update({ status: "failed" }).eq("id", transaction.id).eq("status", "pending");
+
+  await enqueueJob("notifications", "push-notification", {
+    userId: transaction.user_id,
+    type: "payment_failed",
+    title: "فشل الدفع",
+    body: "تعذر إتمام عملية الدفع. يمكنك المحاولة مرة أخرى.",
+    data: {
+      session_id: transaction.metadata?.session_id || null,
+      transaction_id: transaction.id
+    }
+  });
 }

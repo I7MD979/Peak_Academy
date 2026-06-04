@@ -31,6 +31,16 @@ export default function SessionCard({ session, detailHref, liveHref, className }
         {session?.is_enrolled ? (
           <span className="rounded-full bg-success/10 px-2.5 py-1 text-xs font-bold text-success">مسجل</span>
         ) : null}
+        {session?.free_trial_available && !session?.is_enrolled ? (
+          <span className="rounded-full bg-accent/10 px-2.5 py-1 text-xs font-bold text-accent">
+            أول حصة مجانية
+          </span>
+        ) : null}
+        {session?.low_seats && !session?.is_enrolled ? (
+          <span className="rounded-full bg-warning/10 px-2.5 py-1 text-xs font-bold text-warning">
+            متاح {session.seats_left} أماكن فقط
+          </span>
+        ) : null}
         {session?.is_full ? (
           <span className="rounded-full bg-danger/10 px-2.5 py-1 text-xs font-bold text-danger">مكتملة</span>
         ) : null}

@@ -48,7 +48,7 @@ export const pollTransactionFulfillment = async (
 
   if (kind === "session" && sessionId) {
     try {
-      await sessionsApi.enroll(sessionId, transactionId);
+      await sessionsApi.enroll(sessionId, { payment_id: transactionId });
       return true;
     } catch {
       return false;

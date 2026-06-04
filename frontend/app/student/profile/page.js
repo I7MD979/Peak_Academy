@@ -12,7 +12,7 @@ import Icon from "@/components/shared/Icon";
 import PersonalInfoFields from "@/components/profile/PersonalInfoFields";
 import ProfileErrorState from "@/components/profile/ProfileErrorState";
 import ProfileHero from "@/components/profile/ProfileHero";
-import { studentApi } from "@/lib/api";
+import { studentApi, subscriptionsApi } from "@/lib/api";
 import { GRADE_OPTIONS, validateBaseProfile } from "@/lib/profile-form";
 import { cn } from "@/lib/utils";
 
@@ -29,6 +29,7 @@ export default function StudentProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [subscriptionInfo, setSubscriptionInfo] = useState(null);
 
   const loadProfile = useCallback(async () => {
     setLoading(true);
@@ -37,6 +38,12 @@ export default function StudentProfilePage() {
       const res = await studentApi.profile();
       const data = res?.data || null;
       setProfile(data);
+      try {
+        const subRes = await subscriptionsApi.me();
+        setSubscriptionInfo(subRes?.data || null);
+      } catch {
+        setSubscriptionInfo(null);
+      }
       setForm({
         full_name: data?.full_name || "",
         phone: data?.phone || "",
@@ -172,6 +179,23 @@ export default function StudentProfilePage() {
               tone="warning"
               hint="تم الرد / الإجمالي"
             />
+          </section>
+
+          <section className="glass-card flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-bold text-text">الاشتراك الشهري</p>
+              {subscriptionInfo?.subscription ? (
+                <p className="mt-1 text-sm text-text-muted">
+                  {subscriptionInfo.subscription.plan?.name || "نشط"} —{" "}
+                  {subscriptionInfo.subscription.sessions_remaining} حصة متبقية
+                </p>
+              ) : (
+                <p className="mt-1 text-sm text-text-muted">لا يوجد اشتراك نشط حالياً.</p>
+              )}
+            </div>
+            <Button href="/student/subscription" variant="outline" className="shrink-0 rounded-xl">
+              إدارة الاشتراك
+            </Button>
           </section>
 
           {profile.link_code ? (

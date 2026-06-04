@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import PaymentModal from "@/components/shared/PaymentModal";
 import LoadingSkeleton from "@/components/shared/LoadingSkeleton";
@@ -10,7 +9,8 @@ import StatusBadge from "@/components/admin/StatusBadge";
 import SubjectBadge from "@/components/shared/SubjectBadge";
 import LiveBadge from "@/components/shared/LiveBadge";
 import Icon from "@/components/shared/Icon";
-import { studentApi } from "@/lib/api";
+import { studentApi, sessionsApi } from "@/lib/api";
+import Link from "next/link";
 import { pollTransactionFulfillment } from "@/lib/paymob";
 import { mapSessionForCard } from "@/lib/session-mapper";
 import { formatCurrencyEgp, formatDateTimeAr } from "@/lib/format";
@@ -129,6 +129,16 @@ export default function StudentSessionDetailsPage({ params }) {
                   مسجّل في الجلسة
                 </span>
               ) : null}
+              {raw?.free_trial_available && !isEnrolled ? (
+                <span className="rounded-full bg-accent/10 px-2.5 py-1 text-xs font-bold text-accent">
+                  أول حصة مجانية
+                </span>
+              ) : null}
+              {raw?.low_seats && !isEnrolled ? (
+                <span className="rounded-full bg-warning/10 px-2.5 py-1 text-xs font-bold text-warning">
+                  متاح {raw.seats_left} أماكن فقط
+                </span>
+              ) : null}
               {isFull && !isEnrolled ? (
                 <span className="rounded-full bg-danger/10 px-2.5 py-1 text-xs font-bold text-danger">
                   اكتمل العدد
@@ -178,6 +188,21 @@ export default function StudentSessionDetailsPage({ params }) {
           ) : null}
         </dl>
 
+        {raw?.show_subscription_cta ? (
+          <div className="mt-5 rounded-xl border border-accent/30 bg-accent/5 p-4">
+            <p className="text-sm font-bold text-text">وفّر مع الاشتراك الشهري</p>
+            <p className="mt-1 text-xs text-text-muted">
+              بعد {raw.paid_session_count} حصص مدفوعة، الاشتراك الشهري أوفر من الدفع لكل حصة على حدة.
+            </p>
+            <Link
+              href="/student/subscription"
+              className="mt-3 inline-block text-sm font-bold text-accent hover:underline"
+            >
+              مقارنة خطط Silver و Gold
+            </Link>
+          </div>
+        ) : null}
+
         <div className="mt-6 flex flex-wrap gap-2">
           {canJoinLive ? (
             <Button href={`/student/live/${session.id}`} className="rounded-xl" variant="destructive">
@@ -193,9 +218,26 @@ export default function StudentSessionDetailsPage({ params }) {
           ) : null}
 
           {isEnrolled && !isLive && !isCompleted && !isCancelled ? (
-            <p className="w-full rounded-xl bg-success/10 px-4 py-3 text-sm font-semibold text-success">
-              أنت مسجّل في هذه الجلسة. ستتمكن من الدخول عند بدء المدرس البث المباشر.
-            </p>
+            <>
+              <p className="w-full rounded-xl bg-success/10 px-4 py-3 text-sm font-semibold text-success">
+                أنت مسجّل في هذه الجلسة. ستتمكن من الدخول عند بدء المدرس البث المباشر.
+              </p>
+              <Button
+                variant="outline"
+                className="rounded-xl"
+                onClick={async () => {
+                  if (!confirm("هل تريد إلغاء التسجيل؟")) return;
+                  try {
+                    await sessionsApi.cancelEnrollment(session.id);
+                    await loadSession();
+                  } catch (err) {
+                    alert(err.message || "تعذر الإلغاء");
+                  }
+                }}
+              >
+                إلغاء التسجيل
+              </Button>
+            </>
           ) : null}
 
           {isCompleted ? (
@@ -227,7 +269,17 @@ export default function StudentSessionDetailsPage({ params }) {
       {showPayment ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 sm:items-center">
           <div className="w-full max-w-md animate-in fade-in">
-            <PaymentModal session={session} onClose={() => setShowPayment(false)} />
+            <PaymentModal
+              session={session}
+              checkoutOptions={{
+                free_trial_available: raw?.free_trial_available,
+                active_subscription: raw?.active_subscription,
+                seats_left: raw?.seats_left,
+                low_seats: raw?.low_seats
+              }}
+              onClose={() => setShowPayment(false)}
+              onSuccess={() => loadSession()}
+            />
           </div>
         </div>
       ) : null}

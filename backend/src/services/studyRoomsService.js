@@ -1,4 +1,13 @@
 import { supabase } from "../lib/supabase.js";
+import { isMissingTableError } from "../utils/db-errors.js";
+
+function warnMissingStudyRooms(err) {
+  if (process.env.NODE_ENV !== "production" && isMissingTableError(err)) {
+    console.warn(
+      "[study_rooms] tables missing — run backend/supabase/migrations/20260608_study_rooms.sql in Supabase SQL Editor"
+    );
+  }
+}
 
 export const SUBJECT_LABELS = {
   math: "رياضيات",
@@ -49,7 +58,13 @@ export async function countActiveRoomMembers(roomId) {
     .eq("room_id", roomId)
     .is("left_at", null);
 
-  if (error) throw error;
+  if (error) {
+    if (isMissingTableError(error)) {
+      warnMissingStudyRooms(error);
+      return 0;
+    }
+    throw error;
+  }
   return count || 0;
 }
 
@@ -64,13 +79,24 @@ export async function findOpenStudyRoom(subject, grade) {
     .limit(1)
     .maybeSingle();
 
-  if (error) throw error;
+  if (error) {
+    if (isMissingTableError(error)) return null;
+    throw error;
+  }
   return data;
 }
 
 export async function createStudyRoom(payload) {
   const { data, error } = await supabase.from("study_rooms").insert(payload).select("*").single();
-  if (error) throw error;
+  if (error) {
+    if (isMissingTableError(error)) {
+      throw Object.assign(
+        new Error("غرف المذاكرة غير مفعّلة بعد — نفّذ migration study_rooms في Supabase"),
+        { status: 503 }
+      );
+    }
+    throw error;
+  }
   return data;
 }
 
@@ -108,7 +134,13 @@ export async function findStudentActiveMembership(userId) {
     .limit(1)
     .maybeSingle();
 
-  if (error) throw error;
+  if (error) {
+    if (isMissingTableError(error)) {
+      warnMissingStudyRooms(error);
+      return null;
+    }
+    throw error;
+  }
   if (!data?.room || data.room.status === "closed") return null;
   return data;
 }
@@ -125,7 +157,13 @@ export async function listOpenRooms(grade, subject = null) {
   if (subject) query = query.eq("subject", subject);
 
   const { data, error } = await query;
-  if (error) throw error;
+  if (error) {
+    if (isMissingTableError(error)) {
+      warnMissingStudyRooms(error);
+      return [];
+    }
+    throw error;
+  }
 
   const rooms = data || [];
   const withCounts = await Promise.all(

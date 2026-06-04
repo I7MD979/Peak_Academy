@@ -1,5 +1,6 @@
 import { supabase } from "../lib/supabase.js";
 import { reconcileCompletedTransaction } from "../utils/payments-fulfillment.js";
+import { isMissingTableError } from "../utils/db-errors.js";
 import { SUBJECT_LABELS, GRADE_LABELS, SUBJECT_OPTIONS } from "./studyRoomsService.js";
 
 export { SUBJECT_OPTIONS, SUBJECT_LABELS, GRADE_LABELS };
@@ -27,7 +28,11 @@ export async function getStudentGrade(userId) {
     .eq("user_id", userId)
     .maybeSingle();
 
-  if (error || !student?.grade) return null;
+  if (error) {
+    if (isMissingTableError(error)) return null;
+    throw error;
+  }
+  if (!student?.grade) return null;
   return student.grade;
 }
 
@@ -42,7 +47,10 @@ export async function getQuestionPricing(subject, grade) {
     .limit(1)
     .maybeSingle();
 
-  if (error) throw error;
+  if (error) {
+    if (isMissingTableError(error)) return null;
+    throw error;
+  }
   return data;
 }
 
@@ -55,7 +63,17 @@ export async function getPricingForSubjects(grade) {
     .eq("grade", grade)
     .eq("is_active", true);
 
-  if (error) throw error;
+  if (error) {
+    if (isMissingTableError(error)) {
+      if (process.env.NODE_ENV !== "production") {
+        console.warn(
+          "[question_pricing] table missing — run backend/supabase/migrations/20260606_notifications_question_pricing.sql"
+        );
+      }
+      return {};
+    }
+    throw error;
+  }
 
   const map = {};
   for (const row of data || []) {
@@ -64,18 +82,31 @@ export async function getPricingForSubjects(grade) {
   return map;
 }
 
-export async function getQuestionsOverview(userId) {
-  const grade = await getStudentGrade(userId);
-  const pricingBySubject = await getPricingForSubjects(grade);
-
-  const { data: questions, error } = await supabase
+async function listStudentQuestionRows(userId) {
+  const { data, error } = await supabase
     .from("questions")
     .select("id, status")
     .eq("student_id", userId);
 
-  if (error) throw error;
+  if (error) {
+    if (isMissingTableError(error)) {
+      if (process.env.NODE_ENV !== "production") {
+        console.warn(
+          "[questions] table missing — run backend/supabase/migrations/20260607_questions_table.sql in Supabase SQL Editor"
+        );
+      }
+      return [];
+    }
+    throw error;
+  }
+  return data || [];
+}
 
-  const rows = questions || [];
+export async function getQuestionsOverview(userId) {
+  const grade = await getStudentGrade(userId);
+  const pricingBySubject = await getPricingForSubjects(grade);
+
+  const rows = await listStudentQuestionRows(userId);
   const unanswered = rows.filter((q) => q.status === "unanswered").length;
   const answered = rows.filter((q) => q.status === "answered").length;
 
@@ -118,7 +149,15 @@ export async function listStudentQuestions(userId, { tab = "all", page = 1, limi
   query = query.range(from, to);
 
   const { data, count, error } = await query;
-  if (error) throw error;
+  if (error) {
+    if (isMissingTableError(error)) {
+      return {
+        questions: [],
+        pagination: { total: 0, page: pageNum, limit: limitNum, totalPages: 1 }
+      };
+    }
+    throw error;
+  }
 
   return {
     questions: (data || []).map(mapQuestionRow),

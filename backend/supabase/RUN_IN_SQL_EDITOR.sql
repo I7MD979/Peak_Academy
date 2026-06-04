@@ -137,3 +137,126 @@ create table if not exists public.notifications (
 
 create index if not exists idx_notifications_user_read_created
   on public.notifications(user_id, is_read, created_at desc);
+
+create table if not exists public.question_pricing (
+  id uuid primary key default gen_random_uuid(),
+  subject text not null,
+  grade text not null check (grade in ('first', 'second', 'third')),
+  amount numeric(10,2) not null check (amount >= 0),
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  unique (subject, grade)
+);
+
+create index if not exists idx_question_pricing_subject_grade
+  on public.question_pricing(subject, grade);
+
+create table if not exists public.questions (
+  id text primary key,
+  student_id uuid not null references public.users(id) on delete cascade,
+  teacher_id uuid references public.users(id) on delete set null,
+  subject text not null,
+  content text not null,
+  answer text,
+  status text not null default 'unanswered' check (status in ('unanswered', 'answered')),
+  created_at timestamptz not null default now(),
+  answered_at timestamptz
+);
+
+create index if not exists idx_questions_status_subject on public.questions(status, subject);
+create index if not exists idx_questions_student_created on public.questions(student_id, created_at desc);
+
+create table if not exists public.study_rooms (
+  id text primary key,
+  subject text not null,
+  grade text not null check (grade in ('first', 'second', 'third')),
+  status text not null default 'open' check (status in ('open', 'active', 'closed')),
+  capacity int not null default 6 check (capacity between 2 and 12),
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.study_room_members (
+  id text primary key,
+  room_id text not null references public.study_rooms(id) on delete cascade,
+  user_id uuid not null references public.users(id) on delete cascade,
+  joined_at timestamptz not null default now(),
+  left_at timestamptz,
+  unique(room_id, user_id, joined_at)
+);
+
+create index if not exists idx_study_rooms_status_subject on public.study_rooms(status, subject);
+create index if not exists idx_study_room_members_room on public.study_room_members(room_id) where left_at is null;
+
+-- Payments & promotions (20260605)
+create table if not exists public.subscription_plans (
+  id uuid primary key default gen_random_uuid(),
+  name text not null unique,
+  price numeric(10,2) not null,
+  sessions_per_month int not null,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+insert into public.subscription_plans (name, price, sessions_per_month)
+values ('silver', 299, 4), ('gold', 499, 10) on conflict (name) do nothing;
+
+create table if not exists public.student_subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  student_id uuid not null references public.users(id) on delete cascade,
+  plan_id uuid not null references public.subscription_plans(id),
+  status text not null default 'active',
+  sessions_remaining int not null default 0,
+  current_period_start timestamptz not null,
+  current_period_end timestamptz not null,
+  paymob_subscription_id text,
+  cancelled_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.free_trial_uses (
+  student_id uuid not null references public.users(id) on delete cascade,
+  teacher_id uuid not null references public.users(id) on delete cascade,
+  subject_id uuid not null references public.subjects(id) on delete cascade,
+  used_at timestamptz not null default now(),
+  session_id text references public.sessions(id) on delete set null,
+  primary key (student_id, teacher_id, subject_id)
+);
+
+create table if not exists public.promotions (
+  id uuid primary key default gen_random_uuid(),
+  code text not null unique,
+  type text not null,
+  discount_type text not null,
+  discount_value numeric(10,2) not null,
+  min_sessions int not null default 1,
+  bonus_sessions int not null default 0,
+  max_uses int,
+  used_count int not null default 0,
+  per_user_limit int not null default 1,
+  applies_to text not null default 'all',
+  expires_at timestamptz,
+  is_active boolean not null default true,
+  created_by uuid references public.users(id),
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.promotion_uses (
+  id uuid primary key default gen_random_uuid(),
+  promotion_id uuid not null references public.promotions(id) on delete cascade,
+  user_id uuid not null references public.users(id) on delete cascade,
+  enrollment_id text references public.session_enrollments(id) on delete set null,
+  discount_applied numeric(10,2) not null default 0,
+  used_at timestamptz not null default now()
+);
+
+create table if not exists public.referral_codes (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null unique references public.users(id) on delete cascade,
+  code text not null unique,
+  total_referrals int not null default 0,
+  earned_sessions int not null default 0,
+  created_at timestamptz not null default now()
+);
+
+alter table public.transactions add column if not exists promotion_id uuid references public.promotions(id);
+alter table public.transactions add column if not exists discount_amount numeric(10,2) not null default 0;
+alter table public.transactions add column if not exists original_amount numeric(10,2);

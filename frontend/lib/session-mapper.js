@@ -30,6 +30,9 @@ export function mapSessionForCard(session, options = {}) {
       maxStudents > 0
         ? `${enrollmentCount.toLocaleString("ar-EG")}/${maxStudents.toLocaleString("ar-EG")} طالب`
         : `${enrollmentCount.toLocaleString("ar-EG")} طالب`,
-    is_full: maxStudents > 0 && enrollmentCount >= maxStudents
+    is_full: maxStudents > 0 && enrollmentCount >= maxStudents,
+    free_trial_available: session.free_trial_available,
+    low_seats: session.low_seats,
+    seats_left: session.seats_left
   };
 }

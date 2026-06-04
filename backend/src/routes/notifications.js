@@ -63,7 +63,8 @@ router.get("/", auth, async (req, res) => {
     const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
     const data = await listUserNotifications(req.user.id, { limit });
     return success(res, data);
-  } catch (_err) {
+  } catch (err) {
+    if (process.env.NODE_ENV !== "production") console.error("GET /notifications", err);
     return error(res, "تعذر تحميل الإشعارات", 500);
   }
 });

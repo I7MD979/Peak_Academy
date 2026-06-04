@@ -5,17 +5,57 @@ import { supabase } from "../lib/supabase.js";
 import { paginate, paginationMeta } from "../utils/paginate.js";
 import { success, error, paginated } from "../utils/response.js";
 import { verifyPaymobHmac } from "../utils/paymob-hmac.js";
-import { fulfillCompletedTransaction } from "../utils/payments-fulfillment.js";
+import { fulfillCompletedTransaction, markTransactionFailed } from "../utils/payments-fulfillment.js";
 import { resolveTransactionFulfillment } from "../utils/transaction-status.js";
+import { validatePromoCode, calculateDiscount } from "../utils/promoValidator.js";
+import { getSessionForEnroll, computeSessionCheckout } from "../services/enrollmentService.js";
 
 const router = Router();
 
+router.post("/validate-promo", auth, async (req, res) => {
+  try {
+    const { code, session_id, payment_type = "pay_per_session", plan_id } = req.body;
+    if (!code) return error(res, "أدخل كود الخصم", 400);
+
+    let originalPrice = 0;
+    if (payment_type === "subscription" && plan_id) {
+      const { data: plan } = await supabase
+        .from("subscription_plans")
+        .select("price")
+        .eq("id", plan_id)
+        .maybeSingle();
+      originalPrice = Number(plan?.price || 0);
+    } else if (session_id) {
+      const session = await getSessionForEnroll(session_id);
+      originalPrice = Number(session?.price_per_student || 0);
+    }
+
+    const validation = await validatePromoCode(code, req.user.id, payment_type);
+    if (!validation.valid) {
+      return success(res, { valid: false, reason: validation.reason });
+    }
+
+    const discountAmount = calculateDiscount(originalPrice, validation);
+    const finalPrice = Math.max(0, originalPrice - discountAmount);
+
+    return success(res, {
+      valid: true,
+      promotion_id: validation.id,
+      code: validation.code,
+      discount_type: validation.discount_type,
+      original_price: originalPrice,
+      discount_amount: discountAmount,
+      final_price: finalPrice
+    });
+  } catch (err) {
+    return error(res, err.message || "فشل التحقق من الكود", 500);
+  }
+});
+
 router.post("/initiate", auth, async (req, res) => {
   try {
-    const { amount, session_id, type = "session_payment", subject, content, grade } = req.body;
-    if (!amount || Number(amount) <= 0) {
-      return error(res, "المبلغ غير صالح", 400);
-    }
+    const { amount, session_id, type = "session_payment", subject, content, grade, promo_code } = req.body;
+
     if (type === "session_payment" && !session_id) {
       return error(res, "معرّف الجلسة مطلوب للدفع", 400);
     }
@@ -25,17 +65,29 @@ router.post("/initiate", auth, async (req, res) => {
       }
     }
 
-    if (type === "session_payment") {
-      const { data: session } = await supabase
-        .from("sessions")
-        .select("id, status, max_students")
-        .eq("id", session_id)
-        .maybeSingle();
+    let finalAmount = Number(amount);
+    let originalAmount = finalAmount;
+    let discountAmount = 0;
+    let promotionId = null;
 
+    if (type === "session_payment") {
+      const session = await getSessionForEnroll(session_id);
       if (!session) return error(res, "الجلسة غير موجودة", 404);
       if (session.status !== "scheduled") {
         return error(res, "لا يمكن الدفع لجلسة غير متاحة للحجز", 400);
       }
+
+      const checkout = await computeSessionCheckout(session, {
+        promoCode: promo_code,
+        userId: req.user.id,
+        paymentType: "pay_per_session"
+      });
+      if (checkout.error) return error(res, checkout.error, 400);
+
+      finalAmount = checkout.finalPrice;
+      originalAmount = checkout.originalPrice;
+      discountAmount = checkout.discountAmount;
+      promotionId = checkout.promotionId;
 
       const { data: student } = await supabase
         .from("student_profiles")
@@ -55,16 +107,12 @@ router.post("/initiate", auth, async (req, res) => {
           return error(res, "أنت مسجّل في هذه الجلسة بالفعل", 400);
         }
 
-        const { count: enrolledCount } = await supabase
-          .from("session_enrollments")
-          .select("*", { count: "exact", head: true })
-          .eq("session_id", session_id)
-          .in("status", ["enrolled", "attended"]);
-
-        if (session.max_students > 0 && enrolledCount >= session.max_students) {
+        if (session.max_students > 0 && session.enrolled_count >= session.max_students) {
           return error(res, "اكتمل عدد مقاعد الجلسة", 400);
         }
       }
+    } else if (!finalAmount || finalAmount <= 0) {
+      return error(res, "المبلغ غير صالح", 400);
     }
 
     let metadata = { session_id: session_id || null };
@@ -82,7 +130,7 @@ router.post("/initiate", auth, async (req, res) => {
       };
     }
 
-    const amountCents = Math.round(Number(amount) * 100);
+    const amountCents = Math.round(finalAmount * 100);
     const frontendUrl = (process.env.FRONTEND_URL || "http://localhost:3000").replace(/\/$/, "");
     let returnUrl = `${frontendUrl}/student/sessions`;
     if (type === "session_payment" && session_id) {
@@ -97,7 +145,10 @@ router.post("/initiate", auth, async (req, res) => {
       id: transactionId,
       user_id: req.user.id,
       type,
-      amount: Number(amount),
+      amount: finalAmount,
+      original_amount: originalAmount,
+      discount_amount: discountAmount,
+      promotion_id: promotionId,
       paymob_order_id: orderId,
       status: "pending",
       metadata
@@ -107,7 +158,10 @@ router.post("/initiate", auth, async (req, res) => {
     return success(res, {
       checkout_url: checkoutUrl,
       order_id: orderId,
-      transaction_id: transactionId
+      transaction_id: transactionId,
+      original_amount: originalAmount,
+      discount_amount: discountAmount,
+      final_amount: finalAmount
     });
   } catch (err) {
     return error(res, err.message || "Failed to initiate payment", 500);
@@ -123,10 +177,6 @@ router.post("/webhook", async (req, res) => {
       return error(res, "Invalid HMAC", 401);
     }
 
-    if (!obj?.success) {
-      return success(res, { received: true, processed: false });
-    }
-
     const orderId = String(obj.order?.id ?? "");
     const paymobTxnId = String(obj.id ?? "");
 
@@ -140,8 +190,17 @@ router.post("/webhook", async (req, res) => {
       return success(res, { received: true, processed: false });
     }
 
+    if (transaction.status !== "pending") {
+      return success(res, { received: true, processed: true, ok: true });
+    }
+
+    if (!obj?.success) {
+      await markTransactionFailed(transaction);
+      return success(res, { received: true, processed: true, ok: true });
+    }
+
     await fulfillCompletedTransaction(transaction, paymobTxnId);
-    return success(res, { received: true, processed: true });
+    return success(res, { received: true, processed: true, ok: true });
   } catch (_err) {
     return error(res, "Webhook error", 500);
   }
@@ -160,12 +219,15 @@ router.get("/transactions/:id/status", auth, async (req, res) => {
       return error(res, "المعاملة غير موجودة", 404);
     }
 
-    const { enrolled, question_created: questionCreated } = await resolveTransactionFulfillment(
-      transaction,
-      req.user.id
-    );
+    const { enrolled, question_created: questionCreated, subscription_activated } =
+      await resolveTransactionFulfillment(transaction, req.user.id);
 
-    return success(res, { transaction, enrolled, question_created: questionCreated });
+    return success(res, {
+      transaction,
+      enrolled,
+      question_created: questionCreated,
+      subscription_activated
+    });
   } catch (_err) {
     return error(res, "Failed to fetch transaction status", 500);
   }

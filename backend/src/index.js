@@ -3,6 +3,7 @@ import app, { API_VERSION } from "./app.js";
 import { initSentry } from "./lib/sentry.js";
 import { startWorkers, shutdownWorkers } from "./lib/queue.js";
 import { getCacheMode } from "./lib/cache.js";
+import { startSubscriptionResetScheduler } from "./services/subscriptionScheduler.js";
 
 const PORT = process.env.PORT || 4000;
 
@@ -32,6 +33,7 @@ server.keepAliveTimeout = 65000;
 server.headersTimeout = 66000;
 
 await startWorkers();
+startSubscriptionResetScheduler();
 
 async function shutdown(signal) {
   console.log(`${signal} received — shutting down`);

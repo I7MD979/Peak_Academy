@@ -1,5 +1,14 @@
 import { supabase } from "../lib/supabase.js";
 import { publishNotification } from "./notificationHub.js";
+import { isMissingTableError } from "../utils/db-errors.js";
+
+function warnMissingNotifications(err) {
+  if (process.env.NODE_ENV !== "production" && isMissingTableError(err)) {
+    console.warn(
+      "[notifications] table missing — run backend/supabase/migrations/20260606_notifications_question_pricing.sql in Supabase SQL Editor"
+    );
+  }
+}
 
 export async function createUserNotification({ userId, type, title, body, data = null }) {
   const row = {
@@ -27,7 +36,13 @@ export async function listUserNotifications(userId, { limit = 50 } = {}) {
     .order("created_at", { ascending: false })
     .limit(limit);
 
-  if (error) throw error;
+  if (error) {
+    if (isMissingTableError(error)) {
+      warnMissingNotifications(error);
+      return [];
+    }
+    throw error;
+  }
   return data || [];
 }
 
@@ -38,7 +53,13 @@ export async function countUnreadNotifications(userId) {
     .eq("user_id", userId)
     .eq("is_read", false);
 
-  if (error) throw error;
+  if (error) {
+    if (isMissingTableError(error)) {
+      warnMissingNotifications(error);
+      return 0;
+    }
+    throw error;
+  }
   return count || 0;
 }
 

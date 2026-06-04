@@ -4,7 +4,8 @@ export const ADMIN_NAV_MAIN = [
   { href: "/admin/users", label: "المستخدمون", icon: "users" },
   { href: "/admin/sessions", label: "الجلسات", icon: "video" },
   { href: "/admin/withdrawals", label: "طلبات السحب", icon: "creditCard" },
-  { href: "/admin/reports", label: "التقارير", icon: "barChart" }
+  { href: "/admin/reports", label: "التقارير", icon: "barChart" },
+  { href: "/admin/promotions", label: "العروض والخصومات", icon: "tag" }
 ];
 
 export const ADMIN_NAV_ACCOUNT = [

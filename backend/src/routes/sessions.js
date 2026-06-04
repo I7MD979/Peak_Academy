@@ -13,6 +13,22 @@ import { incrementAttendeeStreaks, recordSessionEarnings } from "../utils/sessio
 import { getSessionStartAvailability } from "../utils/session-start.js";
 import { reconcileCompletedTransaction } from "../utils/payments-fulfillment.js";
 import { CACHE, withCache, invalidateSessionCaches } from "../lib/cache.js";
+import {
+  getSessionForEnroll,
+  getStudentProfileId,
+  checkExistingEnrollment,
+  checkFreeTrialUsed,
+  resolveSessionSubjectId,
+  getActiveSubscription,
+  deductSubscriptionSession,
+  computeSessionCheckout,
+  createSessionPaymentCheckout,
+  finalizeFreeOrPromoEnrollment,
+  notifyEnrollmentConfirm,
+  confirmEnrollment
+} from "../services/enrollmentService.js";
+import { cancelStudentEnrollment } from "../services/refundService.js";
+import { refundAllSessionEnrollments } from "../services/refundService.js";
 
 const createSessionSchema = z.object({
   title: z.string().min(3, "عنوان الجلسة قصير جداً").max(200),
@@ -285,64 +301,147 @@ router.post("/", auth, checkRole("teacher"), async (req, res) => {
 
 router.post("/:id/enroll", auth, checkRole("student"), async (req, res) => {
   try {
-    const { payment_id } = req.body;
-    if (!payment_id) return error(res, "payment_id is required", 400);
+    const { payment_id, payment_type, promo_code } = req.body;
+    const sessionId = req.params.id;
 
-    const { data: student } = await supabase
-      .from("student_profiles")
-      .select("id")
-      .eq("user_id", req.user.id)
-      .maybeSingle();
-    if (!student) return error(res, "Student profile not found", 404);
+    const studentProfileId = await getStudentProfileId(req.user.id);
+    if (!studentProfileId) return error(res, "ملف الطالب غير موجود", 404);
 
-    const { data: payment } = await supabase
-      .from("transactions")
-      .select("*")
-      .eq("id", payment_id)
-      .eq("user_id", req.user.id)
-      .maybeSingle();
+    const session = await getSessionForEnroll(sessionId);
+    if (!session) return error(res, "الجلسة غير موجودة", 404);
+    if (session.status !== "scheduled") {
+      return error(res, "لا يمكن التسجيل في جلسة غير متاحة", 400);
+    }
+    if (session.max_students > 0 && session.enrolled_count >= session.max_students) {
+      return error(res, "الحصة ممتلئة", 400);
+    }
 
-    if (!payment) return error(res, "Payment not found", 404);
+    const existing = await checkExistingEnrollment(studentProfileId, sessionId);
+    if (existing) {
+      return success(res, { enrollment: existing, checkout_url: null }, "مسجل بالفعل", 200);
+    }
 
-    if (payment.status !== "completed") {
-      const { data: existingEnrollment } = await supabase
-        .from("session_enrollments")
+    if (payment_id) {
+      const { data: payment } = await supabase
+        .from("transactions")
         .select("*")
-        .eq("session_id", req.params.id)
-        .eq("student_id", student.id)
+        .eq("id", payment_id)
+        .eq("user_id", req.user.id)
         .maybeSingle();
 
-      if (existingEnrollment) {
-        return success(res, existingEnrollment, "Enrolled successfully", 200);
+      if (!payment) return error(res, "عملية الدفع غير موجودة", 404);
+
+      if (payment.status !== "completed") {
+        if (existing) return success(res, { enrollment: existing, checkout_url: null }, "مسجل بالفعل", 200);
+        return error(res, "لم يكتمل الدفع بعد", 400);
+      }
+      if (payment.metadata?.session_id !== sessionId) {
+        return error(res, "عملية الدفع لا تطابق هذه الجلسة", 400);
       }
 
-      return error(res, "Payment not completed", 400);
-    }
-    if (payment.metadata?.session_id !== req.params.id) {
-      return error(res, "Payment does not match this session", 400);
-    }
-
-    const result = await reconcileCompletedTransaction(payment);
-    if (!result.enrolled && !result.duplicate) {
-      if (result.reason === "session_full") {
-        return error(res, "Session is full", 400);
+      const result = await reconcileCompletedTransaction(payment);
+      if (!result.enrolled && !result.duplicate) {
+        if (result.reason === "session_full") return error(res, "الحصة ممتلئة", 400);
+        return error(res, "فشل التسجيل", 400);
       }
-      return error(res, "Enrollment failed", 400);
+
+      const { data: enrollment } = await supabase
+        .from("session_enrollments")
+        .select("*")
+        .eq("session_id", sessionId)
+        .eq("student_id", studentProfileId)
+        .maybeSingle();
+
+      return success(res, { enrollment, checkout_url: null }, "تم التسجيل", 201);
     }
 
-    const { data: enrollment } = await supabase
-      .from("session_enrollments")
-      .select("*")
-      .eq("session_id", req.params.id)
-      .eq("student_id", student.id)
-      .maybeSingle();
+    const type = payment_type || "pay_per_session";
+    const subjectId = await resolveSessionSubjectId(session);
+    const frontendUrl = (process.env.FRONTEND_URL || "http://localhost:3000").replace(/\/$/, "");
 
-    if (!enrollment) return error(res, "Enrollment record missing", 500);
+    if (type === "free_trial") {
+      if (!subjectId) {
+        return error(res, "لا يمكن استخدام الحصة المجانية لهذه الجلسة", 400);
+      }
+      const trialUsed = await checkFreeTrialUsed(req.user.id, session.teacher_id, subjectId);
+      if (trialUsed) {
+        return error(res, "استخدمت الحصة المجانية مع هذا المدرس", 400);
+      }
+      const enrollment = await finalizeFreeOrPromoEnrollment({
+        userId: req.user.id,
+        studentProfileId,
+        session,
+        subjectId,
+        paymentType: "free_trial",
+        promotionId: null,
+        discountAmount: 0
+      });
+      return success(res, { enrollment, checkout_url: null }, "تم التسجيل", 201);
+    }
 
-    await invalidateSessionCaches(req.params.id);
-    return success(res, enrollment, "Enrolled successfully", 201);
+    if (type === "subscription") {
+      const sub = await getActiveSubscription(req.user.id);
+      if (!sub || sub.sessions_remaining <= 0) {
+        return error(res, "اشتراكك انتهت حصصه", 400);
+      }
+      await deductSubscriptionSession(sub.id);
+      const enrollment = await confirmEnrollment({
+        studentProfileId,
+        sessionId,
+        paymentId: null
+      });
+      await notifyEnrollmentConfirm(req.user.id, sessionId);
+      return success(res, { enrollment, checkout_url: null }, "تم التسجيل", 201);
+    }
+
+    const checkout = await computeSessionCheckout(session, {
+      promoCode: promo_code,
+      userId: req.user.id,
+      paymentType: "pay_per_session"
+    });
+    if (checkout.error) return error(res, checkout.error, 400);
+
+    if (checkout.finalPrice <= 0) {
+      const enrollment = await finalizeFreeOrPromoEnrollment({
+        userId: req.user.id,
+        studentProfileId,
+        session,
+        subjectId,
+        paymentType: "pay_per_session",
+        promotionId: checkout.promotionId,
+        discountAmount: checkout.discountAmount
+      });
+      return success(res, { enrollment, checkout_url: null }, "تم التسجيل", 201);
+    }
+
+    const pay = await createSessionPaymentCheckout({
+      user: req.user,
+      session,
+      finalPrice: checkout.finalPrice,
+      originalPrice: checkout.originalPrice,
+      discountAmount: checkout.discountAmount,
+      promotionId: checkout.promotionId,
+      frontendUrl
+    });
+
+    return success(res, {
+      enrollment: null,
+      checkout_url: pay.checkout_url,
+      transaction_id: pay.transaction_id
+    });
   } catch (err) {
+    if (err.code === "session_full") return error(res, "الحصة ممتلئة", 400);
     return handleRouteError(res, err, "Failed to enroll");
+  }
+});
+
+router.post("/:id/cancel-enrollment", auth, checkRole("student"), async (req, res) => {
+  try {
+    const result = await cancelStudentEnrollment(req.user.id, req.params.id);
+    await invalidateSessionCaches(req.params.id);
+    return success(res, result, "تم إلغاء التسجيل");
+  } catch (err) {
+    return error(res, err.message || "تعذر إلغاء التسجيل", 400);
   }
 });
 
@@ -438,8 +537,10 @@ router.patch("/:id/cancel", auth, checkRole("teacher", "admin"), async (req, res
       .eq("id", req.params.id);
 
     if (updateError) throw updateError;
+
+    const refundResult = await refundAllSessionEnrollments(req.params.id);
     await invalidateSessionCaches(req.params.id);
-    return success(res, null, "تم إلغاء الجلسة");
+    return success(res, { refunds: refundResult.refunds }, "تم إلغاء الجلسة");
   } catch (err) {
     return handleRouteError(res, err, "تعذر إلغاء الجلسة");
   }

@@ -108,23 +108,31 @@ export const sessionsApi = {
       method: "POST",
       body: JSON.stringify(body)
     }),
-  enroll: (sessionId, paymentId) =>
+  enroll: (sessionId, body = {}) =>
     apiRequest(`/sessions/${sessionId}/enroll`, {
       method: "POST",
-      body: JSON.stringify({ payment_id: paymentId })
+      body: JSON.stringify(body)
     }),
+  cancelEnrollment: (sessionId) =>
+    apiRequest(`/sessions/${sessionId}/cancel-enrollment`, { method: "POST" }),
   getRoom: (sessionId) => apiRequest(`/sessions/${sessionId}/room`),
   getEnrollments: (sessionId) => apiRequest(`/sessions/${sessionId}/enrollments`)
 };
 
 export const paymentsApi = {
-  initiate: (amount, sessionId) =>
+  validatePromo: ({ code, session_id, payment_type = "pay_per_session", plan_id }) =>
+    apiRequest("/payments/validate-promo", {
+      method: "POST",
+      body: JSON.stringify({ code, session_id, payment_type, plan_id })
+    }),
+  initiate: (amount, sessionId, promoCode) =>
     apiRequest("/payments/initiate", {
       method: "POST",
       body: JSON.stringify({
         amount: Number(amount),
         session_id: sessionId,
-        type: "session_payment"
+        type: "session_payment",
+        promo_code: promoCode || undefined
       })
     }),
   initiateQuestion: (amount, { subject, content, grade }) =>
@@ -147,7 +155,32 @@ export const studentApi = {
   profile: () => apiRequest("/student/profile"),
   updateProfile: (body) => authApi.updateProfile(body),
   sessions: (query = "") => apiRequest(`/student/sessions${query ? `?${query}` : ""}`),
-  session: (id) => apiRequest(`/student/sessions/${id}`)
+  session: (id) => apiRequest(`/student/sessions/${id}`),
+  enrollmentOptions: (sessionId) =>
+    apiRequest(`/student/enrollment-options?session_id=${encodeURIComponent(sessionId)}`)
+};
+
+export const subscriptionsApi = {
+  plans: () => apiRequest("/subscriptions/plans"),
+  me: () => apiRequest("/subscriptions/me"),
+  purchase: (planId, promoCode) =>
+    apiRequest("/subscriptions/purchase", {
+      method: "POST",
+      body: JSON.stringify({ plan_id: planId, promo_code: promoCode || undefined })
+    })
+};
+
+export const adminPromotionsApi = {
+  list: (query = "") => apiRequest(`/admin/promotions${query ? `?${query}` : ""}`),
+  create: (body) =>
+    apiRequest("/admin/promotions", { method: "POST", body: JSON.stringify(body) }),
+  update: (id, body) =>
+    apiRequest(`/admin/promotions/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  remove: (id) => apiRequest(`/admin/promotions/${id}`, { method: "DELETE" }),
+  uses: (id) => apiRequest(`/admin/promotions/${id}/uses`),
+  stats: () => apiRequest("/admin/promotions/stats"),
+  activateEarlyBird: (body) =>
+    apiRequest("/admin/early-bird/activate", { method: "POST", body: JSON.stringify(body) })
 };
 
 export const questionsApi = {

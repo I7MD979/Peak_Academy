@@ -11,6 +11,8 @@ import earningRoutes from "./routes/earnings.js";
 import questionRoutes from "./routes/questions.js";
 import parentRoutes from "./routes/parent.js";
 import adminRoutes from "./routes/admin.js";
+import adminPromotionsRoutes from "./routes/adminPromotions.js";
+import subscriptionRoutes from "./routes/subscriptions.js";
 import notificationRoutes from "./routes/notifications.js";
 import studentRoutes from "./routes/student.js";
 import studyRoomsRoutes from "./routes/studyRooms.js";
@@ -48,7 +50,23 @@ app.get("/api/health", (_req, res) => {
 app.get("/api/diag", async (_req, res) => {
   const { supabase } = await import("./lib/supabase.js");
   const { getCacheMode } = await import("./lib/cache.js");
-  const tables = ["users", "sessions", "session_enrollments", "withdrawal_requests", "teacher_profiles"];
+  const tables = [
+    "users",
+    "sessions",
+    "session_enrollments",
+    "withdrawal_requests",
+    "teacher_profiles",
+    "subscription_plans",
+    "student_subscriptions",
+    "promotions",
+    "free_trial_uses",
+    "referral_codes",
+    "notifications",
+    "question_pricing",
+    "questions",
+    "study_rooms",
+    "study_room_members"
+  ];
   const checks = {};
 
   for (const table of tables) {
@@ -79,6 +97,8 @@ app.use("/api/earnings", earningRoutes);
 app.use("/api/questions", questionRoutes);
 app.use("/api/parent", parentRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/admin", adminPromotionsRoutes);
+app.use("/api/subscriptions", subscriptionRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/student", studentRoutes);
 app.use("/api/study-rooms", studyRoomsRoutes);

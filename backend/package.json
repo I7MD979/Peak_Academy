@@ -14,7 +14,8 @@
     "worker": "node src/index.js",
     "test": "node --test tests/integration.test.js",
     "lint": "node -e \"console.log('No linter configured yet')\"",
-    "seed:auth": "node scripts/seed-auth-users.mjs"
+    "seed:auth": "node scripts/seed-auth-users.mjs",
+    "migrate:payments": "node scripts/apply-payments-migration.mjs"
   },
   "keywords": [],
   "author": "",
@@ -36,6 +37,7 @@
   },
   "devDependencies": {
     "nodemon": "^3.1.14",
+    "pg": "^8.21.0",
     "supertest": "^7.2.2"
   }
 }

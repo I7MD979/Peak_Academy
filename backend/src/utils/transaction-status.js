@@ -13,8 +13,19 @@ export async function resolveTransactionFulfillment(transaction, userId) {
     const result = await reconcileCompletedTransaction(transaction);
     return {
       enrolled: Boolean(result.enrolled),
-      question_created: Boolean(result.question_created)
+      question_created: Boolean(result.question_created),
+      subscription_activated: Boolean(result.subscription_activated)
     };
+  }
+
+  if (transaction.type === "subscription_payment" && transaction.status === "completed") {
+    const { data: sub } = await supabase
+      .from("student_subscriptions")
+      .select("id")
+      .eq("student_id", userId)
+      .eq("status", "active")
+      .maybeSingle();
+    return { enrolled: false, question_created: false, subscription_activated: Boolean(sub) };
   }
 
   if (transaction.type === "session_payment") {

@@ -32,7 +32,8 @@ router.get("/", auth, checkRole("student"), async (req, res) => {
 
     const overview = await getStudyRoomsOverview(req.user.id, grade);
     return success(res, { grade, ...overview });
-  } catch (_err) {
+  } catch (err) {
+    if (process.env.NODE_ENV !== "production") console.error("GET /study-rooms", err);
     return error(res, "تعذر تحميل غرف المذاكرة", 500);
   }
 });

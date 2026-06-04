@@ -29,7 +29,8 @@ router.get("/overview", auth, checkRole("student"), async (req, res) => {
       return error(res, "أكمل صفك الدراسي في الملف الشخصي لإرسال الأسئلة", 400);
     }
     return success(res, overview);
-  } catch (_err) {
+  } catch (err) {
+    if (process.env.NODE_ENV !== "production") console.error("GET /questions/overview", err);
     return error(res, "تعذر تحميل صفحة الأسئلة", 500);
   }
 });
