@@ -1,3 +1,17 @@
+export function normalizeSessionStatus(status) {
+  return String(status || "")
+    .trim()
+    .toLowerCase();
+}
+
+export function isLiveSession(session) {
+  return normalizeSessionStatus(session?.status) === "live";
+}
+
+export function isScheduledSession(session) {
+  return normalizeSessionStatus(session?.status) === "scheduled";
+}
+
 export const gradeLabels = {
   first: "الأول الثانوي",
   second: "الثاني الثانوي",
@@ -25,7 +39,7 @@ export function getSubjectLabel(session) {
 
 /** يحدد إمكانية بدء جلسة مجدولة (قبل الموعد بـ 30 دقيقة وبعده بـ 15 دقيقة كحد أقصى). */
 export function getStartAvailability(session) {
-  if (session?.status !== "scheduled") {
+  if (!isScheduledSession(session)) {
     return { canStart: false, reason: "" };
   }
 

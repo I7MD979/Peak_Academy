@@ -21,8 +21,8 @@ export default function DataTable({ columns, data, loading, emptyMessage, emptyD
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-border bg-card">
-      <table className="w-full text-sm">
+    <div className="overflow-x-auto rounded-2xl border border-border bg-card">
+      <table className="w-full min-w-[900px] text-sm">
         <thead className="border-b border-border bg-bg">
           <tr>
             {columns.map((col) => (
@@ -42,7 +42,13 @@ export default function DataTable({ columns, data, loading, emptyMessage, emptyD
               )}
             >
               {columns.map((col) => (
-                <td key={col.key} className="px-4 py-3 text-text">
+                <td
+                  key={col.key}
+                  className={cn(
+                    "px-4 py-3 text-text",
+                    col.key === "actions" && "min-w-[300px] whitespace-nowrap"
+                  )}
+                >
                   {col.render ? col.render(row) : row[col.key]}
                 </td>
               ))}

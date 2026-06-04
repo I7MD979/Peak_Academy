@@ -15,7 +15,9 @@ import {
   getEnrollmentCount,
   getStartAvailability,
   getSubjectLabel,
-  gradeLabels
+  gradeLabels,
+  isLiveSession,
+  isScheduledSession
 } from "@/lib/teacher-sessions";
 import { cn } from "@/lib/utils";
 
@@ -27,13 +29,76 @@ const statusTabs = [
   { key: "cancelled", label: "ملغاة" }
 ];
 
+function SessionRowActions({
+  session,
+  actionId,
+  onDetails,
+  onStart,
+  onEnd,
+  onCancel,
+  onJoin
+}) {
+  const startInfo = getStartAvailability(session);
+  const busyStart = actionId === `start-${session.id}`;
+  const busyEnd = actionId === `end-${session.id}`;
+  const busyCancel = actionId === `cancel-${session.id}`;
+
+  return (
+    <div className="flex flex-nowrap items-center gap-2">
+      <Button type="button" size="sm" variant="outline" onClick={() => onDetails(session)}>
+        التفاصيل
+      </Button>
+
+      {isLiveSession(session) ? (
+        <>
+          <Button type="button" size="sm" onClick={() => onJoin(session.id)}>
+            دخول البث
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="destructive"
+            disabled={busyEnd}
+            onClick={() => onEnd(session.id)}
+          >
+            {busyEnd ? "جارٍ..." : "إنهاء وحذف"}
+          </Button>
+        </>
+      ) : null}
+
+      {isScheduledSession(session) ? (
+        <>
+          <Button
+            type="button"
+            size="sm"
+            disabled={!startInfo.canStart || busyStart}
+            title={startInfo.reason || undefined}
+            onClick={() => onStart(session.id)}
+          >
+            {busyStart ? "جارٍ..." : "بدء"}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="destructive"
+            disabled={busyCancel}
+            onClick={() => onCancel(session)}
+          >
+            {busyCancel ? "جارٍ..." : "إلغاء وحذف"}
+          </Button>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
 function SessionCard({ session, onDetails, onStart, onEnd, onCancel, onJoin, actionId }) {
   const enrolled = getEnrollmentCount(session);
   const max = session.max_students || 0;
   const full = max > 0 && enrolled >= max;
   const startInfo = getStartAvailability(session);
-  const isLive = session.status === "live";
-  const isScheduled = session.status === "scheduled";
+  const isLive = isLiveSession(session);
+  const isScheduled = isScheduledSession(session);
   const busyStart = actionId === `start-${session.id}`;
   const busyEnd = actionId === `end-${session.id}`;
   const busyCancel = actionId === `cancel-${session.id}`;
@@ -100,7 +165,7 @@ function SessionCard({ session, onDetails, onStart, onEnd, onCancel, onJoin, act
               disabled={busyEnd}
               onClick={() => onEnd(session.id)}
             >
-              {busyEnd ? "جارٍ..." : "إنهاء الجلسة"}
+              {busyEnd ? "جارٍ..." : "إنهاء وحذف"}
             </Button>
           </>
         ) : null}
@@ -122,7 +187,7 @@ function SessionCard({ session, onDetails, onStart, onEnd, onCancel, onJoin, act
               disabled={busyCancel}
               onClick={() => onCancel(session)}
             >
-              {busyCancel ? "جارٍ..." : "إلغاء"}
+              {busyCancel ? "جارٍ..." : "إلغاء وحذف"}
             </Button>
           </>
         ) : null}
@@ -360,60 +425,17 @@ export default function TeacherSessionsPage() {
       {
         key: "actions",
         label: "الإجراءات",
-        render: (row) => {
-          const startInfo = getStartAvailability(row);
-          const busyStart = actionId === `start-${row.id}`;
-          const busyEnd = actionId === `end-${row.id}`;
-          const busyCancel = actionId === `cancel-${row.id}`;
-
-          return (
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" size="sm" variant="outline" onClick={() => setSelectedSession(row)}>
-                التفاصيل
-              </Button>
-
-              {row.status === "live" ? (
-                <>
-                  <Button href={`/teacher/live/${row.id}`} type="button" size="sm">
-                    دخول البث
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="bg-destructive text-white hover:bg-destructive/90"
-                    disabled={busyEnd}
-                    onClick={() => handleEnd(row.id)}
-                  >
-                    {busyEnd ? "جارٍ..." : "إنهاء"}
-                  </Button>
-                </>
-              ) : null}
-
-              {row.status === "scheduled" ? (
-                <>
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={!startInfo.canStart || busyStart}
-                    title={startInfo.reason || undefined}
-                    onClick={() => handleStart(row.id)}
-                  >
-                    {busyStart ? "جارٍ..." : "بدء"}
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="destructive"
-                    disabled={busyCancel}
-                    onClick={() => handleCancel(row)}
-                  >
-                    {busyCancel ? "جارٍ..." : "إلغاء"}
-                  </Button>
-                </>
-              ) : null}
-            </div>
-          );
-        }
+        render: (row) => (
+          <SessionRowActions
+            session={row}
+            actionId={actionId}
+            onDetails={setSelectedSession}
+            onStart={handleStart}
+            onEnd={handleEnd}
+            onCancel={handleCancel}
+            onJoin={(id) => router.push(`/teacher/live/${id}`)}
+          />
+        )
       }
   ];
 
@@ -488,6 +510,25 @@ export default function TeacherSessionsPage() {
           placeholder="ابحث بعنوان الجلسة..."
           className="h-11 w-full rounded-xl border border-border px-4 text-sm font-cairo focus:border-accent focus:outline-none"
         />
+
+        {openSessionsCount > 0 ? (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-warning/30 bg-warning/5 px-4 py-3">
+            <p className="text-sm font-semibold text-text">
+              لديك {openSessionsCount.toLocaleString("ar-EG")} جلسة مفتوحة (
+              {(tabCounts.live ?? 0).toLocaleString("ar-EG")} مباشرة،{" "}
+              {(tabCounts.scheduled ?? 0).toLocaleString("ar-EG")} مجدولة)
+            </p>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              disabled={closingAll || countsLoading}
+              onClick={handleCloseAllOpen}
+            >
+              {closingAll ? "جارٍ الإغلاق..." : "إغلاق وحذف كل الجلسات المفتوحة"}
+            </Button>
+          </div>
+        ) : null}
       </section>
 
       {error ? (
