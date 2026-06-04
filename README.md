@@ -37,10 +37,18 @@ Keep root directory as `/`. The repo includes a root `Dockerfile` and `railway.t
 
 ### Required env vars (Railway)
 
-- `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`
-- `FRONTEND_URL` (e.g. `https://peak-academy.net`)
-- `PAYMOB_*`, `DAILY_API_KEY` as needed
-- `FF_SCHEMA_V2=true` after running `backend/supabase/migrations/20260609_master_schema_v2.sql`
+The container **exits immediately** if these are missing (healthcheck will fail):
+
+| Variable | Required |
+|----------|----------|
+| `SUPABASE_URL` | Yes |
+| `SUPABASE_SERVICE_KEY` | Yes (service role, not anon) |
+| `FRONTEND_URL` | Yes for CORS (e.g. `https://peak-academy.net`) |
+| `NODE_ENV` | `production` (set automatically in Docker) |
+
+Optional: `PAYMOB_*`, `DAILY_API_KEY`, `FF_SCHEMA_V2=true` (after v2 migration), `REDIS_URL` + `FF_REDIS_QUEUE_ENABLED`.
+
+Check deploy logs: you should see `Listening on http://0.0.0.0:<PORT>` before the healthcheck runs.
 
 ## Database migrations
 
