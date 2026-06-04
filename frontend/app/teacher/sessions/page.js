@@ -553,10 +553,20 @@ export default function TeacherSessionsPage() {
             </div>
           ) : null}
 
+          <div className="rounded-xl border border-accent-blue/25 bg-accent-blue/5 px-4 py-3 text-sm text-text">
+            <p className="font-bold">هل البث يعمل؟</p>
+            <p className="mt-1 text-text-muted">
+              في Daily: <strong>Rooms</strong> = عناوين غرف محجوزة (قد تكون 3)، و{" "}
+              <strong>Live sessions / الدقائق = 0</strong> طبيعي إذا لم يدخل أحد غرفة الفيديو بعد.
+              الجلسة «مباشرة» في التطبيق تعني أنك بدأتها — اضغط <strong>دخول البث</strong> وتأكد أن
+              الكاميرا/المايك يعملان داخل الإطار.
+            </p>
+          </div>
+
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-bg px-4 py-3">
             <p className="text-sm text-text-muted">
-              غرف Daily تبقى في الحساب حتى بعد إنهاء الجلسة. استخدم التنظيف لإفراغ العدد في لوحة
-              Daily.
+              غرف Daily القديمة (من جلسات منتهية) تبقى في اللوحة حتى تضغط تنظيف — لن تستهلك دقائق
+              بدون دخول المكالمة.
             </p>
             <Button
               type="button"

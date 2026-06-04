@@ -7,6 +7,7 @@ import {
   createDailyRoomOptional,
   deleteDailyRoom,
   purgeSessionDailyRooms,
+  dailyRoomExists,
   ensureDailyMeetingAccess,
   getRoomUrl,
   mapDailyError,
@@ -155,6 +156,24 @@ async function insertSessionRow(payload) {
     if (!isMissingColumnError(dbError)) break;
   }
   throw lastError;
+}
+
+async function clearSessionDailyRoomFields(sessionId) {
+  const patchVariants = [
+    { daily_room_url: null, daily_room_name: null, room_url: null },
+    { room_url: null }
+  ];
+  for (const patch of patchVariants) {
+    const { error: dbError } = await supabase.from("sessions").update(patch).eq("id", sessionId);
+    if (!dbError) return;
+    if (!isMissingColumnError(dbError)) break;
+  }
+}
+
+async function detachDailyRoomFromSession(sessionId, sessionRow) {
+  const roomName = resolveRoomName(sessionRow);
+  if (roomName) await deleteDailyRoom(roomName);
+  await clearSessionDailyRoomFields(sessionId);
 }
 
 async function attachDailyRoomToSession(sessionId, title, maxStudents, existingRoom = null) {
@@ -366,18 +385,10 @@ router.post("/", auth, checkRole("teacher"), async (req, res) => {
     }
 
     const maxStudents = body.max_students || 10;
-    let room = null;
     let roomWarning = null;
 
     if (process.env.DAILY_API_KEY) {
-      room = await createDailyRoomOptional(body.title, {
-        maxParticipants: maxStudents,
-        expiryHours: 24 * 7
-      });
-      if (!room) {
-        roomWarning =
-          "تم حفظ الجلسة بدون غرفة فيديو. سيُنشأ الرابط عند بدء الجلسة أو بعد ضبط DAILY_API_KEY.";
-      }
+      roomWarning = "سيتم إنشاء غرفة الفيديو عند بدء الجلسة (لتجنب غرف Daily فارغة).";
     } else {
       roomWarning = "غرفة الفيديو غير مفعّلة (DAILY_API_KEY غير موجود على الخادم).";
     }
@@ -394,9 +405,9 @@ router.post("/", auth, checkRole("teacher"), async (req, res) => {
       price_per_student: body.price_per_student,
       subject_id: body.subject_id || null,
       description: body.description || null,
-      daily_room_url: room?.url || null,
-      daily_room_name: room?.name || null,
-      room_url: room?.url || null,
+      daily_room_url: null,
+      daily_room_name: null,
+      room_url: null,
       status: "scheduled"
     };
     if (isSchemaV2()) {
@@ -409,7 +420,7 @@ router.post("/", auth, checkRole("teacher"), async (req, res) => {
     await safeInvalidateSessionCaches(session.id);
 
     const message = roomWarning
-      ? "تم إنشاء الجلسة مع تنبيه بخصوص غرفة الفيديو"
+      ? "تم إنشاء الجلسة. غرفة الفيديو تُنشأ عند الضغط على «بدء الجلسة»."
       : "تم إنشاء الجلسة بنجاح";
 
     return success(
@@ -503,7 +514,6 @@ router.post("/close-open", auth, checkRole("teacher", "admin"), async (req, res)
     let ended = 0;
     let cancelled = 0;
     const failures = [];
-    const roomNames = new Set();
 
     for (const session of rows) {
       try {
@@ -511,16 +521,11 @@ router.post("/close-open", auth, checkRole("teacher", "admin"), async (req, res)
         if (result === "ended") ended += 1;
         else cancelled += 1;
 
-        const roomName = resolveRoomName(session);
-        if (roomName) roomNames.add(roomName);
+        await detachDailyRoomFromSession(session.id, session);
         await safeInvalidateSessionCaches(session.id);
       } catch (err) {
         failures.push({ id: session.id, message: err?.message || "فشل الإغلاق" });
       }
-    }
-
-    for (const roomName of roomNames) {
-      await deleteDailyRoom(roomName);
     }
 
     let dailyPurge = { deleted: [], failed: [], skipped: true };
@@ -768,13 +773,20 @@ router.post("/:id/start", auth, checkRole("teacher"), async (req, res) => {
     let roomUrl = scheduledSession.daily_room_url || scheduledSession.room_url || null;
     let roomWarning = null;
 
-    if (!roomUrl && process.env.DAILY_API_KEY) {
-      const attached = await attachDailyRoomToSession(
-        req.params.id,
-        scheduledSession.title,
-        scheduledSession.max_students || 10
-      );
-      roomUrl = attached?.daily_room_url || attached?.room_url || attached?.url || null;
+    if (process.env.DAILY_API_KEY) {
+      const existingName = resolveRoomName(scheduledSession);
+      const needsRoom =
+        !roomUrl || !existingName || !(await dailyRoomExists(existingName));
+
+      if (needsRoom) {
+        if (existingName) await deleteDailyRoom(existingName);
+        const attached = await attachDailyRoomToSession(
+          req.params.id,
+          scheduledSession.title,
+          scheduledSession.max_students || 10
+        );
+        roomUrl = attached?.daily_room_url || attached?.room_url || attached?.url || roomUrl;
+      }
     }
 
     if (!roomUrl) {
@@ -821,8 +833,7 @@ router.post("/:id/end", auth, checkRole("teacher"), async (req, res) => {
     await incrementAttendeeStreaks(req.params.id);
     const earning = await recordSessionEarnings(req.params.id, teacher.id, teacher.commission_rate);
 
-    const roomName = resolveRoomName(sessionRow);
-    if (roomName) await deleteDailyRoom(roomName);
+    await detachDailyRoomFromSession(req.params.id, sessionRow);
 
     await safeInvalidateSessionCaches(req.params.id);
     return success(res, { teacher_id: teacher.id, earning }, "Session ended");
@@ -877,8 +888,7 @@ router.patch("/:id/cancel", auth, checkRole("teacher", "admin"), async (req, res
       await incrementAttendeeStreaks(req.params.id);
       await recordSessionEarnings(req.params.id, teacher.id, teacher.commission_rate);
 
-      const roomName = resolveRoomName(sessionRow);
-      if (roomName) await deleteDailyRoom(roomName);
+      await detachDailyRoomFromSession(req.params.id, sessionRow);
       await safeInvalidateSessionCaches(req.params.id);
       return success(res, {}, "تم إنهاء الجلسة المباشرة");
     }
@@ -900,8 +910,7 @@ router.patch("/:id/cancel", auth, checkRole("teacher", "admin"), async (req, res
 
     if (updateError) throw updateError;
 
-    const roomName = resolveRoomName(sessionRow);
-    if (roomName) await deleteDailyRoom(roomName);
+    await detachDailyRoomFromSession(req.params.id, sessionRow);
 
     const refundResult = await refundAllSessionEnrollments(req.params.id);
     await safeInvalidateSessionCaches(req.params.id);
