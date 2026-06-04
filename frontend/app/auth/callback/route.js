@@ -63,6 +63,8 @@ export async function GET(request) {
 
     console.log("[callback] user_id:", user.id);
 
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
     let redirectPath = "/student/dashboard";
     try {
       const { data: profile } = await supabase

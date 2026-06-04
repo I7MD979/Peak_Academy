@@ -17,7 +17,8 @@ const PUBLIC_PATHS = [
   "/auth/callback",
   "/auth/forgot-password",
   "/auth/reset-password",
-  "/auth/setup-profile"
+  "/auth/setup-profile",
+  "/onboarding"
 ];
 
 const ROLE_ROUTES = {
