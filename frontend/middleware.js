@@ -7,7 +7,6 @@ import {
   ROLE_HOME
 } from "./lib/role-routes-edge.js";
 
-const PROD_DOMAIN = "peak-academy.net";
 const PREVIEW_USER = "peak";
 const PREVIEW_PASS = "D@rkwh@le_123";
 
@@ -66,16 +65,14 @@ function redirectWithCookies(request, path, sessionResponse) {
 
 export async function middleware(request) {
   const { pathname } = request.nextUrl;
-  const host = request.headers.get("host") || "";
 
-  const isProdDomain = host === PROD_DOMAIN || host === `www.${PROD_DOMAIN}`;
-  const isPreviewUrl = host.includes(".vercel.app") && !host.includes("-kappa.");
+  const isPreviewUrl = true; // protect all domains
 
-  if (!isProdDomain && isPreviewUrl && !checkBasicAuth(request)) {
-    return new NextResponse("Peak Academy — Preview Access Required", {
+  if (isPreviewUrl && !checkBasicAuth(request)) {
+    return new NextResponse("Peak Academy — Access Required", {
       status: 401,
       headers: {
-        "WWW-Authenticate": 'Basic realm="Peak Academy Preview"',
+        "WWW-Authenticate": 'Basic realm="Peak Academy"',
         "Content-Type": "text/plain"
       }
     });
