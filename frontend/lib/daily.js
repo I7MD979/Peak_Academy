@@ -17,56 +17,122 @@ function TeacherControls() {
   );
 }
 
+function dailyErrorMessage(err, fallback) {
+  if (!err) return fallback;
+  if (typeof err === "string") return err;
+  return (
+    err.errorMsg ||
+    err.error?.msg ||
+    err.message ||
+    err.reason ||
+    fallback
+  );
+}
+
+async function destroyExistingCall() {
+  try {
+    const existing = DailyIframe.getCallInstance?.();
+    if (!existing) return;
+    await existing.leave().catch(() => {});
+    await existing.destroy().catch(() => {});
+  } catch {
+    /* ignore */
+  }
+}
+
 export default function LiveRoom({ roomUrl, token, isTeacher }) {
   const callRef = useRef(null);
+  const callInstanceRef = useRef(null);
   const [joinError, setJoinError] = useState("");
+  const [joining, setJoining] = useState(true);
 
   useEffect(() => {
-    if (!roomUrl || !callRef.current) return undefined;
-
-    let call;
-    setJoinError("");
-
-    try {
-      call = DailyIframe.createFrame(callRef.current, {
-        showLeaveButton: true,
-        showFullscreenButton: true,
-        iframeStyle: { width: "100%", height: "100%" }
-      });
-      if (!token) {
-        setJoinError(
-          "الغرفة تتطلب رمز دخول. تحقق من DAILY_API_KEY على الخادم ثم أعد فتح الصفحة."
-        );
-        return undefined;
-      }
-
-      call
-        .join({ url: roomUrl, token })
-        .catch((joinErr) => {
-          const detail =
-            joinErr?.errorMsg ||
-            joinErr?.error?.msg ||
-            joinErr?.message ||
-            "";
-          setJoinError(
-            detail
-              ? `تعذر الانضمام إلى الغرفة: ${detail}`
-              : "تعذر الانضمام إلى الغرفة. قد تكون الغرفة منتهية أو DAILY_API_KEY غير صالح."
-          );
-        });
-    } catch {
-      setJoinError("تعذر تهيئة غرفة البث");
+    if (!roomUrl || !token || !callRef.current) {
+      setJoining(false);
+      return undefined;
     }
 
+    let cancelled = false;
+
+    const run = async () => {
+      setJoining(true);
+      setJoinError("");
+
+      try {
+        await destroyExistingCall();
+
+        if (cancelled || !callRef.current) return;
+
+        const call = DailyIframe.createFrame(callRef.current, {
+          showLeaveButton: true,
+          showFullscreenButton: true,
+          iframeStyle: { width: "100%", height: "100%" }
+        });
+        callInstanceRef.current = call;
+
+        const onError = (ev) => {
+          if (cancelled) return;
+          setJoinError(`تعذر الانضمام إلى الغرفة: ${dailyErrorMessage(ev, "خطأ في الاتصال")}`);
+          setJoining(false);
+        };
+        const onLeft = () => {
+          if (!cancelled) setJoining(false);
+        };
+
+        call.on("error", onError);
+        call.on("left-meeting", onLeft);
+
+        await call.join({ url: roomUrl, token });
+
+        if (!cancelled) {
+          setJoining(false);
+        }
+
+        callInstanceRef.current._peakHandlers = { onError, onLeft };
+      } catch (err) {
+        if (!cancelled) {
+          setJoinError(
+            `تعذر الانضمام إلى الغرفة: ${dailyErrorMessage(err, "تحقق من الرابط ورمز الدخول")}`
+          );
+          setJoining(false);
+        }
+      }
+    };
+
+    run();
+
     return () => {
-      call?.destroy();
+      cancelled = true;
+      const call = callInstanceRef.current;
+      callInstanceRef.current = null;
+      if (call) {
+        const handlers = call._peakHandlers;
+        if (handlers) {
+          call.off("error", handlers.onError);
+          call.off("left-meeting", handlers.onLeft);
+        }
+        call
+          .leave()
+          .catch(() => {})
+          .finally(() => {
+            call.destroy().catch(() => {});
+          });
+      }
     };
   }, [roomUrl, token]);
 
   if (joinError) {
     return (
       <main className="flex h-screen items-center justify-center bg-bg p-4">
-        <p className="text-sm text-danger">{joinError}</p>
+        <p className="max-w-md text-center text-sm text-danger">{joinError}</p>
+      </main>
+    );
+  }
+
+  if (joining) {
+    return (
+      <main className="flex h-screen items-center justify-center bg-bg p-4">
+        <p className="text-sm text-text-muted">جاري الاتصال بغرفة البث...</p>
       </main>
     );
   }

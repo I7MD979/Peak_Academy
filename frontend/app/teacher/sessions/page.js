@@ -155,22 +155,28 @@ export default function TeacherSessionsPage() {
     return () => clearTimeout(timeout);
   }, [searchInput]);
 
-  const loadTabCounts = useCallback(async () => {
-    setCountsLoading(true);
+  const loadTabCounts = useCallback(async (silent = false) => {
+    if (!silent) setCountsLoading(true);
     try {
-      const keys = statusTabs.map((tab) => tab.key);
-      const entries = await Promise.all(
-        keys.map(async (key) => {
-          const params = new URLSearchParams({ status: key, limit: "1", page: "1" });
-          const res = await sessionsApi.list(params.toString());
-          return [key, res?.pagination?.total ?? 0];
-        })
-      );
-      setTabCounts(Object.fromEntries(entries));
+      const res = await sessionsApi.list("status=all&limit=100&page=1");
+      const rows = res?.data || [];
+      const counts = {
+        all: res?.pagination?.total ?? rows.length,
+        scheduled: 0,
+        live: 0,
+        completed: 0,
+        cancelled: 0
+      };
+      for (const row of rows) {
+        if (row?.status && counts[row.status] !== undefined) {
+          counts[row.status] += 1;
+        }
+      }
+      setTabCounts(counts);
     } catch {
       setTabCounts({});
     } finally {
-      setCountsLoading(false);
+      if (!silent) setCountsLoading(false);
     }
   }, []);
 
@@ -208,7 +214,7 @@ export default function TeacherSessionsPage() {
   }, [loadSessions]);
 
   const refreshAll = async () => {
-    await Promise.all([loadTabCounts(), loadSessions()]);
+    await Promise.all([loadTabCounts(true), loadSessions()]);
   };
 
   const handleStart = async (id) => {

@@ -82,7 +82,7 @@ export default function LiveSessionRoom({ sessionId, isTeacher, sessionStart }) 
     return () => {
       cancelled = true;
     };
-  }, [sessionId, isTeacher, sessionStart]);
+  }, [sessionId, isTeacher]);
 
   if (loading) return <LoadingSkeleton />;
   if (error) {
