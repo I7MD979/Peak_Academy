@@ -1,6 +1,6 @@
 # Peak Academy API — build from monorepo root (Railway default)
 # Prefer setting Railway service Root Directory to /backend instead.
-FROM node:20-alpine
+FROM node:22-alpine
 
 WORKDIR /app
 
