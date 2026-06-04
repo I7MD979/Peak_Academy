@@ -7,9 +7,6 @@ import {
   ROLE_HOME
 } from "./lib/role-routes-edge.js";
 
-const PREVIEW_USER = "peak";
-const PREVIEW_PASS = "D@rkwh@le_123";
-
 const PUBLIC_PATHS = [
   "/",
   "/auth/login",
@@ -41,17 +38,6 @@ function getRoleForPath(path) {
   return null;
 }
 
-function checkBasicAuth(request) {
-  const authHeader = request.headers.get("authorization") || "";
-  if (!authHeader.startsWith("Basic ")) return false;
-  try {
-    const decoded = atob(authHeader.slice(6));
-    return decoded === `${PREVIEW_USER}:${PREVIEW_PASS}`;
-  } catch {
-    return false;
-  }
-}
-
 function copyCookies(from, to) {
   from.cookies.getAll().forEach(({ name, value }) => {
     to.cookies.set(name, value);
@@ -66,18 +52,6 @@ function redirectWithCookies(request, path, sessionResponse) {
 
 export async function middleware(request) {
   const { pathname } = request.nextUrl;
-
-  const isPreviewUrl = true; // protect all domains
-
-  if (isPreviewUrl && !checkBasicAuth(request)) {
-    return new NextResponse("Peak Academy — Access Required", {
-      status: 401,
-      headers: {
-        "WWW-Authenticate": 'Basic realm="Peak Academy"',
-        "Content-Type": "text/plain"
-      }
-    });
-  }
 
   if (isPublicPath(pathname)) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
