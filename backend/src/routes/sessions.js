@@ -19,7 +19,13 @@ import { ensureUserProfile } from "../utils/ensure-user-profile.js";
 import { incrementAttendeeStreaks, recordSessionEarnings } from "../utils/session-earnings.js";
 import { getSessionStartAvailability } from "../utils/session-start.js";
 import { reconcileCompletedTransaction } from "../utils/payments-fulfillment.js";
-import { CACHE, withCache, invalidateSessionCaches } from "../lib/cache.js";
+import { CACHE, withCache, safeInvalidateSessionCaches } from "../lib/cache.js";
+import {
+  clampSessionDuration,
+  fetchSessionForStart,
+  isMissingColumnError,
+  markSessionLive
+} from "../utils/session-db.js";
 import {
   getSessionForEnroll,
   getStudentProfileId,
@@ -87,13 +93,23 @@ async function getTeacherProfileForUser(userId) {
 }
 
 async function assertTeacherOwnsSession(sessionId, userId, res) {
-  const { data: session } = await supabase.from("sessions").select("teacher_id").eq("id", sessionId).single();
+  const { data: session, error: dbError } = await supabase
+    .from("sessions")
+    .select("teacher_id")
+    .eq("id", sessionId)
+    .maybeSingle();
+
+  if (dbError) {
+    const mapped = mapDbError(dbError);
+    error(res, mapped.message, mapped.status);
+    return null;
+  }
   if (!session) {
-    error(res, "Session not found", 404);
+    error(res, "الجلسة غير موجودة", 404);
     return null;
   }
   if (session.teacher_id !== userId) {
-    error(res, "Not authorized for this session", 403);
+    error(res, "غير مصرح لك بهذه الجلسة", 403);
     return null;
   }
   return session;
@@ -105,11 +121,6 @@ function handleRouteError(res, err, fallbackMessage) {
     console.error(fallbackMessage, err);
   }
   return error(res, mapped.message || fallbackMessage, mapped.status);
-}
-
-function isMissingColumnError(err) {
-  const msg = String(err?.message || "");
-  return err?.code === "42703" || err?.code === "PGRST204" || /column|does not exist/i.test(msg);
 }
 
 async function insertSessionRow(payload) {
@@ -149,23 +160,26 @@ async function attachDailyRoomToSession(sessionId, title, maxStudents) {
   });
   if (!room) return null;
 
-  const patch = {
-    daily_room_url: room.url,
-    daily_room_name: room.name,
-    room_url: room.url
-  };
-  const { data, error: dbError } = await supabase
-    .from("sessions")
-    .update(patch)
-    .eq("id", sessionId)
-    .select("daily_room_url, room_url, daily_room_name")
-    .maybeSingle();
+  const patchVariants = [
+    { daily_room_url: room.url, daily_room_name: room.name, room_url: room.url },
+    { room_url: room.url }
+  ];
 
-  if (dbError) {
-    console.warn("[sessions] attach room:", dbError.message);
-    return room;
+  for (const patch of patchVariants) {
+    const { data, error: dbError } = await supabase
+      .from("sessions")
+      .update(patch)
+      .eq("id", sessionId)
+      .select("daily_room_url, room_url, daily_room_name")
+      .maybeSingle();
+
+    if (!dbError) return data || room;
+    if (!isMissingColumnError(dbError)) {
+      console.warn("[sessions] attach room:", dbError.message);
+      break;
+    }
   }
-  return data || room;
+  return room;
 }
 
 router.get("/", auth, async (req, res) => {
@@ -369,7 +383,7 @@ router.post("/", auth, checkRole("teacher"), async (req, res) => {
       subject: body.subject || "general",
       grade: body.grade || "third",
       scheduled_at: scheduledAt.toISOString(),
-      duration_min: body.duration_min || 60,
+      duration_min: clampSessionDuration(body.duration_min),
       max_students: maxStudents,
       price_per_student: body.price_per_student,
       subject_id: body.subject_id || null,
@@ -382,11 +396,11 @@ router.post("/", auth, checkRole("teacher"), async (req, res) => {
     if (isSchemaV2()) {
       insertPayload.start_time = scheduledAt.toISOString();
       insertPayload.price = body.price_per_student;
-      insertPayload.duration_minutes = body.duration_min || 60;
+      insertPayload.duration_minutes = clampSessionDuration(body.duration_min);
     }
 
     const session = await insertSessionRow(insertPayload);
-    await invalidateSessionCaches(session.id);
+    await safeInvalidateSessionCaches(session.id);
 
     const message = roomWarning
       ? "تم إنشاء الجلسة مع تنبيه بخصوص غرفة الفيديو"
@@ -575,7 +589,7 @@ router.post("/:id/enroll", auth, checkRole("student"), async (req, res) => {
 router.post("/:id/cancel-enrollment", auth, checkRole("student"), async (req, res) => {
   try {
     const result = await cancelStudentEnrollment(req.user.id, req.params.id);
-    await invalidateSessionCaches(req.params.id);
+    await safeInvalidateSessionCaches(req.params.id);
     return success(res, result, "تم إلغاء التسجيل");
   } catch (err) {
     return error(res, err.message || "تعذر إلغاء التسجيل", 400);
@@ -586,13 +600,7 @@ router.post("/:id/start", auth, checkRole("teacher"), async (req, res) => {
   try {
     if (!(await assertTeacherOwnsSession(req.params.id, req.user.id, res))) return;
 
-    const { data: scheduledSession, error: loadError } = await supabase
-      .from("sessions")
-      .select("id, title, status, scheduled_at, start_time, max_students, daily_room_url, room_url, daily_room_name")
-      .eq("id", req.params.id)
-      .maybeSingle();
-
-    if (loadError) throw loadError;
+    const scheduledSession = await fetchSessionForStart(req.params.id);
     if (!scheduledSession) return error(res, "الجلسة غير موجودة", 404);
 
     const startInfo = getSessionStartAvailability(scheduledSession);
@@ -600,7 +608,9 @@ router.post("/:id/start", auth, checkRole("teacher"), async (req, res) => {
       return error(res, startInfo.reason || "لا يمكن بدء الجلسة الآن", 400);
     }
 
-    let roomUrl = scheduledSession.daily_room_url || scheduledSession.room_url;
+    let roomUrl = scheduledSession.daily_room_url || scheduledSession.room_url || null;
+    let roomWarning = null;
+
     if (!roomUrl && process.env.DAILY_API_KEY) {
       const attached = await attachDailyRoomToSession(
         req.params.id,
@@ -610,24 +620,19 @@ router.post("/:id/start", auth, checkRole("teacher"), async (req, res) => {
       roomUrl = attached?.daily_room_url || attached?.room_url || attached?.url || null;
     }
 
-    if (!roomUrl && process.env.DAILY_API_KEY) {
-      return error(
-        res,
-        "تعذر إنشاء غرفة الفيديو. راجع DAILY_API_KEY في Railway أو عطّل التسجيل السحابي في Daily.",
-        502
-      );
+    if (!roomUrl) {
+      roomWarning = process.env.DAILY_API_KEY
+        ? "تم بدء الجلسة بدون رابط فيديو. راجع DAILY_API_KEY في Railway."
+        : "تم بدء الجلسة بدون بث مباشر (DAILY_API_KEY غير مضبوط).";
     }
 
-    const { data: session, error: dbError } = await supabase
-      .from("sessions")
-      .update({ status: "live" })
-      .eq("id", req.params.id)
-      .select("daily_room_url,room_url")
-      .single();
-    if (dbError) throw dbError;
+    const session = await markSessionLive(req.params.id);
+    await safeInvalidateSessionCaches(req.params.id);
 
-    await invalidateSessionCaches(req.params.id);
-    return success(res, { room_url: session.daily_room_url || session.room_url || roomUrl });
+    return success(res, {
+      room_url: session?.daily_room_url || session?.room_url || roomUrl,
+      ...(roomWarning ? { room_warning: roomWarning } : {})
+    });
   } catch (err) {
     return handleRouteError(res, err, "تعذر بدء الجلسة");
   }
@@ -653,7 +658,7 @@ router.post("/:id/end", auth, checkRole("teacher"), async (req, res) => {
     await incrementAttendeeStreaks(req.params.id);
     const earning = await recordSessionEarnings(req.params.id, teacher.id, teacher.commission_rate);
 
-    await invalidateSessionCaches(req.params.id);
+    await safeInvalidateSessionCaches(req.params.id);
     return success(res, { teacher_id: teacher.id, earning }, "Session ended");
   } catch (err) {
     return handleRouteError(res, err, "Failed to end session");
@@ -694,7 +699,7 @@ router.patch("/:id/cancel", auth, checkRole("teacher", "admin"), async (req, res
     if (updateError) throw updateError;
 
     const refundResult = await refundAllSessionEnrollments(req.params.id);
-    await invalidateSessionCaches(req.params.id);
+    await safeInvalidateSessionCaches(req.params.id);
     return success(res, { refunds: refundResult.refunds }, "تم إلغاء الجلسة");
   } catch (err) {
     return handleRouteError(res, err, "تعذر إلغاء الجلسة");

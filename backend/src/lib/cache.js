@@ -188,14 +188,22 @@ export async function withCache(key, ttlSeconds, fetchFn) {
 
 export async function invalidate(...keys) {
   if (!keys.length) return;
-  const client = await getRedisClient();
-  await client.del(...keys);
+  try {
+    const client = await getRedisClient();
+    await client.del(...keys);
+  } catch (err) {
+    console.warn("[cache] invalidate:", err?.message || err);
+  }
 }
 
 export async function invalidatePattern(prefix) {
-  const client = await getRedisClient();
-  const keys = await client.scanKeys(prefix);
-  if (keys.length) await client.del(...keys);
+  try {
+    const client = await getRedisClient();
+    const keys = await client.scanKeys(prefix);
+    if (keys.length) await client.del(...keys);
+  } catch (err) {
+    console.warn("[cache] invalidatePattern:", err?.message || err);
+  }
 }
 
 export async function invalidateSessionCaches(sessionId) {
@@ -205,6 +213,15 @@ export async function invalidateSessionCaches(sessionId) {
     invalidatePattern(`teacher:`),
     invalidate(CACHE.adminDashboard())
   ]);
+}
+
+/** Never fail the HTTP handler if Redis/cache is down. */
+export async function safeInvalidateSessionCaches(sessionId) {
+  try {
+    await invalidateSessionCaches(sessionId);
+  } catch (err) {
+    console.warn("[cache] invalidateSessionCaches:", err?.message || err);
+  }
 }
 
 /** RULE 7 — student dashboard / sessions after enrollment or payment */

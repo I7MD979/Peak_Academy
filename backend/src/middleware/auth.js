@@ -10,7 +10,8 @@ const INCOMPLETE_PROFILE_PATHS = [
   "/auth/setup-profile",
   "/auth/me",
   "/auth/complete-profile",
-  "/auth/profile"
+  "/auth/profile",
+  "/sessions"
 ];
 
 function allowsIncompleteProfile(path) {

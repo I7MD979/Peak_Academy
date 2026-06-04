@@ -22,6 +22,11 @@ alter table public.sessions
   add constraint sessions_status_check
   check (status in ('scheduled', 'live', 'cancelled', 'completed'));
 
+alter table public.sessions drop constraint if exists sessions_duration_min_check;
+alter table public.sessions
+  add constraint sessions_duration_min_check
+  check (duration_min between 15 and 240);
+
 alter table public.sessions add column if not exists subject_id uuid references public.subjects(id);
 -- After adding subject_id, reload PostgREST schema in Supabase: Settings → API → Reload schema
 alter table public.sessions add column if not exists description text;

@@ -222,10 +222,18 @@ export default function TeacherSessionsPage() {
     try {
       setActionId(`start-${id}`);
       setError("");
-      await sessionsApi.start(id);
-      toast.success("تم بدء الجلسة بنجاح");
+      const res = await sessionsApi.start(id);
+      const roomUrl = res?.data?.room_url;
+      if (res?.data?.room_warning) {
+        toast.warning(res.data.room_warning);
+      }
       await refreshAll();
-      router.push(`/teacher/live/${id}`);
+      if (roomUrl) {
+        toast.success("تم بدء الجلسة بنجاح");
+        router.push(`/teacher/live/${id}`);
+      } else {
+        toast.success("تم بدء الجلسة. رابط الفيديو غير متاح بعد.");
+      }
     } catch (err) {
       toast.error(err.message || "تعذر بدء الجلسة");
     } finally {

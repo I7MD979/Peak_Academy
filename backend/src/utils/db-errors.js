@@ -45,6 +45,14 @@ export function mapDbError(err) {
     };
   }
 
+  if (err.code === "23514" || err.code === "LIVE_STATUS_UNSUPPORTED") {
+    return {
+      status: 500,
+      message:
+        "قاعدة البيانات لا تدعم حالة «مباشرة» أو مدة الجلسة. نفّذ backend/supabase/RUN_IN_SQL_EDITOR.sql في Supabase (قسم sessions_status_check ومدة 15–240 دقيقة)."
+    };
+  }
+
   const msg = String(err.message || "");
   if (/invalid api key/i.test(msg)) {
     return {

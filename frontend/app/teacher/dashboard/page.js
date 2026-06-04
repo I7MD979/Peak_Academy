@@ -81,7 +81,10 @@ export default function TeacherDashboardPage() {
 
     try {
       setActionLoadingId(`start-${sessionId}`);
-      await sessionsApi.start(sessionId);
+      const res = await sessionsApi.start(sessionId);
+      if (res?.data?.room_warning) {
+        setError(res.data.room_warning);
+      }
       await loadDashboard();
     } catch (err) {
       setError(err.message || "تعذر بدء الجلسة");
