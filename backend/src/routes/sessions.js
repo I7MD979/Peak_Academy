@@ -5,7 +5,8 @@ import { checkRole } from "../middleware/checkRole.js";
 import { supabase } from "../lib/supabase.js";
 import {
   createDailyRoomOptional,
-  createMeetingToken,
+  createMeetingTokenOptional,
+  getRoomUrl,
   mapDailyError,
   resolveRoomName
 } from "../services/daily.service.js";
@@ -22,6 +23,7 @@ import { reconcileCompletedTransaction } from "../utils/payments-fulfillment.js"
 import { CACHE, withCache, safeInvalidateSessionCaches } from "../lib/cache.js";
 import {
   clampSessionDuration,
+  fetchSessionForJoin,
   fetchSessionForStart,
   isMissingColumnError,
   markSessionLive
@@ -706,6 +708,41 @@ router.patch("/:id/cancel", auth, checkRole("teacher", "admin"), async (req, res
   }
 });
 
+function canEnterLiveSession(session) {
+  if (session.status === "cancelled") {
+    return { ok: false, reason: "الحصة ملغية" };
+  }
+  if (session.status === "live") {
+    return { ok: true };
+  }
+  const joinWindow = getSessionJoinWindow(session);
+  if (!joinWindow.canJoin) {
+    return { ok: false, reason: joinWindow.reason || "لا يمكن الدخول الآن" };
+  }
+  return { ok: true };
+}
+
+async function resolveRoomForSession(session, sessionId) {
+  let roomName = resolveRoomName(session);
+  let roomUrl = roomName ? getRoomUrl(roomName) : session.daily_room_url || session.room_url || null;
+
+  if (!roomName && !roomUrl && process.env.DAILY_API_KEY) {
+    const attached = await attachDailyRoomToSession(
+      sessionId,
+      session.title,
+      session.max_students || 10
+    );
+    roomName = resolveRoomName(attached) || attached?.daily_room_name || null;
+    roomUrl =
+      attached?.daily_room_url ||
+      attached?.room_url ||
+      attached?.url ||
+      (roomName ? getRoomUrl(roomName) : null);
+  }
+
+  return { roomName, roomUrl };
+}
+
 async function assertStudentEnrollmentForJoin(userId, sessionId) {
   if (isSchemaV2()) {
     const { data: enrollment } = await supabase
@@ -741,22 +778,11 @@ async function assertStudentEnrollmentForJoin(userId, sessionId) {
 
 router.post("/:id/join", auth, async (req, res) => {
   try {
-    const { data: session, error: dbError } = await supabase
-      .from("sessions")
-      .select(
-        "id, title, status, teacher_id, scheduled_at, start_time, daily_room_url, daily_room_name, room_url"
-      )
-      .eq("id", req.params.id)
-      .maybeSingle();
-
-    if (dbError) throw dbError;
+    const session = await fetchSessionForJoin(req.params.id);
     if (!session) return error(res, "الحصة غير موجودة", 404);
-    if (session.status === "cancelled") return error(res, "الحصة ملغية", 400);
 
-    const joinWindow = getSessionJoinWindow(session);
-    if (!joinWindow.canJoin) {
-      return error(res, joinWindow.reason || "لا يمكن الدخول الآن", 400);
-    }
+    const entry = canEnterLiveSession(session);
+    if (!entry.ok) return error(res, entry.reason, 400);
 
     const isTeacher = session.teacher_id === req.user.id;
     if (!isTeacher && req.user.role === "student") {
@@ -766,71 +792,90 @@ router.post("/:id/join", auth, async (req, res) => {
       return error(res, "غير مصرح لك بدخول هذه الجلسة", 403);
     }
 
-    const roomName = resolveRoomName(session);
-    if (!roomName) return error(res, "غرفة الحصة غير متاحة", 400);
+    const { roomName, roomUrl } = await resolveRoomForSession(session, req.params.id);
+    if (!roomName && !roomUrl) {
+      return error(
+        res,
+        process.env.DAILY_API_KEY
+          ? "غرفة الفيديو غير متاحة. راجع DAILY_API_KEY في Railway."
+          : "غرفة الفيديو غير مفعّلة على الخادم.",
+        502
+      );
+    }
 
-    const token = await createMeetingToken(roomName, req.user.id, {
-      isOwner: isTeacher,
-      userName: req.user.full_name || req.user.email || ""
-    });
+    const token = roomName
+      ? await createMeetingTokenOptional(roomName, req.user.id, {
+          isOwner: isTeacher,
+          userName: req.user.full_name || req.user.email || ""
+        })
+      : null;
 
     return success(res, {
-      room_url: getRoomUrl(roomName),
+      room_url: roomUrl || (roomName ? getRoomUrl(roomName) : null),
       token,
       is_teacher: isTeacher,
-      session_start: sessionStartTime(session)
+      session_start: sessionStartTime(session),
+      ...(!token && process.env.DAILY_API_KEY
+        ? { token_warning: "تعذر إنشاء رمز الدخول لغرفة الفيديو" }
+        : {})
     });
   } catch (err) {
+    if (err?.dailyError) {
+      const mapped = mapDailyError(err);
+      return error(res, mapped.message, mapped.status);
+    }
     return handleRouteError(res, err, "تعذر الدخول إلى الحصة");
   }
 });
 
 router.get("/:id/room", auth, async (req, res) => {
   try {
-    const { data: session, error: dbError } = await supabase
-      .from("sessions")
-      .select(
-        "daily_room_url,daily_room_name,room_url,status,teacher_id,scheduled_at,start_time,enrollments:session_enrollments(student:student_profiles(user_id))"
-      )
-      .eq("id", req.params.id)
-      .single();
-
-    if (dbError) throw dbError;
+    const session = await fetchSessionForJoin(req.params.id);
     if (!session) return error(res, "الجلسة غير موجودة", 404);
 
     const isTeacher = session.teacher_id === req.user.id;
-    let allowed = isTeacher;
+    let allowed = isTeacher || req.user.role === "admin";
 
-    if (!allowed && isSchemaV2()) {
+    if (!allowed && req.user.role === "student") {
       const access = await assertStudentEnrollmentForJoin(req.user.id, req.params.id);
       allowed = access.ok;
-    } else if (!allowed) {
-      allowed = (session.enrollments || []).some((e) => e.student?.user_id === req.user.id);
     }
 
     if (!allowed) return error(res, "غير مصرح لك بدخول هذه الجلسة", 403);
 
-    const useJoinFlow =
-      session.status === "live" || getSessionJoinWindow(session).canJoin;
+    const entry = canEnterLiveSession(session);
+    if (!entry.ok) return error(res, entry.reason || "الجلسة ليست مباشرة الآن", 400);
 
-    if (!useJoinFlow) {
-      return error(res, "الجلسة ليست مباشرة الآن", 400);
+    const { roomName, roomUrl } = await resolveRoomForSession(session, req.params.id);
+    if (!roomName && !roomUrl) {
+      return error(
+        res,
+        process.env.DAILY_API_KEY
+          ? "غرفة الفيديو غير متاحة"
+          : "غرفة الفيديو غير مفعّلة على الخادم",
+        502
+      );
     }
 
-    const roomName = resolveRoomName(session);
-    const roomUrl = getRoomUrl(roomName) || session.daily_room_url || session.room_url;
+    const token = roomName
+      ? await createMeetingTokenOptional(roomName, req.user.id, {
+          isOwner: isTeacher,
+          userName: req.user.full_name || req.user.email || ""
+        })
+      : null;
 
-    if (roomName && process.env.DAILY_API_KEY) {
-      const token = await createMeetingToken(roomName, req.user.id, {
-        isOwner: isTeacher,
-        userName: req.user.full_name || req.user.email || ""
-      });
-      return success(res, { room_url: roomUrl, token, is_teacher: isTeacher });
-    }
-
-    return success(res, { room_url: roomUrl, is_teacher: isTeacher });
+    return success(res, {
+      room_url: roomUrl || (roomName ? getRoomUrl(roomName) : null),
+      token,
+      is_teacher: isTeacher,
+      ...(!token && process.env.DAILY_API_KEY ? { token_warning: "تعذر إنشاء رمز الدخول" } : {})
+    });
   } catch (err) {
-    return handleRouteError(res, err, "Failed to get room");
+    if (err?.dailyError) {
+      const mapped = mapDailyError(err);
+      return error(res, mapped.message, mapped.status);
+    }
+    return handleRouteError(res, err, "تعذر تحميل غرفة الفيديو");
   }
 });
 

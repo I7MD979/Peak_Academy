@@ -180,6 +180,23 @@ export async function createDailyRoomOptional(title, options) {
   }
 }
 
+export async function createMeetingTokenOptional(
+  roomName,
+  userId,
+  { isOwner = false, userName = "" } = {}
+) {
+  try {
+    return await createMeetingToken(roomName, userId, { isOwner, userName });
+  } catch (err) {
+    console.warn(
+      "[daily] meeting token:",
+      err.dailyError || err.message,
+      err.dailyInfo || ""
+    );
+    return null;
+  }
+}
+
 export const createMeetingToken = async (roomName, userId, { isOwner = false, userName = "" } = {}) => {
   if (!process.env.DAILY_API_KEY) {
     throw new Error("DAILY_API_KEY is not configured");
@@ -204,8 +221,21 @@ export const createMeetingToken = async (roomName, userId, { isOwner = false, us
     })
   });
 
-  const data = await response.json();
-  if (!response.ok) throw new Error(data?.error || "Failed to create Daily meeting token");
+  let data = {};
+  try {
+    data = await response.json();
+  } catch {
+    data = {};
+  }
+
+  if (!response.ok) {
+    const err = new Error(
+      typeof data?.error === "string" ? data.error : data?.info || "Failed to create Daily meeting token"
+    );
+    err.dailyError = data?.error;
+    err.dailyInfo = data?.info;
+    throw err;
+  }
   return data.token;
 };
 
