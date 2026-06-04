@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabase.js";
+import { verifySupabaseAccessToken } from "../lib/verify-supabase-jwt.js";
 import { ensureUserProfile, normalizeRole } from "../utils/ensure-user-profile.js";
 
 const INCOMPLETE_PROFILE_PATHS = [
@@ -42,15 +43,10 @@ export async function resolveAuthUserFromToken(token) {
   if (!token) return null;
 
   try {
-    const {
-      data: { user: authUser },
-      error: authError
-    } = await supabase.auth.getUser(token);
+    const { user: authUser, error: verifyError } = await verifySupabaseAccessToken(token);
 
-    if (authError || !authUser) {
-      if (process.env.NODE_ENV !== "production") {
-        console.warn("[auth] Supabase getUser failed:", authError?.message);
-      }
+    if (!authUser) {
+      console.warn("[auth] token verification failed:", verifyError);
       return null;
     }
 
@@ -126,7 +122,16 @@ export const auth = async (req, res, next) => {
 
     const resolved = await resolveAuthUserFromToken(token);
     if (!resolved) {
-      return res.status(401).json({ success: false, error: "رمز الدخول غير صالح" });
+      const payload = {
+        success: false,
+        error: "رمز الدخول غير صالح",
+        code: "AUTH_INVALID"
+      };
+      if (process.env.NODE_ENV !== "production") {
+        payload.hint =
+          "تأكد أن Railway SUPABASE_URL يطابق Vercel (مثلاً hpczrdvaeazrrrzgtatl.supabase.co) وأن SUPABASE_SERVICE_KEY هو service_role وليس anon.";
+      }
+      return res.status(401).json(payload);
     }
 
     const { user, profileReady, authUser } = resolved;

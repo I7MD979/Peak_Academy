@@ -70,12 +70,19 @@ app.use("/api", (_req, res, next) => {
   next();
 });
 
+function getSupabaseProjectRef() {
+  const url = process.env.SUPABASE_URL || "";
+  const match = url.match(/https:\/\/([^.]+)\.supabase\.co/);
+  return match?.[1] || null;
+}
+
 app.get("/api/health", (_req, res) => {
   res.status(200).json({
     success: true,
     message: "OK",
     api_version: API_VERSION,
-    sessions_query: "plain-select"
+    sessions_query: "plain-select",
+    supabase_project_ref: getSupabaseProjectRef()
   });
 });
 
