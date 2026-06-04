@@ -24,12 +24,21 @@ export function isProfileComplete(user) {
   return true;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
+function getApiUrl() {
+  const configured = process.env.NEXT_PUBLIC_API_URL?.trim();
+  if (configured) return configured.replace(/\/$/, "");
+
+  if (process.env.VERCEL) return null;
+
+  return "http://localhost:4000/api";
+}
 
 export async function fetchAuthProfile(accessToken) {
   if (!accessToken) return null;
+  const apiUrl = getApiUrl();
+  if (!apiUrl) return null;
   try {
-    const res = await fetch(`${API_URL}/auth/me`, {
+    const res = await fetch(`${apiUrl}/auth/me`, {
       headers: { Authorization: `Bearer ${accessToken}` },
       cache: "no-store"
     });
@@ -44,8 +53,11 @@ export async function fetchAuthProfile(accessToken) {
 export async function resolvePostAuthPath(accessToken) {
   if (!accessToken) return "/auth/login";
 
+  const apiUrl = getApiUrl();
+  if (!apiUrl) return "/onboarding";
+
   try {
-    const res = await fetch(`${API_URL}/auth/me`, {
+    const res = await fetch(`${apiUrl}/auth/me`, {
       headers: { Authorization: `Bearer ${accessToken}` },
       cache: "no-store"
     });

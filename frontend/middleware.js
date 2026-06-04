@@ -1,4 +1,3 @@
-import { createServerClient } from "@supabase/ssr";
 import { NextResponse } from "next/server";
 import {
   fetchAuthProfile,
@@ -6,6 +5,7 @@ import {
   ROLE_HOME,
   resolvePostAuthPath
 } from "./lib/role-routes-edge.js";
+import { updateSupabaseSession } from "./lib/supabase/middleware.js";
 
 const ROLE_PREFIXES = {
   "/admin": "admin",
@@ -14,122 +14,118 @@ const ROLE_PREFIXES = {
   "/parent": "parent"
 };
 
-function createSupabaseForRequest(request, response) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  return createServerClient(supabaseUrl, supabaseAnonKey, {
-    cookies: {
-      get(name) {
-        return request.cookies.get(name)?.value;
-      },
-      set(name, value, options) {
-        response.cookies.set(name, value, options);
-      },
-      remove(name, options) {
-        response.cookies.set(name, "", options);
-      }
+const PROTECTED_PREFIXES = ["/student", "/teacher", "/parent", "/admin", "/onboarding"];
+
+function isProtectedPath(pathname) {
+  return PROTECTED_PREFIXES.some((route) => pathname.startsWith(route));
+}
+
+function redirectTo(path, request, sessionResponse) {
+  try {
+    const redirect = NextResponse.redirect(new URL(path, request.url));
+    if (sessionResponse) {
+      sessionResponse.cookies.getAll().forEach(({ name, value }) => {
+        redirect.cookies.set(name, value);
+      });
     }
-  });
+    return redirect;
+  } catch {
+    const fallback = NextResponse.redirect(new URL("/auth/login", request.url));
+    if (sessionResponse) {
+      sessionResponse.cookies.getAll().forEach(({ name, value }) => {
+        fallback.cookies.set(name, value);
+      });
+    }
+    return fallback;
+  }
 }
 
 export async function middleware(request) {
-  const response = NextResponse.next();
   const pathname = request.nextUrl.pathname;
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  const protectedRoutes = ["/student", "/teacher", "/parent", "/admin", "/onboarding"];
-  const isProtected = protectedRoutes.some((route) => pathname.startsWith(route));
-
-  if (!supabaseUrl || !supabaseAnonKey) {
-    if (isProtected) {
-      return NextResponse.redirect(new URL("/auth/login", request.url));
-    }
-    return response;
+  if (pathname === "/auth/callback") {
+    return NextResponse.next();
   }
 
-  let session = null;
   try {
-    const supabase = createSupabaseForRequest(request, response);
-    const {
-      data: { session: currentSession }
-    } = await supabase.auth.getSession();
-    session = currentSession;
-  } catch (_err) {
-    if (isProtected) {
-      return NextResponse.redirect(new URL("/auth/login", request.url));
+    const { response, user, accessToken } = await updateSupabaseSession(request);
+    const isProtected = isProtectedPath(pathname);
+
+    if (isProtected && !user) {
+      return redirectTo("/auth/login", request, response);
     }
+
+    const requiredRole = Object.entries(ROLE_PREFIXES).find(([prefix]) =>
+      pathname.startsWith(prefix)
+    )?.[1];
+
+    if (user && requiredRole && accessToken) {
+      try {
+        const profile = await fetchAuthProfile(accessToken);
+
+        if (!profile?.role || !isProfileComplete(profile)) {
+          return redirectTo("/onboarding", request, response);
+        }
+
+        if (profile.role !== requiredRole) {
+          const destination = ROLE_HOME[profile.role] || "/onboarding";
+          return redirectTo(destination, request, response);
+        }
+      } catch {
+        return redirectTo("/auth/login", request, response);
+      }
+    }
+
+    if (pathname.startsWith("/auth") && user) {
+      try {
+        const destination = await resolvePostAuthPath(accessToken);
+        return redirectTo(destination, request, response);
+      } catch {
+        return redirectTo("/onboarding", request, response);
+      }
+    }
+
+    if (pathname.startsWith("/onboarding") && accessToken) {
+      try {
+        const destination = await resolvePostAuthPath(accessToken);
+        if (destination !== "/onboarding") {
+          return redirectTo(destination, request, response);
+        }
+      } catch {
+        // stay on onboarding
+      }
+    }
+
+    if (pathname === "/" && accessToken) {
+      try {
+        const destination = await resolvePostAuthPath(accessToken);
+        if (destination !== "/onboarding" && destination !== "/auth/login") {
+          return redirectTo(destination, request, response);
+        }
+      } catch {
+        // stay on landing
+      }
+    }
+
+    if (pathname === "/dashboard") {
+      if (!user) {
+        return redirectTo("/auth/login", request, response);
+      }
+      try {
+        const destination = await resolvePostAuthPath(accessToken);
+        return redirectTo(destination, request, response);
+      } catch {
+        return redirectTo("/auth/login", request, response);
+      }
+    }
+
     return response;
-  }
-
-  if (isProtected && !session) {
-    return NextResponse.redirect(new URL("/auth/login", request.url));
-  }
-
-  const requiredRole = Object.entries(ROLE_PREFIXES).find(([prefix]) => pathname.startsWith(prefix))?.[1];
-  if (session && requiredRole) {
-    try {
-      const profile = await fetchAuthProfile(session.access_token);
-
-      if (!profile?.role || !isProfileComplete(profile)) {
-        return NextResponse.redirect(new URL("/onboarding", request.url));
-      }
-
-      if (profile.role !== requiredRole) {
-        const destination = ROLE_HOME[profile.role] || "/onboarding";
-        return NextResponse.redirect(new URL(destination, request.url));
-      }
-    } catch (_err) {
-      return NextResponse.redirect(new URL("/auth/login", request.url));
+  } catch {
+    if (isProtectedPath(pathname)) {
+      return redirectTo("/auth/login", request);
     }
+    return NextResponse.next({ request: { headers: request.headers } });
   }
-
-  const token = session?.access_token;
-
-  if (pathname.startsWith("/auth") && session) {
-    try {
-      const destination = await resolvePostAuthPath(token);
-      return NextResponse.redirect(new URL(destination, request.url));
-    } catch (_err) {
-      return NextResponse.redirect(new URL("/onboarding", request.url));
-    }
-  }
-
-  if (pathname.startsWith("/onboarding") && token) {
-    try {
-      const destination = await resolvePostAuthPath(token);
-      if (destination !== "/onboarding") {
-        return NextResponse.redirect(new URL(destination, request.url));
-      }
-    } catch {
-      // stay on onboarding
-    }
-  }
-
-  if (pathname === "/" && token) {
-    try {
-      const destination = await resolvePostAuthPath(token);
-      if (destination !== "/onboarding" && destination !== "/auth/login") {
-        return NextResponse.redirect(new URL(destination, request.url));
-      }
-    } catch {
-      // stay on landing
-    }
-  }
-
-  if (pathname === "/dashboard") {
-    if (!session) {
-      return NextResponse.redirect(new URL("/auth/login", request.url));
-    }
-    try {
-      const destination = await resolvePostAuthPath(token);
-      return NextResponse.redirect(new URL(destination, request.url));
-    } catch {
-      return NextResponse.redirect(new URL("/auth/login", request.url));
-    }
-  }
-
-  return response;
 }
 
 export const config = {
