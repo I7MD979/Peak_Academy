@@ -5,6 +5,7 @@ import { supabase } from "../lib/supabase.js";
 import { paginate, paginationMeta } from "../utils/paginate.js";
 import { success, error, paginated } from "../utils/response.js";
 import { CACHE, withCache } from "../lib/cache.js";
+import { enqueueJob } from "../lib/queue.js";
 
 const router = Router();
 
@@ -219,6 +220,31 @@ router.put("/withdrawals/:id", auth, checkRole("admin"), async (req, res) => {
       .eq("id", req.params.id);
 
     if (updateError) throw updateError;
+
+    if (status === "approved" || status === "rejected") {
+      const { data: teacherProfile } = await supabase
+        .from("teacher_profiles")
+        .select("user_id")
+        .eq("id", withdrawal.teacher_id)
+        .maybeSingle();
+
+      if (teacherProfile?.user_id) {
+        const { data: teacherUser } = await supabase
+          .from("users")
+          .select("email, full_name")
+          .eq("id", teacherProfile.user_id)
+          .maybeSingle();
+
+        if (teacherUser?.email) {
+          await enqueueJob("email", "withdrawal-processed", {
+            to: teacherUser.email,
+            teacherName: teacherUser.full_name,
+            amount: withdrawal.amount,
+            status
+          });
+        }
+      }
+    }
 
     if (status === "paid") {
       const targetAmount = Number(withdrawal.amount);

@@ -16,10 +16,6 @@ const ROLE_PREFIXES = {
 
 const PROTECTED_PREFIXES = ["/student", "/teacher", "/parent", "/admin", "/onboarding"];
 
-function isProdHost(host) {
-  return host === "peak-academy.net" || host === "www.peak-academy.net";
-}
-
 function isProtectedPath(pathname) {
   return PROTECTED_PREFIXES.some((route) => pathname.startsWith(route));
 }
@@ -127,21 +123,10 @@ async function handleSupabaseAuth(request) {
 }
 
 export async function middleware(request) {
-  const host = request.headers.get("host") || "";
-  const path = request.nextUrl.pathname;
-  const isProdDomain = isProdHost(host);
-
-  if (isProdDomain && path !== "/" && !path.startsWith("/auth/")) {
-    return NextResponse.redirect(new URL("/", request.url));
-  }
-
-  if (isProdDomain) {
-    return NextResponse.next();
-  }
-
   try {
     return await handleSupabaseAuth(request);
   } catch {
+    const path = request.nextUrl.pathname;
     if (isProtectedPath(path)) {
       return redirectTo("/auth/login", request);
     }

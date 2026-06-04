@@ -1,8 +1,17 @@
 import { supabase } from "../lib/supabase.js";
-import { sendEmail } from "../services/email.service.js";
+import {
+  sendEnrollmentConfirmation,
+  sendSessionReminder,
+  sendPaymentFailed,
+  sendWithdrawalProcessed
+} from "../services/email.service.js";
 import { buildParentReport } from "../services/report.service.js";
 import { getStudentReportForParent } from "../services/parentReportService.js";
 import { createUserNotification } from "../services/notification.service.js";
+
+function resolveEmail(payload) {
+  return payload.to || payload.studentEmail || payload.parentEmail || null;
+}
 
 export async function handleNotificationJob(name, payload) {
   if (name !== "push-notification") {
@@ -25,33 +34,70 @@ export async function handleNotificationJob(name, payload) {
 
 export async function handleEmailJob(name, payload) {
   if (name === "enrollment-confirm") {
-    const { studentEmail, sessionTitle, startTime } = payload;
-    if (!studentEmail) return { skipped: true, reason: "missing_email" };
+    const to = resolveEmail(payload);
+    if (!to) return { skipped: true, reason: "missing_email" };
 
-    const when = startTime
-      ? new Date(startTime).toLocaleString("ar-EG", { timeZone: "Africa/Cairo" })
-      : "قريباً";
+    const amountPaid = payload.amountPaid ?? payload.amount ?? 0;
+    const isFree =
+      payload.isFree === true ||
+      payload.is_free === true ||
+      Number(amountPaid) <= 0;
 
-    return sendEmail({
-      to: studentEmail,
-      subject: `تم تأكيد التسجيل — ${sessionTitle || "حصة Peak Academy"}`,
-      html: `
-        <div dir="rtl" style="font-family:Arial,sans-serif">
-          <h2>تم تأكيد تسجيلك بنجاح</h2>
-          <p>الحصة: <strong>${sessionTitle || "—"}</strong></p>
-          <p>موعد البدء: <strong>${when}</strong></p>
-          <p>نتمنى لك تجربة تعليمية ممتعة مع Peak Academy.</p>
-        </div>
-      `
+    return sendEnrollmentConfirmation({
+      to,
+      studentName: payload.studentName || payload.student_name,
+      sessionTitle: payload.sessionTitle || payload.session_title,
+      startTime: payload.startTime || payload.start_time,
+      isFree,
+      amountPaid
+    });
+  }
+
+  if (name === "session-reminder") {
+    const to = resolveEmail(payload);
+    if (!to) return { skipped: true, reason: "missing_email" };
+
+    return sendSessionReminder({
+      to,
+      studentName: payload.studentName || payload.student_name,
+      sessionTitle: payload.sessionTitle || payload.session_title,
+      startTime: payload.startTime || payload.start_time,
+      roomUrl: payload.roomUrl || payload.room_url
+    });
+  }
+
+  if (name === "payment-failed") {
+    const to = resolveEmail(payload);
+    if (!to) return { skipped: true, reason: "missing_email" };
+
+    return sendPaymentFailed({
+      to,
+      studentName: payload.studentName || payload.student_name,
+      sessionTitle: payload.sessionTitle || payload.session_title
+    });
+  }
+
+  if (name === "withdrawal-processed") {
+    const to = resolveEmail(payload);
+    if (!to) return { skipped: true, reason: "missing_email" };
+
+    return sendWithdrawalProcessed({
+      to,
+      teacherName: payload.teacherName || payload.teacher_name,
+      amount: payload.amount,
+      status: payload.status
     });
   }
 
   if (name === "weekly-report") {
-    const { parentEmail, studentName, reportSummary } = payload;
-    if (!parentEmail) return { skipped: true, reason: "missing_email" };
+    const to = resolveEmail(payload);
+    if (!to) return { skipped: true, reason: "missing_email" };
+
+    const { sendEmail } = await import("../services/email.service.js");
+    const { studentName, reportSummary } = payload;
 
     return sendEmail({
-      to: parentEmail,
+      to,
       subject: `تقرير أسبوعي — ${studentName || "ابنك"}`,
       html: `
         <div dir="rtl" style="font-family:Arial,sans-serif">

@@ -18,7 +18,7 @@ import studentRoutes from "./routes/student.js";
 import studyRoomsRoutes from "./routes/studyRooms.js";
 import enrollmentRoutes from "./routes/enrollments.js";
 import promotionRoutes from "./routes/promotions.js";
-import { captureException } from "./lib/sentry.js";
+import { captureException, setupExpressSentry } from "./lib/sentry.js";
 
 const app = express();
 
@@ -78,6 +78,14 @@ app.get("/api/health", (_req, res) => {
     sessions_query: "plain-select"
   });
 });
+
+function redirectToOnboarding(_req, res) {
+  const base = (process.env.FRONTEND_URL || "https://peak-academy.net").replace(/\/$/, "");
+  res.redirect(302, `${base}/onboarding`);
+}
+
+/** Legacy paths without /api prefix (e.g. Railway URL opened in browser) */
+app.get("/auth/setup-profile", redirectToOnboarding);
 
 app.get("/api/diag", async (_req, res) => {
   const { supabase } = await import("./lib/supabase.js");
@@ -144,6 +152,8 @@ app.use("/api/study-rooms", studyRoomsRoutes);
 app.use("/api/*", (_req, res) => {
   res.status(404).json({ success: false, error: "المسار غير موجود" });
 });
+
+setupExpressSentry(app);
 
 app.use((err, _req, res, _next) => {
   captureException(err);

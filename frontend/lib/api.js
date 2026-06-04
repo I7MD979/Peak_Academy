@@ -116,6 +116,8 @@ export const sessionsApi = {
   cancelEnrollment: (sessionId) =>
     apiRequest(`/sessions/${sessionId}/cancel-enrollment`, { method: "POST" }),
   getRoom: (sessionId) => apiRequest(`/sessions/${sessionId}/room`),
+  join: (sessionId) =>
+    apiRequest(`/sessions/${sessionId}/join`, { method: "POST" }),
   getEnrollments: (sessionId) => apiRequest(`/sessions/${sessionId}/enrollments`)
 };
 

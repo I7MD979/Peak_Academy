@@ -110,13 +110,15 @@ export async function notifyEnrollmentConfirm(userId, sessionId, amountPaid) {
       .maybeSingle()
   ]);
 
+  const paidAmount = Number(amountPaid) || 0;
   await Promise.all([
     enqueueJob("email", "enrollment-confirm", {
       studentEmail: user?.email,
       studentName: user?.full_name,
       sessionTitle: session?.title,
       startTime: session?.start_time ?? session?.scheduled_at,
-      amountPaid
+      amountPaid: paidAmount,
+      isFree: paidAmount <= 0
     }),
     enqueueJob("notifications", "push-notification", {
       userId,

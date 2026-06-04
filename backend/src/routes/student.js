@@ -15,6 +15,7 @@ import { countPaidSessionEnrollments } from "../services/subscriptionService.js"
 import { getActiveSubscription } from "../services/enrollmentService.js";
 import { CACHE, withCache } from "../lib/cache.js";
 import { isSchemaV2, SCHEMA } from "../lib/schema.js";
+import { getSessionJoinWindow } from "../utils/session-join.js";
 
 const SESSION_SELECT = "*";
 
@@ -533,7 +534,9 @@ router.get("/sessions/:id", auth, checkRole("student"), async (req, res) => {
 
     const canEnroll =
       !isEnrolled && normalized.status === "scheduled" && !isFull && !isPast;
-    const canJoinLive = isEnrolled && normalized.status === "live";
+    const joinWindow = getSessionJoinWindow(normalized);
+    const canJoinLive =
+      isEnrolled && (normalized.status === "live" || joinWindow.canJoin);
 
     const enrollOpts = await getEnrollmentOptionsForSession(req.user.id, {
       ...normalized,

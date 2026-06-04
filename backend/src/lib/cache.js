@@ -131,6 +131,16 @@ export const CACHE = {
   adminDashboard: () => "admin:dashboard"
 };
 
+export async function getCacheEntry(key) {
+  const client = await getRedisClient();
+  return client.get(key);
+}
+
+export async function setCacheEntry(key, ttlSeconds, value) {
+  const client = await getRedisClient();
+  await client.setex(key, ttlSeconds, value);
+}
+
 export async function withCache(key, ttlSeconds, fetchFn) {
   const client = await getRedisClient();
   const cached = await client.get(key);

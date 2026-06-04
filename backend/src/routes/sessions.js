@@ -3,7 +3,14 @@ import { z } from "zod";
 import { auth } from "../middleware/auth.js";
 import { checkRole } from "../middleware/checkRole.js";
 import { supabase } from "../lib/supabase.js";
-import { createDailyRoom } from "../services/daily.service.js";
+import {
+  createDailyRoom,
+  createMeetingToken,
+  getRoomUrl,
+  resolveRoomName
+} from "../services/daily.service.js";
+import { getSessionJoinWindow } from "../utils/session-join.js";
+import { isSchemaV2, SCHEMA, sessionStartTime } from "../lib/schema.js";
 import { paginate, paginationMeta } from "../utils/paginate.js";
 import { success, error, paginated } from "../utils/response.js";
 import { isSchemaError, mapDbError, SQL_SETUP_HINT } from "../utils/db-errors.js";
@@ -273,24 +280,36 @@ router.post("/", auth, checkRole("teacher"), async (req, res) => {
       return error(res, "موعد الجلسة يجب أن يكون في المستقبل", 400);
     }
 
-    const roomUrl = await createDailyRoom(body.title);
+    const maxStudents = body.max_students || 10;
+    const room = await createDailyRoom(body.title, {
+      maxParticipants: maxStudents,
+      expiryHours: 24 * 7
+    });
+    const insertPayload = {
+      id: `s-${Date.now()}`,
+      teacher_id: req.user.id,
+      title: body.title,
+      subject: body.subject || "general",
+      grade: body.grade || "third",
+      scheduled_at: scheduledAt.toISOString(),
+      duration_min: body.duration_min || 60,
+      max_students: maxStudents,
+      price_per_student: body.price_per_student,
+      subject_id: body.subject_id || null,
+      description: body.description || null,
+      daily_room_url: room.url,
+      daily_room_name: room.name,
+      room_url: room.url,
+      status: "scheduled"
+    };
+    if (isSchemaV2()) {
+      insertPayload.start_time = scheduledAt.toISOString();
+      insertPayload.price = body.price_per_student;
+      insertPayload.duration_minutes = body.duration_min || 60;
+    }
     const { data: session, error: dbError } = await supabase
       .from("sessions")
-      .insert({
-        id: `s-${Date.now()}`,
-        teacher_id: req.user.id,
-        title: body.title,
-        subject: body.subject || "general",
-        grade: body.grade || "third",
-        scheduled_at: scheduledAt.toISOString(),
-        duration_min: body.duration_min || 60,
-        max_students: body.max_students || 10,
-        price_per_student: body.price_per_student,
-        subject_id: body.subject_id || null,
-        description: body.description || null,
-        daily_room_url: roomUrl,
-        status: "scheduled"
-      })
+      .insert(insertPayload)
       .select()
       .single();
     if (dbError) throw dbError;
@@ -577,28 +596,129 @@ router.patch("/:id/cancel", auth, checkRole("teacher", "admin"), async (req, res
   }
 });
 
+async function assertStudentEnrollmentForJoin(userId, sessionId) {
+  if (isSchemaV2()) {
+    const { data: enrollment } = await supabase
+      .from("enrollments")
+      .select("id, status, payment_status")
+      .eq("student_id", userId)
+      .eq("session_id", sessionId)
+      .maybeSingle();
+
+    if (!enrollment) return { ok: false, message: "غير مسجل في هذه الحصة" };
+    const paid =
+      enrollment.payment_status === "paid" ||
+      SCHEMA.confirmedEnrollmentStatuses().includes(enrollment.status);
+    if (!paid) return { ok: false, message: "غير مسجل في هذه الحصة" };
+    return { ok: true };
+  }
+
+  const studentProfileId = await getStudentProfileId(userId);
+  if (!studentProfileId) return { ok: false, message: "ملف الطالب غير موجود" };
+
+  const { data: enrollment } = await supabase
+    .from("session_enrollments")
+    .select("id, status")
+    .eq("student_id", studentProfileId)
+    .eq("session_id", sessionId)
+    .maybeSingle();
+
+  if (!enrollment || !SCHEMA.confirmedEnrollmentStatuses().includes(enrollment.status)) {
+    return { ok: false, message: "غير مسجل في هذه الحصة" };
+  }
+  return { ok: true };
+}
+
+router.post("/:id/join", auth, async (req, res) => {
+  try {
+    const { data: session, error: dbError } = await supabase
+      .from("sessions")
+      .select(
+        "id, title, status, teacher_id, scheduled_at, start_time, daily_room_url, daily_room_name, room_url"
+      )
+      .eq("id", req.params.id)
+      .maybeSingle();
+
+    if (dbError) throw dbError;
+    if (!session) return error(res, "الحصة غير موجودة", 404);
+    if (session.status === "cancelled") return error(res, "الحصة ملغية", 400);
+
+    const joinWindow = getSessionJoinWindow(session);
+    if (!joinWindow.canJoin) {
+      return error(res, joinWindow.reason || "لا يمكن الدخول الآن", 400);
+    }
+
+    const isTeacher = session.teacher_id === req.user.id;
+    if (!isTeacher && req.user.role === "student") {
+      const access = await assertStudentEnrollmentForJoin(req.user.id, req.params.id);
+      if (!access.ok) return error(res, access.message, 403);
+    } else if (!isTeacher && req.user.role !== "admin") {
+      return error(res, "غير مصرح لك بدخول هذه الجلسة", 403);
+    }
+
+    const roomName = resolveRoomName(session);
+    if (!roomName) return error(res, "غرفة الحصة غير متاحة", 400);
+
+    const token = await createMeetingToken(roomName, req.user.id, {
+      isOwner: isTeacher,
+      userName: req.user.full_name || req.user.email || ""
+    });
+
+    return success(res, {
+      room_url: getRoomUrl(roomName),
+      token,
+      is_teacher: isTeacher,
+      session_start: sessionStartTime(session)
+    });
+  } catch (err) {
+    return handleRouteError(res, err, "تعذر الدخول إلى الحصة");
+  }
+});
+
 router.get("/:id/room", auth, async (req, res) => {
   try {
     const { data: session, error: dbError } = await supabase
       .from("sessions")
       .select(
-        "daily_room_url,room_url,status,teacher_id,enrollments:session_enrollments(student:student_profiles(user_id))"
+        "daily_room_url,daily_room_name,room_url,status,teacher_id,scheduled_at,start_time,enrollments:session_enrollments(student:student_profiles(user_id))"
       )
       .eq("id", req.params.id)
       .single();
 
     if (dbError) throw dbError;
     if (!session) return error(res, "الجلسة غير موجودة", 404);
-    if (session.status !== "live") return error(res, "الجلسة ليست مباشرة الآن", 400);
 
     const isTeacher = session.teacher_id === req.user.id;
-    const isEnrolled = (session.enrollments || []).some((e) => e.student?.user_id === req.user.id);
-    if (!isTeacher && !isEnrolled) return error(res, "غير مصرح لك بدخول هذه الجلسة", 403);
+    let allowed = isTeacher;
 
-    return success(res, {
-      room_url: session.daily_room_url || session.room_url,
-      is_teacher: isTeacher
-    });
+    if (!allowed && isSchemaV2()) {
+      const access = await assertStudentEnrollmentForJoin(req.user.id, req.params.id);
+      allowed = access.ok;
+    } else if (!allowed) {
+      allowed = (session.enrollments || []).some((e) => e.student?.user_id === req.user.id);
+    }
+
+    if (!allowed) return error(res, "غير مصرح لك بدخول هذه الجلسة", 403);
+
+    const useJoinFlow =
+      session.status === "live" || getSessionJoinWindow(session).canJoin;
+
+    if (!useJoinFlow) {
+      return error(res, "الجلسة ليست مباشرة الآن", 400);
+    }
+
+    const roomName = resolveRoomName(session);
+    const roomUrl = getRoomUrl(roomName) || session.daily_room_url || session.room_url;
+
+    if (roomName && process.env.DAILY_API_KEY) {
+      const token = await createMeetingToken(roomName, req.user.id, {
+        isOwner: isTeacher,
+        userName: req.user.full_name || req.user.email || ""
+      });
+      return success(res, { room_url: roomUrl, token, is_teacher: isTeacher });
+    }
+
+    return success(res, { room_url: roomUrl, is_teacher: isTeacher });
   } catch (err) {
     return handleRouteError(res, err, "Failed to get room");
   }

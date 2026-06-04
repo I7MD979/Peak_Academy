@@ -12,6 +12,15 @@ import { ensureReferralCode } from "../services/referralService.js";
 
 const router = Router();
 
+function onboardingRedirectUrl() {
+  return `${(process.env.FRONTEND_URL || "https://peak-academy.net").replace(/\/$/, "")}/onboarding`;
+}
+
+/** Browser visits — profile setup is a frontend page, not a GET API */
+router.get("/setup-profile", (_req, res) => {
+  res.redirect(302, onboardingRedirectUrl());
+});
+
 router.get("/me", auth, async (req, res) => {
   try {
     let user = await fetchFullUserProfile(supabase, req.user.id);

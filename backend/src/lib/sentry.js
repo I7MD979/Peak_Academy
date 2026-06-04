@@ -11,7 +11,8 @@ export async function initSentry() {
     Sentry.init({
       dsn: process.env.SENTRY_DSN,
       environment: process.env.NODE_ENV || "development",
-      tracesSampleRate: 0.1
+      tracesSampleRate: 0.1,
+      integrations: [Sentry.httpIntegration(), Sentry.expressIntegration()]
     });
     sentry = Sentry;
     console.log("Sentry initialized");
@@ -26,10 +27,11 @@ export function captureException(error, context = {}) {
   if (sentry) sentry.captureException(error, { extra: context });
 }
 
-export async function getSentryHandlers() {
-  if (!sentry) return { requestHandler: null, errorHandler: null };
-  return {
-    requestHandler: sentry.Handlers.requestHandler(),
-    errorHandler: sentry.Handlers.errorHandler()
-  };
+export function setupExpressSentry(app) {
+  if (!sentry || !app) return;
+  try {
+    sentry.setupExpressErrorHandler(app);
+  } catch (error) {
+    console.warn("Sentry Express error handler skipped:", error.message);
+  }
 }

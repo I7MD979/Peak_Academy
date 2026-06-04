@@ -17,7 +17,7 @@ function TeacherControls() {
   );
 }
 
-export default function LiveRoom({ roomUrl, isTeacher }) {
+export default function LiveRoom({ roomUrl, token, isTeacher }) {
   const callRef = useRef(null);
   const [joinError, setJoinError] = useState("");
 
@@ -33,7 +33,8 @@ export default function LiveRoom({ roomUrl, isTeacher }) {
         showFullscreenButton: true,
         iframeStyle: { width: "100%", height: "100%" }
       });
-      call.join({ url: roomUrl }).catch(() => {
+      const joinOpts = token ? { url: roomUrl, token } : { url: roomUrl };
+      call.join(joinOpts).catch(() => {
         setJoinError("تعذر الانضمام إلى الغرفة");
       });
     } catch {
@@ -43,7 +44,7 @@ export default function LiveRoom({ roomUrl, isTeacher }) {
     return () => {
       call?.destroy();
     };
-  }, [roomUrl]);
+  }, [roomUrl, token]);
 
   if (joinError) {
     return (

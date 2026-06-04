@@ -24,7 +24,8 @@ async function notifyEnrollmentLegacy(transaction, sessionId) {
       studentName: user?.full_name,
       sessionTitle: session?.title,
       startTime: session?.start_time ?? session?.scheduled_at,
-      amountPaid: transaction.amount
+      amountPaid: transaction.amount,
+      isFree: Number(transaction.amount) <= 0
     }),
     enqueueJob("notifications", "push-notification", {
       userId: transaction.user_id,
@@ -60,6 +61,25 @@ export async function fulfillPaymentV2(payment, paymobTxnId) {
   return { enrolled: true, ok: true };
 }
 
+async function enqueuePaymentFailedEmail({ userId, sessionId }) {
+  if (!userId) return;
+
+  const [{ data: user }, { data: session }] = await Promise.all([
+    supabase.from("users").select("email, full_name").eq("id", userId).maybeSingle(),
+    sessionId
+      ? supabase.from("sessions").select("title").eq("id", sessionId).maybeSingle()
+      : Promise.resolve({ data: null })
+  ]);
+
+  if (!user?.email) return;
+
+  await enqueueJob("email", "payment-failed", {
+    to: user.email,
+    studentName: user.full_name,
+    sessionTitle: session?.title
+  });
+}
+
 export async function markPaymentFailedV2(payment) {
   if (!payment || payment.status !== "pending") return;
 
@@ -73,13 +93,19 @@ export async function markPaymentFailedV2(payment) {
       .eq("id", payment.enrollment_id);
   }
 
-  await enqueueJob("notifications", "push-notification", {
-    userId: payment.student_id,
-    type: "payment_failed",
-    title: "فشل الدفع",
-    body: "تعذر إتمام عملية الدفع. يمكنك المحاولة مرة أخرى.",
-    data: { session_id: sessionId || null }
-  });
+  await Promise.all([
+    enqueueJob("notifications", "push-notification", {
+      userId: payment.student_id,
+      type: "payment_failed",
+      title: "فشل الدفع",
+      body: "تعذر إتمام عملية الدفع. يمكنك المحاولة مرة أخرى.",
+      data: { session_id: sessionId || null }
+    }),
+    enqueuePaymentFailedEmail({
+      userId: payment.student_id,
+      sessionId: sessionId || payment.enrollment?.session?.id
+    })
+  ]);
 }
 
 export async function reconcileCompletedTransaction(transaction) {
@@ -239,16 +265,21 @@ export async function markTransactionFailed(transaction) {
 
   await supabase.from("transactions").update({ status: "failed" }).eq("id", transaction.id).eq("status", "pending");
 
-  await enqueueJob("notifications", "push-notification", {
-    userId: transaction.user_id,
-    type: "payment_failed",
-    title: "فشل الدفع",
-    body: "تعذر إتمام عملية الدفع. يمكنك المحاولة مرة أخرى.",
-    data: {
-      session_id: transaction.metadata?.session_id || null,
-      transaction_id: transaction.id
-    }
-  });
+  const sessionId = transaction.metadata?.session_id || null;
+
+  await Promise.all([
+    enqueueJob("notifications", "push-notification", {
+      userId: transaction.user_id,
+      type: "payment_failed",
+      title: "فشل الدفع",
+      body: "تعذر إتمام عملية الدفع. يمكنك المحاولة مرة أخرى.",
+      data: {
+        session_id: sessionId,
+        transaction_id: transaction.id
+      }
+    }),
+    enqueuePaymentFailedEmail({ userId: transaction.user_id, sessionId })
+  ]);
 }
 
 export async function handlePaymobWebhook(orderId, paymobTxnId, success) {

@@ -11,8 +11,9 @@ const LiveRoom = dynamic(() => import("@/lib/daily"), {
   loading: () => <LoadingSkeleton />
 });
 
-export default function LiveSessionRoom({ sessionId, isTeacher }) {
+export default function LiveSessionRoom({ sessionId, isTeacher, sessionStart }) {
   const [roomUrl, setRoomUrl] = useState("");
+  const [token, setToken] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -23,9 +24,39 @@ export default function LiveSessionRoom({ sessionId, isTeacher }) {
       try {
         setLoading(true);
         setError("");
-        const payload = await sessionsApi.getRoom(sessionId);
+
+        const tryJoin = async () => {
+          const res = await sessionsApi.join(sessionId);
+          const data = res?.data ?? res;
+          return {
+            room_url: data?.room_url,
+            token: data?.token
+          };
+        };
+
+        const tryRoom = async () => {
+          const res = await sessionsApi.getRoom(sessionId);
+          const data = res?.data ?? res;
+          return {
+            room_url: data?.room_url,
+            token: data?.token
+          };
+        };
+
+        let payload = null;
+        try {
+          payload = await tryJoin();
+        } catch (joinErr) {
+          if (isTeacher) {
+            payload = await tryRoom();
+          } else {
+            throw joinErr;
+          }
+        }
+
         if (!cancelled) {
-          setRoomUrl(payload?.data?.room_url || "");
+          setRoomUrl(payload?.room_url || "");
+          setToken(payload?.token || "");
         }
       } catch (err) {
         if (!cancelled) {
@@ -39,7 +70,7 @@ export default function LiveSessionRoom({ sessionId, isTeacher }) {
     return () => {
       cancelled = true;
     };
-  }, [sessionId]);
+  }, [sessionId, isTeacher, sessionStart]);
 
   if (loading) return <LoadingSkeleton />;
   if (error) {
@@ -57,5 +88,5 @@ export default function LiveSessionRoom({ sessionId, isTeacher }) {
     );
   }
 
-  return <LiveRoom roomUrl={roomUrl} isTeacher={isTeacher} />;
+  return <LiveRoom roomUrl={roomUrl} token={token} isTeacher={isTeacher} />;
 }

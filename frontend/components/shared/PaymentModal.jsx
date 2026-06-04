@@ -83,11 +83,12 @@ export default function PaymentModal({ session, checkoutOptions = {}, onClose, o
       const res = await sessionsApi.enroll(session.id, body);
       const data = res?.data;
 
-      if (data?.checkout_url) {
+      const checkoutUrl = data?.paymob_url || data?.checkout_url;
+      if (checkoutUrl) {
         if (data.transaction_id) {
           sessionStorage.setItem(`peak-tx-${session.id}`, data.transaction_id);
         }
-        window.location.href = data.checkout_url;
+        window.location.href = checkoutUrl;
         if (onClose) onClose();
         return;
       }

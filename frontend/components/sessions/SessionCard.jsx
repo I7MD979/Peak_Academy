@@ -17,7 +17,8 @@ export default function SessionCard({
   const href = detailHref || `/student/sessions/${session?.id || ""}`;
   const liveLink = liveHref || `/student/live/${session?.id || ""}`;
   const isLive = session?.is_live || session?.status === "live";
-  const primaryHref = isLive ? liveLink : href;
+  const canJoinLive = session?.can_join_live || isLive;
+  const primaryHref = canJoinLive ? liveLink : href;
   const canEnroll =
     showEnroll &&
     !session?.is_enrolled &&
@@ -79,9 +80,9 @@ export default function SessionCard({
           <Button
             href={primaryHref}
             className="flex-1 rounded-xl"
-            variant={isLive ? "destructive" : session?.is_enrolled ? "outline" : "accent"}
+            variant={canJoinLive ? "destructive" : session?.is_enrolled ? "outline" : "accent"}
           >
-            {isLive ? "دخول البث" : session?.is_enrolled ? "عرض الجلسة" : "احجز الآن"}
+            {canJoinLive ? "دخول البث" : session?.is_enrolled ? "عرض الجلسة" : "احجز الآن"}
           </Button>
           {isLive ? (
             <Button href={href} variant="outline" className="rounded-xl px-3" aria-label="تفاصيل الجلسة">

@@ -217,10 +217,10 @@ export default function StudentSessionDetailsPage({ params }) {
             </Button>
           ) : null}
 
-          {isEnrolled && !isLive && !isCompleted && !isCancelled ? (
+          {isEnrolled && !canJoinLive && !isCompleted && !isCancelled ? (
             <>
               <p className="w-full rounded-xl bg-success/10 px-4 py-3 text-sm font-semibold text-success">
-                أنت مسجّل في هذه الجلسة. ستتمكن من الدخول عند بدء المدرس البث المباشر.
+                أنت مسجّل في هذه الجلسة. ستتمكن من الدخول قبل موعد الحصة بـ 15 دقيقة.
               </p>
               <Button
                 variant="outline"

@@ -56,6 +56,8 @@ startWorkers().catch((err) => {
 
 startSubscriptionResetScheduler();
 
+await import("./jobs/sessionReminders.js");
+
 async function shutdown(signal) {
   console.log(`${signal} received — shutting down`);
   await shutdownWorkers();
