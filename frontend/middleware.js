@@ -1,143 +1,143 @@
+import { createServerClient } from "@supabase/ssr";
 import { NextResponse } from "next/server";
-import {
-  fetchAuthProfile,
-  isProfileComplete,
-  ROLE_HOME,
-  resolvePostAuthPath
-} from "./lib/role-routes-edge.js";
-import { updateSupabaseSession } from "./lib/supabase/middleware.js";
 
-const ROLE_PREFIXES = {
-  "/admin": "admin",
-  "/teacher": "teacher",
+const PROD_DOMAIN = "peak-academy.net";
+const PREVIEW_USER = "peak";
+const PREVIEW_PASS = "D@rkwh@le_123";
+
+const PUBLIC_PATHS = [
+  "/",
+  "/auth/login",
+  "/auth/register",
+  "/auth/callback",
+  "/auth/forgot-password",
+  "/auth/reset-password"
+];
+
+const ROLE_ROUTES = {
   "/student": "student",
-  "/parent": "parent"
+  "/teacher": "teacher",
+  "/parent": "parent",
+  "/admin": "admin"
 };
 
-const PROTECTED_PREFIXES = ["/student", "/teacher", "/parent", "/admin", "/onboarding"];
+const ROLE_REDIRECTS = {
+  student: "/student/dashboard",
+  teacher: "/teacher/dashboard",
+  parent: "/parent/dashboard",
+  admin: "/admin/dashboard"
+};
 
-function isProtectedPath(pathname) {
-  return PROTECTED_PREFIXES.some((route) => pathname.startsWith(route));
+function isPublicPath(path) {
+  return PUBLIC_PATHS.some((p) => path === p || path.startsWith(`${p}/`));
 }
 
-function redirectTo(path, request, sessionResponse) {
+function getRoleForPath(path) {
+  for (const [prefix, role] of Object.entries(ROLE_ROUTES)) {
+    if (path.startsWith(prefix)) return role;
+  }
+  return null;
+}
+
+function checkBasicAuth(request) {
+  const authHeader = request.headers.get("authorization") || "";
+  if (!authHeader.startsWith("Basic ")) return false;
   try {
-    const redirect = NextResponse.redirect(new URL(path, request.url));
-    if (sessionResponse) {
-      sessionResponse.cookies.getAll().forEach(({ name, value }) => {
-        redirect.cookies.set(name, value);
-      });
-    }
-    return redirect;
+    const decoded = atob(authHeader.slice(6));
+    return decoded === `${PREVIEW_USER}:${PREVIEW_PASS}`;
   } catch {
-    const fallback = NextResponse.redirect(new URL("/auth/login", request.url));
-    if (sessionResponse) {
-      sessionResponse.cookies.getAll().forEach(({ name, value }) => {
-        fallback.cookies.set(name, value);
-      });
-    }
-    return fallback;
+    return false;
   }
 }
 
-/** Avoid ERR_TOO_MANY_REDIRECTS when destination equals current path or bounces auth↔auth. */
-function redirectIfNeeded(request, destination, sessionResponse, pathname) {
-  if (!destination || destination === pathname) {
-    return sessionResponse;
-  }
-  if (pathname.startsWith("/auth") && destination.startsWith("/auth")) {
-    return sessionResponse;
-  }
-  return redirectTo(destination, request, sessionResponse);
-}
-
-async function handleSupabaseAuth(request) {
-  const pathname = request.nextUrl.pathname;
-
-  if (pathname === "/auth/callback") {
-    const { response } = await updateSupabaseSession(request);
-    return response;
-  }
-
-  const { response, user, accessToken } = await updateSupabaseSession(request);
-  const isProtected = isProtectedPath(pathname);
-
-  if (isProtected && !user) {
-    return redirectTo("/auth/login", request, response);
-  }
-
-  const requiredRole = Object.entries(ROLE_PREFIXES).find(([prefix]) =>
-    pathname.startsWith(prefix)
-  )?.[1];
-
-  if (user && requiredRole && accessToken) {
-    const profile = await fetchAuthProfile(accessToken, request);
-
-    if (!profile) {
-      return response;
-    }
-
-    if (!profile.role || !isProfileComplete(profile)) {
-      return redirectIfNeeded(request, "/onboarding", response, pathname);
-    }
-
-    if (profile.role !== requiredRole) {
-      const destination = ROLE_HOME[profile.role] || "/onboarding";
-      return redirectIfNeeded(request, destination, response, pathname);
-    }
-  }
-
-  if (pathname.startsWith("/auth") && user) {
-    const destination = await resolvePostAuthPath(accessToken, request);
-    return redirectIfNeeded(request, destination, response, pathname);
-  }
-
-  if (pathname.startsWith("/onboarding") && accessToken) {
-    const destination = await resolvePostAuthPath(accessToken, request);
-    if (destination === null) {
-      return redirectIfNeeded(request, "/auth/login", response, pathname);
-    }
-    return redirectIfNeeded(request, destination, response, pathname);
-  }
-
-  if (pathname === "/" && accessToken) {
-    const destination = await resolvePostAuthPath(accessToken, request);
-    if (
-      destination &&
-      destination !== "/onboarding" &&
-      destination !== "/auth/login" &&
-      destination !== pathname
-    ) {
-      return redirectTo(destination, request, response);
-    }
-  }
-
-  if (pathname === "/dashboard") {
-    if (!user) {
-      return redirectTo("/auth/login", request, response);
-    }
-    const destination = await resolvePostAuthPath(accessToken, request);
-    if (!destination || destination === "/auth/login") {
-      return redirectTo("/auth/login", request, response);
-    }
-    return redirectIfNeeded(request, destination, response, pathname);
-  }
-
-  return response;
+function copyCookies(from, to) {
+  from.cookies.getAll().forEach(({ name, value }) => {
+    to.cookies.set(name, value);
+  });
 }
 
 export async function middleware(request) {
-  try {
-    return await handleSupabaseAuth(request);
-  } catch {
-    const path = request.nextUrl.pathname;
-    if (isProtectedPath(path)) {
-      return redirectTo("/auth/login", request);
-    }
-    return NextResponse.next({ request: { headers: request.headers } });
+  const { pathname } = request.nextUrl;
+  const host = request.headers.get("host") || "";
+
+  const isProdDomain = host === PROD_DOMAIN || host === `www.${PROD_DOMAIN}`;
+  const isPreviewUrl = host.includes(".vercel.app") && !host.includes("-kappa.");
+
+  if (!isProdDomain && isPreviewUrl && !checkBasicAuth(request)) {
+    return new NextResponse("Peak Academy — Preview Access Required", {
+      status: 401,
+      headers: {
+        "WWW-Authenticate": 'Basic realm="Peak Academy Preview"',
+        "Content-Type": "text/plain"
+      }
+    });
   }
+
+  if (isPublicPath(pathname)) {
+    return NextResponse.next();
+  }
+
+  const res = NextResponse.next({
+    request: {
+      headers: request.headers
+    }
+  });
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    const loginUrl = new URL("/auth/login", request.url);
+    loginUrl.searchParams.set("redirect", pathname);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll();
+      },
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value, options }) => {
+          res.cookies.set(name, value, options);
+        });
+      }
+    }
+  });
+
+  const {
+    data: { session }
+  } = await supabase.auth.getSession();
+
+  if (!session) {
+    const loginUrl = new URL("/auth/login", request.url);
+    loginUrl.searchParams.set("redirect", pathname);
+    const redirect = NextResponse.redirect(loginUrl);
+    copyCookies(res, redirect);
+    return redirect;
+  }
+
+  const requiredRole = getRoleForPath(pathname);
+  if (requiredRole) {
+    const { data: profile } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", session.user.id)
+      .single();
+
+    if (profile?.role !== requiredRole) {
+      const correctPath = ROLE_REDIRECTS[profile?.role] || "/auth/login";
+      const redirect = NextResponse.redirect(new URL(correctPath, request.url));
+      copyCookies(res, redirect);
+      return redirect;
+    }
+  }
+
+  return res;
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|peak-api).*)"]
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|peak-api|.*\\.png|.*\\.jpg|.*\\.svg|.*\\.ico).*)"
+  ]
 };

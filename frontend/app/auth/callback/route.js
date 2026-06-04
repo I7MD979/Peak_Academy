@@ -2,6 +2,8 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
+export const dynamic = "force-dynamic";
+
 const ROLE_REDIRECTS = {
   student: "/student/dashboard",
   teacher: "/teacher/dashboard",
@@ -28,65 +30,68 @@ export async function GET(request) {
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    console.error("Auth callback error: missing Supabase env");
+    console.error("[callback] missing Supabase env");
     return NextResponse.redirect(new URL("/auth/login", origin));
   }
 
-  const cookieStore = cookies();
-  let pendingAuthCookies = [];
+  try {
+    const cookieStore = cookies();
+    let pendingAuthCookies = [];
 
-  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
-    cookies: {
-      getAll() {
-        return cookieStore.getAll();
-      },
-      setAll(cookiesToSet) {
-        pendingAuthCookies = cookiesToSet;
-        cookiesToSet.forEach(({ name, value, options }) => {
-          cookieStore.set(name, value, options);
-        });
+    const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
+          pendingAuthCookies = cookiesToSet;
+          cookiesToSet.forEach(({ name, value, options }) => {
+            cookieStore.set(name, value, options);
+          });
+        }
       }
-    }
-  });
+    });
 
-  const { error } = await supabase.auth.exchangeCodeForSession(code);
-  if (error) {
-    console.error("Auth callback error:", error.message);
+    const { error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
+    if (sessionError) {
+      console.error("[callback] session error:", sessionError.message);
+      return NextResponse.redirect(new URL("/auth/login", origin));
+    }
+
+    await supabase.auth.getSession();
+
+    const {
+      data: { user },
+      error: userError
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      console.error("[callback] user error:", userError?.message);
+      const loginResponse = NextResponse.redirect(new URL("/auth/login", origin));
+      applyCookiesToResponse(loginResponse, pendingAuthCookies);
+      return loginResponse;
+    }
+
+    // Brief wait for handle_new_user trigger after Google OAuth
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    const { data: profile } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    console.log("[callback] user_id:", user.id, "role:", profile?.role);
+
+    const redirectPath = profile?.role
+      ? ROLE_REDIRECTS[profile.role] || "/student/dashboard"
+      : "/student/dashboard";
+
+    const response = NextResponse.redirect(new URL(redirectPath, origin));
+    applyCookiesToResponse(response, pendingAuthCookies);
+    return response;
+  } catch (err) {
+    console.error("[callback] unexpected error:", err);
     return NextResponse.redirect(new URL("/auth/login", origin));
   }
-
-  await supabase.auth.getSession();
-
-  const {
-    data: { user },
-    error: userError
-  } = await supabase.auth.getUser();
-
-  if (userError || !user) {
-    console.error("Auth callback error:", userError?.message || "no user after exchange");
-    const loginResponse = NextResponse.redirect(new URL("/auth/login", origin));
-    applyCookiesToResponse(loginResponse, pendingAuthCookies);
-    return loginResponse;
-  }
-
-  const { data: profile, error: profileError } = await supabase
-    .from("users")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  console.log(
-    "Auth callback - user:",
-    user.id,
-    "profile:",
-    profile,
-    "error:",
-    profileError?.message || profileError
-  );
-
-  const redirectPath = ROLE_REDIRECTS[profile?.role] || "/student/dashboard";
-  const response = NextResponse.redirect(new URL(redirectPath, origin));
-  applyCookiesToResponse(response, pendingAuthCookies);
-
-  return response;
 }
