@@ -278,3 +278,81 @@ export function resolveRoomName(session) {
   if (session?.daily_room_name) return session.daily_room_name;
   return roomNameFromUrl(session?.daily_room_url || session?.room_url);
 }
+
+export async function dailyRoomExists(roomName) {
+  if (!process.env.DAILY_API_KEY || !roomName) return false;
+  try {
+    const response = await fetch(`${DAILY_API}/rooms/${encodeURIComponent(roomName)}`, {
+      headers: { Authorization: `Bearer ${process.env.DAILY_API_KEY}` }
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Resolve room name, create room if missing, recreate if stale, issue meeting token.
+ */
+export async function ensureDailyMeetingAccess({
+  title,
+  maxStudents = 10,
+  roomName: initialName,
+  roomUrl: initialUrl,
+  userId,
+  isOwner = false,
+  userName = "",
+  recreateIfTokenFails = true
+}) {
+  let roomName = initialName || roomNameFromUrl(initialUrl);
+  let roomUrl = initialUrl || (roomName ? getRoomUrl(roomName) : null);
+  let lastError = null;
+
+  if (!process.env.DAILY_API_KEY) {
+    return { roomName, roomUrl, token: null, lastError: new Error("DAILY_API_KEY is not configured") };
+  }
+
+  if (!roomName) {
+    const created = await createDailyRoomOptional(title, { maxParticipants: maxStudents });
+    if (!created) {
+      return { roomName: null, roomUrl: null, token: null, lastError };
+    }
+    roomName = created.name;
+    roomUrl = created.url;
+  }
+
+  const issueToken = async (name) => {
+    try {
+      const token = await createMeetingToken(name, userId, { isOwner, userName });
+      return { token, error: null };
+    } catch (err) {
+      lastError = err;
+      return { token: null, error: err };
+    }
+  };
+
+  let { token, error: tokenErr } = await issueToken(roomName);
+  if (token) {
+    return { roomName, roomUrl, token, lastError: null };
+  }
+
+  if (tokenErr?.dailyError === "authentication-error") {
+    return { roomName, roomUrl, token: null, lastError: tokenErr };
+  }
+
+  const roomMissing = !(await dailyRoomExists(roomName));
+  if (recreateIfTokenFails && (roomMissing || tokenErr)) {
+    const fresh = await createDailyRoomOptional(title, { maxParticipants: maxStudents });
+    if (fresh) {
+      roomName = fresh.name;
+      roomUrl = fresh.url;
+      ({ token, error: tokenErr } = await issueToken(roomName));
+      if (token) {
+        return { roomName, roomUrl, token, lastError: null, recreated: true };
+      }
+      lastError = tokenErr;
+    }
+  }
+
+  return { roomName, roomUrl, token: null, lastError };
+}

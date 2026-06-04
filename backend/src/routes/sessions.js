@@ -5,7 +5,7 @@ import { checkRole } from "../middleware/checkRole.js";
 import { supabase } from "../lib/supabase.js";
 import {
   createDailyRoomOptional,
-  createMeetingTokenOptional,
+  ensureDailyMeetingAccess,
   getRoomUrl,
   mapDailyError,
   resolveRoomName
@@ -155,11 +155,13 @@ async function insertSessionRow(payload) {
   throw lastError;
 }
 
-async function attachDailyRoomToSession(sessionId, title, maxStudents) {
-  const room = await createDailyRoomOptional(title, {
-    maxParticipants: maxStudents,
-    expiryHours: 24 * 7
-  });
+async function attachDailyRoomToSession(sessionId, title, maxStudents, existingRoom = null) {
+  const room =
+    existingRoom ||
+    (await createDailyRoomOptional(title, {
+      maxParticipants: maxStudents,
+      expiryHours: 24 * 7
+    }));
   if (!room) return null;
 
   const patchVariants = [
@@ -743,6 +745,46 @@ async function resolveRoomForSession(session, sessionId) {
   return { roomName, roomUrl };
 }
 
+function dailyTokenFailureResponse(res, lastError) {
+  if (lastError?.dailyError || lastError?.dailyInfo) {
+    const mapped = mapDailyError(lastError);
+    return error(res, mapped.message, mapped.status, {
+      daily_error: lastError.dailyError,
+      daily_info: lastError.dailyInfo
+    });
+  }
+  return error(
+    res,
+    "تعذر إنشاء رمز الدخول لغرفة الفيديو. تحقق من DAILY_API_KEY في Railway (مفتاح Daily.co صالح لنفس النطاق).",
+    502
+  );
+}
+
+async function buildMeetingPayload(session, sessionId, reqUser, isTeacher) {
+  const { roomName, roomUrl } = await resolveRoomForSession(session, sessionId);
+
+  const access = await ensureDailyMeetingAccess({
+    title: session.title,
+    maxStudents: session.max_students || 10,
+    roomName,
+    roomUrl,
+    userId: reqUser.id,
+    isOwner: isTeacher,
+    userName: reqUser.full_name || reqUser.email || ""
+  });
+
+  if (access.recreated) {
+    await attachDailyRoomToSession(
+      sessionId,
+      session.title,
+      session.max_students || 10,
+      { url: access.roomUrl, name: access.roomName }
+    );
+  }
+
+  return access;
+}
+
 async function assertStudentEnrollmentForJoin(userId, sessionId) {
   if (isSchemaV2()) {
     const { data: enrollment } = await supabase
@@ -792,36 +834,25 @@ router.post("/:id/join", auth, async (req, res) => {
       return error(res, "غير مصرح لك بدخول هذه الجلسة", 403);
     }
 
-    const { roomName, roomUrl } = await resolveRoomForSession(session, req.params.id);
-    if (!roomName && !roomUrl) {
+    const access = await buildMeetingPayload(session, req.params.id, req.user, isTeacher);
+
+    if (!access.roomUrl && !access.roomName) {
       return error(
         res,
         process.env.DAILY_API_KEY
           ? "غرفة الفيديو غير متاحة. راجع DAILY_API_KEY في Railway."
-          : "غرفة الفيديو غير مفعّلة على الخادم.",
+          : "غرفة الفيديو غير مفعّلة على الخادم (DAILY_API_KEY).",
         502
       );
     }
 
-    const resolvedUrl = roomUrl || (roomName ? getRoomUrl(roomName) : null);
-    const token = roomName
-      ? await createMeetingTokenOptional(roomName, req.user.id, {
-          isOwner: isTeacher,
-          userName: req.user.full_name || req.user.email || ""
-        })
-      : null;
-
-    if (process.env.DAILY_API_KEY && resolvedUrl && !token) {
-      return error(
-        res,
-        "تعذر إنشاء رمز الدخول لغرفة الفيديو. تحقق من DAILY_API_KEY في Railway (مفتاح صالح من Daily.co).",
-        502
-      );
+    if (!access.token) {
+      return dailyTokenFailureResponse(res, access.lastError);
     }
 
     return success(res, {
-      room_url: resolvedUrl,
-      token,
+      room_url: access.roomUrl,
+      token: access.token,
       is_teacher: isTeacher,
       session_start: sessionStartTime(session)
     });
@@ -852,8 +883,9 @@ router.get("/:id/room", auth, async (req, res) => {
     const entry = canEnterLiveSession(session);
     if (!entry.ok) return error(res, entry.reason || "الجلسة ليست مباشرة الآن", 400);
 
-    const { roomName, roomUrl } = await resolveRoomForSession(session, req.params.id);
-    if (!roomName && !roomUrl) {
+    const access = await buildMeetingPayload(session, req.params.id, req.user, isTeacher);
+
+    if (!access.roomUrl && !access.roomName) {
       return error(
         res,
         process.env.DAILY_API_KEY
@@ -863,25 +895,13 @@ router.get("/:id/room", auth, async (req, res) => {
       );
     }
 
-    const resolvedUrl = roomUrl || (roomName ? getRoomUrl(roomName) : null);
-    const token = roomName
-      ? await createMeetingTokenOptional(roomName, req.user.id, {
-          isOwner: isTeacher,
-          userName: req.user.full_name || req.user.email || ""
-        })
-      : null;
-
-    if (process.env.DAILY_API_KEY && resolvedUrl && !token) {
-      return error(
-        res,
-        "تعذر إنشاء رمز الدخول. تحقق من DAILY_API_KEY في Railway.",
-        502
-      );
+    if (!access.token) {
+      return dailyTokenFailureResponse(res, access.lastError);
     }
 
     return success(res, {
-      room_url: resolvedUrl,
-      token,
+      room_url: access.roomUrl,
+      token: access.token,
       is_teacher: isTeacher
     });
   } catch (err) {

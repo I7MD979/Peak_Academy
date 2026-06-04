@@ -72,6 +72,10 @@ async function performApiFetch(path, options = {}, tokenOverride = null) {
   if (!res.ok || payload?.success === false) {
     const apiVersion = res.headers.get("x-peak-api-version");
     let message = payload?.error || payload?.message || `Request failed (${res.status})`;
+    const dailyInfo = payload?.data?.daily_info;
+    if (dailyInfo && typeof dailyInfo === "string") {
+      message = `${message} (${dailyInfo})`;
+    }
     if (res.status === 429) {
       message =
         "طلبات كثيرة على الخادم. انتظر قليلًا ثم حدّث الصفحة، أو أعد تشغيل واجهة التطوير بعد إعادة تشغيل backend.";
