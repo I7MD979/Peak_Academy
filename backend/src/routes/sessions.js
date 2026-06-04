@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { z } from "zod";
 import { auth } from "../middleware/auth.js";
 import { checkRole } from "../middleware/checkRole.js";
 import { supabase } from "../lib/supabase.js";
@@ -9,7 +10,21 @@ import { isSchemaError, mapDbError, SQL_SETUP_HINT } from "../utils/db-errors.js
 import { querySessionById, querySessionsList } from "../utils/session-select.js";
 import { ensureUserProfile } from "../utils/ensure-user-profile.js";
 import { incrementAttendeeStreaks, recordSessionEarnings } from "../utils/session-earnings.js";
+import { getSessionStartAvailability } from "../utils/session-start.js";
+import { reconcileCompletedTransaction } from "../utils/payments-fulfillment.js";
 import { CACHE, withCache, invalidateSessionCaches } from "../lib/cache.js";
+
+const createSessionSchema = z.object({
+  title: z.string().min(3, "عنوان الجلسة قصير جداً").max(200),
+  subject: z.string().min(1).optional(),
+  grade: z.enum(["first", "second", "third"]).optional(),
+  scheduled_at: z.string().min(1, "موعد الجلسة مطلوب"),
+  duration_min: z.coerce.number().int().min(15).max(240).optional(),
+  max_students: z.coerce.number().int().min(1).max(100).optional(),
+  price_per_student: z.coerce.number().positive("السعر يجب أن يكون أكبر من صفر"),
+  description: z.string().max(2000).optional().nullable(),
+  subject_id: z.string().uuid().optional().nullable()
+});
 
 const router = Router();
 
@@ -69,6 +84,13 @@ function handleRouteError(res, err, fallbackMessage) {
 
 router.get("/", auth, async (req, res) => {
   try {
+    if (req.user.role === "student") {
+      return error(res, "استخدم /api/student/sessions لعرض الجلسات", 403);
+    }
+    if (req.user.role === "parent") {
+      return error(res, "غير مصرح لك بعرض الجلسات", 403);
+    }
+
     const { page = 1, limit = 20, subject, grade, status = "scheduled", search } = req.query;
     const { from, to } = paginate(page, limit);
     const ascending = status === "completed" || status === "cancelled" ? false : true;
@@ -104,9 +126,13 @@ router.get("/", auth, async (req, res) => {
         if (term) q = q.ilike("title", `%${term}%`);
       }
 
-      // subject_id may be missing until RUN_IN_SQL_EDITOR.sql is applied
+      // Filter by subject_id (UUID) or legacy subject slug
       if (subject) {
-        q = q.eq("subject_id", subject);
+        const subjectValue = String(subject).trim();
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+          subjectValue
+        );
+        q = isUuid ? q.eq("subject_id", subjectValue) : q.eq("subject", subjectValue);
       }
 
       return q;
@@ -124,14 +150,17 @@ router.get("/", auth, async (req, res) => {
       ...(db_warning ? { warning: SQL_SETUP_HINT } : {})
     });
   } catch (err) {
-    const pageNum = Number(req.query.page) || 1;
-    const limitNum = Number(req.query.limit) || 20;
-    if (process.env.NODE_ENV !== "production") {
-      console.error("GET /sessions", err);
+    if (isSchemaError(err)) {
+      const pageNum = Number(req.query.page) || 1;
+      const limitNum = Number(req.query.limit) || 20;
+      if (process.env.NODE_ENV !== "production") {
+        console.error("GET /sessions schema", err);
+      }
+      return paginated(res, [], paginationMeta(0, pageNum, limitNum), {
+        warning: SQL_SETUP_HINT
+      });
     }
-    return paginated(res, [], paginationMeta(0, pageNum, limitNum), {
-      warning: SQL_SETUP_HINT
-    });
+    return handleRouteError(res, err, "Failed to fetch sessions");
   }
 });
 
@@ -178,6 +207,13 @@ router.get("/:id/enrollments", auth, checkRole("teacher", "admin"), async (req, 
 
 router.get("/:id", auth, async (req, res) => {
   try {
+    if (req.user.role === "student") {
+      return error(res, "استخدم /api/student/sessions/:id لعرض تفاصيل الجلسة", 403);
+    }
+    if (req.user.role === "parent") {
+      return error(res, "غير مصرح لك بعرض هذه الجلسة", 403);
+    }
+
     const scope = req.user.role === "teacher" ? req.user.id : "public";
     const cacheKey = CACHE.sessionDetail(req.params.id, scope);
     const session = await withCache(cacheKey, CACHE.TTL.sessionDetail, async () =>
@@ -201,24 +237,39 @@ router.get("/:id", auth, async (req, res) => {
 
 router.post("/", auth, checkRole("teacher"), async (req, res) => {
   try {
+    const parsed = createSessionSchema.safeParse(req.body);
+    if (!parsed.success) {
+      const msg = parsed.error.issues[0]?.message || "بيانات الجلسة غير صالحة";
+      return error(res, msg, 400);
+    }
+
+    const body = parsed.data;
     const teacher = await getTeacherProfileForUser(req.user.id);
     if (!teacher) return error(res, "Teacher profile not found", 404);
 
-    const roomUrl = await createDailyRoom(req.body.title);
+    const scheduledAt = new Date(body.scheduled_at);
+    if (Number.isNaN(scheduledAt.getTime())) {
+      return error(res, "موعد الجلسة غير صالح", 400);
+    }
+    if (scheduledAt.getTime() <= Date.now()) {
+      return error(res, "موعد الجلسة يجب أن يكون في المستقبل", 400);
+    }
+
+    const roomUrl = await createDailyRoom(body.title);
     const { data: session, error: dbError } = await supabase
       .from("sessions")
       .insert({
         id: `s-${Date.now()}`,
         teacher_id: req.user.id,
-        title: req.body.title,
-        subject: req.body.subject || "general",
-        grade: req.body.grade || "third",
-        scheduled_at: req.body.scheduled_at,
-        duration_min: req.body.duration_min || 60,
-        max_students: req.body.max_students || 10,
-        price_per_student: req.body.price_per_student,
-        subject_id: req.body.subject_id || null,
-        description: req.body.description || null,
+        title: body.title,
+        subject: body.subject || "general",
+        grade: body.grade || "third",
+        scheduled_at: scheduledAt.toISOString(),
+        duration_min: body.duration_min || 60,
+        max_students: body.max_students || 10,
+        price_per_student: body.price_per_student,
+        subject_id: body.subject_id || null,
+        description: body.description || null,
         daily_room_url: roomUrl,
         status: "scheduled"
       })
@@ -237,7 +288,11 @@ router.post("/:id/enroll", auth, checkRole("student"), async (req, res) => {
     const { payment_id } = req.body;
     if (!payment_id) return error(res, "payment_id is required", 400);
 
-    const { data: student } = await supabase.from("student_profiles").select("id").eq("user_id", req.user.id).single();
+    const { data: student } = await supabase
+      .from("student_profiles")
+      .select("id")
+      .eq("user_id", req.user.id)
+      .maybeSingle();
     if (!student) return error(res, "Student profile not found", 404);
 
     const { data: payment } = await supabase
@@ -245,47 +300,45 @@ router.post("/:id/enroll", auth, checkRole("student"), async (req, res) => {
       .select("*")
       .eq("id", payment_id)
       .eq("user_id", req.user.id)
-      .single();
+      .maybeSingle();
 
-    if (!payment || payment.status !== "completed") {
+    if (!payment) return error(res, "Payment not found", 404);
+
+    if (payment.status !== "completed") {
+      const { data: existingEnrollment } = await supabase
+        .from("session_enrollments")
+        .select("*")
+        .eq("session_id", req.params.id)
+        .eq("student_id", student.id)
+        .maybeSingle();
+
+      if (existingEnrollment) {
+        return success(res, existingEnrollment, "Enrolled successfully", 200);
+      }
+
       return error(res, "Payment not completed", 400);
     }
     if (payment.metadata?.session_id !== req.params.id) {
       return error(res, "Payment does not match this session", 400);
     }
 
-    const { data: existing } = await supabase
+    const result = await reconcileCompletedTransaction(payment);
+    if (!result.enrolled && !result.duplicate) {
+      if (result.reason === "session_full") {
+        return error(res, "Session is full", 400);
+      }
+      return error(res, "Enrollment failed", 400);
+    }
+
+    const { data: enrollment } = await supabase
       .from("session_enrollments")
-      .select("id")
+      .select("*")
       .eq("session_id", req.params.id)
       .eq("student_id", student.id)
       .maybeSingle();
 
-    if (existing) return error(res, "Already enrolled in this session", 400);
+    if (!enrollment) return error(res, "Enrollment record missing", 500);
 
-    const { data: session } = await supabase.from("sessions").select("max_students").eq("id", req.params.id).single();
-    if (!session) return error(res, "Session not found", 404);
-
-    const { count: enrolledCount } = await supabase
-      .from("session_enrollments")
-      .select("*", { count: "exact", head: true })
-      .eq("session_id", req.params.id)
-      .in("status", ["enrolled", "attended"]);
-
-    if (enrolledCount >= session.max_students) return error(res, "Session is full", 400);
-
-    const { data: enrollment, error: dbError } = await supabase
-      .from("session_enrollments")
-      .insert({
-        id: `en-${Date.now()}`,
-        session_id: req.params.id,
-        student_id: student.id,
-        payment_id,
-        status: "enrolled"
-      })
-      .select()
-      .single();
-    if (dbError) throw dbError;
     await invalidateSessionCaches(req.params.id);
     return success(res, enrollment, "Enrolled successfully", 201);
   } catch (err) {
@@ -296,6 +349,20 @@ router.post("/:id/enroll", auth, checkRole("student"), async (req, res) => {
 router.post("/:id/start", auth, checkRole("teacher"), async (req, res) => {
   try {
     if (!(await assertTeacherOwnsSession(req.params.id, req.user.id, res))) return;
+
+    const { data: scheduledSession, error: loadError } = await supabase
+      .from("sessions")
+      .select("status, scheduled_at")
+      .eq("id", req.params.id)
+      .maybeSingle();
+
+    if (loadError) throw loadError;
+    if (!scheduledSession) return error(res, "الجلسة غير موجودة", 404);
+
+    const startInfo = getSessionStartAvailability(scheduledSession);
+    if (!startInfo.canStart) {
+      return error(res, startInfo.reason || "لا يمكن بدء الجلسة الآن", 400);
+    }
 
     const { data: session, error: dbError } = await supabase
       .from("sessions")
@@ -339,7 +406,7 @@ router.post("/:id/end", auth, checkRole("teacher"), async (req, res) => {
   }
 });
 
-router.patch("/:id/cancel", auth, async (req, res) => {
+router.patch("/:id/cancel", auth, checkRole("teacher", "admin"), async (req, res) => {
   try {
     const { data: session, error: dbError } = await supabase
       .from("sessions")

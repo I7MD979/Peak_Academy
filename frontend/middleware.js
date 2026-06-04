@@ -1,6 +1,11 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse } from "next/server";
-import { ROLE_HOME } from "@/lib/role-routes-server";
+import {
+  fetchAuthProfile,
+  isProfileComplete,
+  ROLE_HOME,
+  resolvePostAuthPath
+} from "@/lib/role-routes-server";
 
 const ROLE_PREFIXES = {
   "/admin": "admin",
@@ -27,31 +32,19 @@ function createSupabaseForRequest(request, response) {
   });
 }
 
-function roleFromSession(session) {
-  const user = session?.user;
-  return user?.user_metadata?.role || user?.app_metadata?.role || null;
-}
-
-async function resolveUserRole(supabase, session) {
-  const metaRole = roleFromSession(session);
-  if (metaRole) return metaRole;
-
-  const { data: profile } = await supabase
-    .from("users")
-    .select("role")
-    .eq("id", session.user.id)
-    .maybeSingle();
-
-  return profile?.role || null;
-}
-
 export async function middleware(request) {
   const response = NextResponse.next();
   const pathname = request.nextUrl.pathname;
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
+  const protectedRoutes = ["/student", "/teacher", "/parent", "/admin", "/onboarding"];
+  const isProtected = protectedRoutes.some((route) => pathname.startsWith(route));
+
   if (!supabaseUrl || !supabaseAnonKey) {
+    if (isProtected) {
+      return NextResponse.redirect(new URL("/auth/login", request.url));
+    }
     return response;
   }
 
@@ -64,11 +57,11 @@ export async function middleware(request) {
     } = await supabase.auth.getSession();
     session = currentSession;
   } catch (_err) {
+    if (isProtected) {
+      return NextResponse.redirect(new URL("/auth/login", request.url));
+    }
     return response;
   }
-
-  const protectedRoutes = ["/student", "/teacher", "/parent", "/admin", "/onboarding"];
-  const isProtected = protectedRoutes.some((route) => pathname.startsWith(route));
 
   if (isProtected && !session) {
     return NextResponse.redirect(new URL("/auth/login", request.url));
@@ -77,9 +70,14 @@ export async function middleware(request) {
   const requiredRole = Object.entries(ROLE_PREFIXES).find(([prefix]) => pathname.startsWith(prefix))?.[1];
   if (session && requiredRole) {
     try {
-      const userRole = await resolveUserRole(supabase, session);
-      if (userRole && userRole !== requiredRole) {
-        const destination = ROLE_HOME[userRole] || "/onboarding";
+      const profile = await fetchAuthProfile(session.access_token);
+
+      if (!profile?.role || !isProfileComplete(profile)) {
+        return NextResponse.redirect(new URL("/onboarding", request.url));
+      }
+
+      if (profile.role !== requiredRole) {
+        const destination = ROLE_HOME[profile.role] || "/onboarding";
         return NextResponse.redirect(new URL(destination, request.url));
       }
     } catch (_err) {
@@ -89,26 +87,44 @@ export async function middleware(request) {
 
   if (pathname.startsWith("/auth") && session) {
     try {
-      const metaRole = roleFromSession(session);
-      const metaName = session.user?.user_metadata?.full_name;
-
-      if (metaRole && metaName && ROLE_HOME[metaRole]) {
-        return NextResponse.redirect(new URL(ROLE_HOME[metaRole], request.url));
-      }
-
-      const { data: profile } = await supabase
-        .from("users")
-        .select("role, full_name")
-        .eq("id", session.user.id)
-        .maybeSingle();
-
-      const destination =
-        profile?.role && profile?.full_name && ROLE_HOME[profile.role]
-          ? ROLE_HOME[profile.role]
-          : "/onboarding";
+      const destination = await resolvePostAuthPath(supabase, session.access_token);
       return NextResponse.redirect(new URL(destination, request.url));
     } catch (_err) {
       return NextResponse.redirect(new URL("/onboarding", request.url));
+    }
+  }
+
+  if (pathname.startsWith("/onboarding") && session?.access_token) {
+    try {
+      const destination = await resolvePostAuthPath(supabase, session.access_token);
+      if (destination !== "/onboarding") {
+        return NextResponse.redirect(new URL(destination, request.url));
+      }
+    } catch {
+      // stay on onboarding
+    }
+  }
+
+  if (pathname === "/" && session?.access_token) {
+    try {
+      const destination = await resolvePostAuthPath(supabase, session.access_token);
+      if (destination !== "/onboarding" && destination !== "/auth/login") {
+        return NextResponse.redirect(new URL(destination, request.url));
+      }
+    } catch {
+      // stay on landing
+    }
+  }
+
+  if (pathname === "/dashboard") {
+    if (!session) {
+      return NextResponse.redirect(new URL("/auth/login", request.url));
+    }
+    try {
+      const destination = await resolvePostAuthPath(supabase, session.access_token);
+      return NextResponse.redirect(new URL(destination, request.url));
+    } catch {
+      return NextResponse.redirect(new URL("/auth/login", request.url));
     }
   }
 
@@ -117,6 +133,8 @@ export async function middleware(request) {
 
 export const config = {
   matcher: [
+    "/",
+    "/dashboard",
     "/admin/:path*",
     "/teacher/:path*",
     "/student/:path*",

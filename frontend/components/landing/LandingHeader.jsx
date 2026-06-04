@@ -16,11 +16,9 @@ export default function LandingHeader() {
           >
             تسجيل الدخول
           </Link>
-          <Link href="/auth/register">
-            <Button variant="accent" size="sm" className="shadow-md shadow-accent/25">
-              ابدأ مجاناً
-            </Button>
-          </Link>
+          <Button href="/auth/register" variant="accent" size="sm" className="shadow-md shadow-accent/25">
+            ابدأ مجاناً
+          </Button>
         </nav>
       </div>
     </header>

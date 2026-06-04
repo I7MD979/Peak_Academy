@@ -6,6 +6,7 @@ import { paginate, paginationMeta } from "../utils/paginate.js";
 import { success, error, paginated } from "../utils/response.js";
 import { verifyPaymobHmac } from "../utils/paymob-hmac.js";
 import { fulfillCompletedTransaction } from "../utils/payments-fulfillment.js";
+import { resolveTransactionFulfillment } from "../utils/transaction-status.js";
 
 const router = Router();
 
@@ -24,13 +25,56 @@ router.post("/initiate", auth, async (req, res) => {
       }
     }
 
+    if (type === "session_payment") {
+      const { data: session } = await supabase
+        .from("sessions")
+        .select("id, status, max_students")
+        .eq("id", session_id)
+        .maybeSingle();
+
+      if (!session) return error(res, "الجلسة غير موجودة", 404);
+      if (session.status !== "scheduled") {
+        return error(res, "لا يمكن الدفع لجلسة غير متاحة للحجز", 400);
+      }
+
+      const { data: student } = await supabase
+        .from("student_profiles")
+        .select("id")
+        .eq("user_id", req.user.id)
+        .maybeSingle();
+
+      if (student?.id) {
+        const { data: existing } = await supabase
+          .from("session_enrollments")
+          .select("id")
+          .eq("session_id", session_id)
+          .eq("student_id", student.id)
+          .maybeSingle();
+
+        if (existing) {
+          return error(res, "أنت مسجّل في هذه الجلسة بالفعل", 400);
+        }
+
+        const { count: enrolledCount } = await supabase
+          .from("session_enrollments")
+          .select("*", { count: "exact", head: true })
+          .eq("session_id", session_id)
+          .in("status", ["enrolled", "attended"]);
+
+        if (session.max_students > 0 && enrolledCount >= session.max_students) {
+          return error(res, "اكتمل عدد مقاعد الجلسة", 400);
+        }
+      }
+    }
+
     let metadata = { session_id: session_id || null };
     if (type === "question_payment") {
-      const studentGrade =
-        grade ||
-        (
-          await supabase.from("student_profiles").select("grade").eq("user_id", req.user.id).single()
-        ).data?.grade;
+      const { data: studentProfile } = await supabase
+        .from("student_profiles")
+        .select("grade")
+        .eq("user_id", req.user.id)
+        .maybeSingle();
+      const studentGrade = grade || studentProfile?.grade;
       metadata = {
         subject,
         content: String(content).trim(),
@@ -39,9 +83,18 @@ router.post("/initiate", auth, async (req, res) => {
     }
 
     const amountCents = Math.round(Number(amount) * 100);
-    const { checkoutUrl, orderId } = await createPaymobOrder(amountCents, req.user);
+    const frontendUrl = (process.env.FRONTEND_URL || "http://localhost:3000").replace(/\/$/, "");
+    let returnUrl = `${frontendUrl}/student/sessions`;
+    if (type === "session_payment" && session_id) {
+      returnUrl = `${frontendUrl}/student/sessions/${session_id}`;
+    } else if (type === "question_payment") {
+      returnUrl = `${frontendUrl}/student/ask?paid=1`;
+    }
+
+    const { checkoutUrl, orderId } = await createPaymobOrder(amountCents, req.user, { returnUrl });
+    const transactionId = `tx-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const { error: insertError } = await supabase.from("transactions").insert({
-      id: `tx-${Date.now()}`,
+      id: transactionId,
       user_id: req.user.id,
       type,
       amount: Number(amount),
@@ -51,7 +104,11 @@ router.post("/initiate", auth, async (req, res) => {
     });
     if (insertError) throw insertError;
 
-    return success(res, { checkout_url: checkoutUrl, order_id: orderId });
+    return success(res, {
+      checkout_url: checkoutUrl,
+      order_id: orderId,
+      transaction_id: transactionId
+    });
   } catch (err) {
     return error(res, err.message || "Failed to initiate payment", 500);
   }
@@ -63,11 +120,11 @@ router.post("/webhook", async (req, res) => {
     const obj = req.body?.obj;
 
     if (!verifyPaymobHmac(obj, hmac)) {
-      return res.status(401).json({ error: "Invalid HMAC" });
+      return error(res, "Invalid HMAC", 401);
     }
 
     if (!obj?.success) {
-      return res.status(200).json({ received: true, processed: false });
+      return success(res, { received: true, processed: false });
     }
 
     const orderId = String(obj.order?.id ?? "");
@@ -80,13 +137,37 @@ router.post("/webhook", async (req, res) => {
       .maybeSingle();
 
     if (!transaction) {
-      return res.status(200).json({ received: true, processed: false });
+      return success(res, { received: true, processed: false });
     }
 
     await fulfillCompletedTransaction(transaction, paymobTxnId);
-    return res.status(200).json({ received: true, processed: true });
+    return success(res, { received: true, processed: true });
   } catch (_err) {
-    return res.status(500).json({ error: "Webhook error" });
+    return error(res, "Webhook error", 500);
+  }
+});
+
+router.get("/transactions/:id/status", auth, async (req, res) => {
+  try {
+    const { data: transaction } = await supabase
+      .from("transactions")
+      .select("*")
+      .eq("id", req.params.id)
+      .eq("user_id", req.user.id)
+      .maybeSingle();
+
+    if (!transaction) {
+      return error(res, "المعاملة غير موجودة", 404);
+    }
+
+    const { enrolled, question_created: questionCreated } = await resolveTransactionFulfillment(
+      transaction,
+      req.user.id
+    );
+
+    return success(res, { transaction, enrolled, question_created: questionCreated });
+  } catch (_err) {
+    return error(res, "Failed to fetch transaction status", 500);
   }
 });
 
@@ -94,13 +175,16 @@ router.get("/history", auth, async (req, res) => {
   try {
     const { page = 1, limit = 20 } = req.query;
     const { from, to } = paginate(page, limit);
-    const { data, count } = await supabase
+    const { data, count, error: dbError } = await supabase
       .from("transactions")
       .select("*", { count: "exact" })
       .eq("user_id", req.user.id)
       .order("created_at", { ascending: false })
       .range(from, to);
-    return paginated(res, data, paginationMeta(count, Number(page), Number(limit)));
+
+    if (dbError) throw dbError;
+
+    return paginated(res, data || [], paginationMeta(count, Number(page), Number(limit)));
   } catch (_err) {
     return error(res, "Failed to fetch history", 500);
   }

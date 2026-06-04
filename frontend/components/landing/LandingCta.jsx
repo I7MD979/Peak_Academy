@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import Icon from "@/components/shared/Icon";
 
@@ -13,20 +12,17 @@ export default function LandingCta() {
           أنشئ حسابك الآن واختر دورك — طالب، معلّم، أو وليّ أمر — وابدأ أول جلسة في دقائق.
         </p>
         <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
-          <Link href="/auth/register">
-            <Button variant="accent" size="lg" className="min-w-[200px] shadow-lg shadow-black/20">
-              إنشاء حساب مجاني
-            </Button>
-          </Link>
-          <Link href="/auth/login">
-            <Button
-              size="lg"
-              className="min-w-[200px] border border-white/25 bg-transparent text-white hover:bg-white/10"
-            >
-              لديّ حساب بالفعل
-              <Icon name="arrowRight" size={18} className="rotate-180" />
-            </Button>
-          </Link>
+          <Button href="/auth/register" variant="accent" size="lg" className="min-w-[200px] shadow-lg shadow-black/20">
+            إنشاء حساب مجاني
+          </Button>
+          <Button
+            href="/auth/login"
+            size="lg"
+            className="min-w-[200px] border border-white/25 bg-transparent text-white hover:bg-white/10"
+          >
+            لديّ حساب بالفعل
+            <Icon name="arrowRight" size={18} className="rotate-180" />
+          </Button>
         </div>
       </div>
     </section>

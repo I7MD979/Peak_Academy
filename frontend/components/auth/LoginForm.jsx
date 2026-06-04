@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { getAuthErrorMessage } from "@/lib/auth-errors";
 import { createClient } from "@/lib/supabase/client";
-import { resolvePostAuthPath } from "@/lib/role-routes";
+import { resolvePostAuthPathClient } from "@/lib/role-routes";
 import GoogleIcon from "@/components/auth/GoogleIcon";
 
 export default function LoginForm() {
@@ -57,7 +57,10 @@ export default function LoginForm() {
       }
 
       const supabase = createClient();
-      const nextPath = await resolvePostAuthPath(supabase);
+      const {
+        data: { session }
+      } = await supabase.auth.getSession();
+      const nextPath = await resolvePostAuthPathClient(session?.access_token);
       setRedirecting(true);
       router.replace(nextPath);
     } catch {

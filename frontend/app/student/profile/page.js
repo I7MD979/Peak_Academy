@@ -265,35 +265,27 @@ export default function StudentProfilePage() {
               <Button type="submit" variant="accent" className="rounded-xl" disabled={saving}>
                 {saving ? "جارٍ الحفظ..." : "حفظ التغييرات"}
               </Button>
-              <Link href="/student/dashboard">
-                <Button type="button" variant="outline" className="rounded-xl">
-                  العودة للرئيسية
-                </Button>
-              </Link>
+              <Button href="/student/dashboard" type="button" variant="outline" className="rounded-xl">
+                العودة للرئيسية
+              </Button>
             </div>
           </form>
 
           <section className="glass-card p-4">
             <h3 className="text-sm font-bold text-text">اختصارات سريعة</h3>
             <div className="mt-3 flex flex-wrap gap-2">
-              <Link href="/student/sessions">
-                <Button type="button" variant="outline" size="sm" className="rounded-xl">
-                  <Icon name="book" size={16} />
-                  الجلسات
-                </Button>
-              </Link>
-              <Link href="/student/ask">
-                <Button type="button" variant="outline" size="sm" className="rounded-xl">
-                  <Icon name="help" size={16} />
-                  اسأل مدرس
-                </Button>
-              </Link>
-              <Link href="/student/study-rooms">
-                <Button type="button" variant="outline" size="sm" className="rounded-xl">
-                  <Icon name="school" size={16} />
-                  غرف المذاكرة
-                </Button>
-              </Link>
+              <Button href="/student/sessions" type="button" variant="outline" size="sm" className="rounded-xl">
+                <Icon name="book" size={16} />
+                الجلسات
+              </Button>
+              <Button href="/student/ask" type="button" variant="outline" size="sm" className="rounded-xl">
+                <Icon name="help" size={16} />
+                اسأل مدرس
+              </Button>
+              <Button href="/student/study-rooms" type="button" variant="outline" size="sm" className="rounded-xl">
+                <Icon name="school" size={16} />
+                غرف المذاكرة
+              </Button>
             </div>
           </section>
         </>

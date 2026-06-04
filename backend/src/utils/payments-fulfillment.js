@@ -4,12 +4,12 @@ import { invalidateSessionCaches } from "../lib/cache.js";
 
 async function notifyEnrollment(transaction, sessionId) {
   const [{ data: user }, { data: session }] = await Promise.all([
-    supabase.from("users").select("email, full_name").eq("id", transaction.user_id).single(),
+    supabase.from("users").select("email, full_name").eq("id", transaction.user_id).maybeSingle(),
     supabase
       .from("sessions")
       .select("title, scheduled_at")
       .eq("id", sessionId)
-      .single()
+      .maybeSingle()
   ]);
 
   await Promise.all([
@@ -29,39 +29,26 @@ async function notifyEnrollment(transaction, sessionId) {
   ]);
 }
 
-export async function fulfillCompletedTransaction(transaction, paymobTxnId) {
-  if (!transaction || transaction.status === "completed") {
-    return { alreadyProcessed: true };
+export async function reconcileCompletedTransaction(transaction) {
+  if (!transaction || transaction.status !== "completed") {
+    return { reconciled: false };
   }
-
-  const { error: updateError } = await supabase
-    .from("transactions")
-    .update({
-      status: "completed",
-      paymob_txn_id: paymobTxnId ? String(paymobTxnId) : transaction.paymob_txn_id
-    })
-    .eq("id", transaction.id)
-    .eq("status", "pending");
-
-  if (updateError) throw updateError;
 
   if (transaction.type === "question_payment") {
     const { subject, content } = transaction.metadata || {};
     if (!subject || !content) return { question_created: false };
 
+    const questionId = `q-${transaction.id}`;
     const { data: existing } = await supabase
       .from("questions")
       .select("id")
-      .eq("student_id", transaction.user_id)
-      .eq("content", content)
-      .eq("subject", subject)
-      .gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+      .eq("id", questionId)
       .maybeSingle();
 
     if (existing) return { question_created: true, duplicate: true };
 
     const { error: questionError } = await supabase.from("questions").insert({
-      id: `q-${transaction.id}`,
+      id: questionId,
       student_id: transaction.user_id,
       subject,
       content,
@@ -73,23 +60,17 @@ export async function fulfillCompletedTransaction(transaction, paymobTxnId) {
   }
 
   const sessionId = transaction.metadata?.session_id;
-  if (!sessionId || transaction.type !== "session_payment") {
+  if (transaction.type !== "session_payment" || !sessionId) {
     return { enrolled: false };
   }
 
-  const { data: student } = await supabase.from("student_profiles").select("id").eq("user_id", transaction.user_id).single();
+  const { data: student } = await supabase
+    .from("student_profiles")
+    .select("id")
+    .eq("user_id", transaction.user_id)
+    .maybeSingle();
+
   if (!student) return { enrolled: false };
-
-  const { count: enrolledCount } = await supabase
-    .from("session_enrollments")
-    .select("*", { count: "exact", head: true })
-    .eq("session_id", sessionId)
-    .in("status", ["enrolled", "attended"]);
-
-  const { data: session } = await supabase.from("sessions").select("max_students").eq("id", sessionId).single();
-  if (session && enrolledCount >= session.max_students) {
-    return { enrolled: false, reason: "session_full" };
-  }
 
   const { data: existing } = await supabase
     .from("session_enrollments")
@@ -99,6 +80,22 @@ export async function fulfillCompletedTransaction(transaction, paymobTxnId) {
     .maybeSingle();
 
   if (existing) return { enrolled: true, duplicate: true };
+
+  const { count: enrolledCount } = await supabase
+    .from("session_enrollments")
+    .select("*", { count: "exact", head: true })
+    .eq("session_id", sessionId)
+    .in("status", ["enrolled", "attended"]);
+
+  const { data: session } = await supabase
+    .from("sessions")
+    .select("max_students, title, scheduled_at")
+    .eq("id", sessionId)
+    .maybeSingle();
+
+  if (session && enrolledCount >= session.max_students) {
+    return { enrolled: false, reason: "session_full" };
+  }
 
   const { error: enrollError } = await supabase.from("session_enrollments").insert({
     id: `en-${transaction.id}`,
@@ -114,4 +111,41 @@ export async function fulfillCompletedTransaction(transaction, paymobTxnId) {
   await notifyEnrollment(transaction, sessionId);
 
   return { enrolled: true };
+}
+
+export async function fulfillCompletedTransaction(transaction, paymobTxnId) {
+  if (!transaction) return { reconciled: false };
+
+  if (transaction.status === "completed") {
+    return reconcileCompletedTransaction(transaction);
+  }
+
+  const { data: updated, error: updateError } = await supabase
+    .from("transactions")
+    .update({
+      status: "completed",
+      paymob_txn_id: paymobTxnId ? String(paymobTxnId) : transaction.paymob_txn_id
+    })
+    .eq("id", transaction.id)
+    .eq("status", "pending")
+    .select("*")
+    .maybeSingle();
+
+  if (updateError) throw updateError;
+
+  if (updated) {
+    return reconcileCompletedTransaction(updated);
+  }
+
+  const { data: current } = await supabase
+    .from("transactions")
+    .select("*")
+    .eq("id", transaction.id)
+    .maybeSingle();
+
+  if (current?.status === "completed") {
+    return reconcileCompletedTransaction(current);
+  }
+
+  return { reconciled: false };
 }

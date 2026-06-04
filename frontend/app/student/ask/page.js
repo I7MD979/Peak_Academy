@@ -10,7 +10,7 @@ import EmptyState from "@/components/shared/EmptyState";
 import LoadingSkeleton from "@/components/shared/LoadingSkeleton";
 import Icon from "@/components/shared/Icon";
 import { questionsApi } from "@/lib/api";
-import { initiateQuestionPayment } from "@/lib/paymob";
+import { initiateQuestionPayment, pollQuestionPayment } from "@/lib/paymob";
 import { formatCurrencyEgp } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -103,12 +103,29 @@ export default function StudentAskPage() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("paid") === "1") {
-      toast.success("تم استلام الدفع. إذا لم يظهر سؤالك فوراً، حدّث الصفحة خلال لحظات.");
-      loadOverview();
-      loadQuestions();
+
+    async function handlePaymentReturn() {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("paid") !== "1") return;
+
+      const txId = sessionStorage.getItem("peak-tx-question");
+      if (txId) {
+        const fulfilled = await pollQuestionPayment(txId);
+        sessionStorage.removeItem("peak-tx-question");
+        if (fulfilled) {
+          toast.success("تم استلام الدفع وإرسال سؤالك.");
+        } else {
+          toast.message("تم استلام الدفع. إذا لم يظهر سؤالك فوراً، حدّث الصفحة خلال لحظات.");
+        }
+      } else {
+        toast.success("تم استلام الدفع. إذا لم يظهر سؤالك فوراً، حدّث الصفحة خلال لحظات.");
+      }
+
+      await loadOverview();
+      await loadQuestions();
     }
+
+    handlePaymentReturn();
   }, [loadOverview, loadQuestions]);
 
   const selectedSubjectMeta = overview?.subjects?.find((s) => s.key === selectedSubject);
@@ -132,12 +149,15 @@ export default function StudentAskPage() {
     if (withPayment && price > 0) {
       setPaying(true);
       try {
-        const checkoutUrl = await initiateQuestionPayment(price, {
+        const { checkoutUrl, transactionId } = await initiateQuestionPayment(price, {
           subject: selectedSubject,
           content: content.trim(),
           grade: overview?.grade
         });
         if (!checkoutUrl) throw new Error("لم يتم استلام رابط الدفع");
+        if (transactionId) {
+          sessionStorage.setItem("peak-tx-question", transactionId);
+        }
         window.location.href = checkoutUrl;
       } catch (err) {
         toast.error(err.message || "تعذر بدء الدفع");
@@ -156,7 +176,7 @@ export default function StudentAskPage() {
 
       if (res?.data?.requires_payment) {
         setPendingPayment({
-          amount: res.data.amount,
+          amount: res?.data?.amount,
           subject: selectedSubject
         });
         toast.message("هذا السؤال يتطلب دفعاً قبل الإرسال");
@@ -169,6 +189,14 @@ export default function StudentAskPage() {
       await loadOverview();
       await loadQuestions();
     } catch (err) {
+      if (err?.status === 402 && err?.data?.requires_payment) {
+        setPendingPayment({
+          amount: err.data.amount,
+          subject: selectedSubject
+        });
+        toast.message("هذا السؤال يتطلب دفعاً قبل الإرسال");
+        return;
+      }
       toast.error(err.message || "تعذر إرسال السؤال");
     } finally {
       setSubmitting(false);

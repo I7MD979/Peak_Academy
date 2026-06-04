@@ -149,15 +149,14 @@ export default function ParentReportPage() {
               تقرير أسبوعي مبسّط عن الجلسات والمواد والأسئلة — مبني على بيانات حقيقية من المنصة.
             </p>
           </div>
-          <Link href="/parent/dashboard">
-            <Button
-              type="button"
-              variant="outline"
-              className="rounded-xl border-white/30 bg-white/10 text-white hover:bg-white/20"
-            >
-              الرئيسية
-            </Button>
-          </Link>
+          <Button
+            href="/parent/dashboard"
+            type="button"
+            variant="outline"
+            className="rounded-xl border-white/30 bg-white/10 text-white hover:bg-white/20"
+          >
+            الرئيسية
+          </Button>
         </div>
       </section>
 

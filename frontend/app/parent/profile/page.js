@@ -108,11 +108,9 @@ export default function ParentProfilePage() {
                   <h2 className="text-lg font-black text-text">أبنائي المربوطون</h2>
                   <p className="mt-1 text-sm text-text-muted">اضغط على ابن لعرض تقريره التفصيلي.</p>
                 </div>
-                <Link href="/parent/dashboard">
-                  <Button type="button" variant="outline" size="sm" className="rounded-xl">
-                    لوحة المتابعة
-                  </Button>
-                </Link>
+                <Button href="/parent/dashboard" type="button" variant="outline" size="sm" className="rounded-xl">
+                  لوحة المتابعة
+                </Button>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 {children.map((child) => {
@@ -146,11 +144,9 @@ export default function ParentProfilePage() {
               <p className="mt-1 text-sm text-text-muted">
                 اطلب من ابنك كود الربط من صفحة «حسابي» في تطبيق الطالب، ثم أدخله من لوحة المتابعة.
               </p>
-              <Link href="/parent/dashboard" className="mt-3 inline-block">
-                <Button type="button" variant="accent" size="sm" className="rounded-xl">
-                  الذهاب لربط طالب
-                </Button>
-              </Link>
+              <Button href="/parent/dashboard" type="button" variant="accent" size="sm" className="mt-3 rounded-xl">
+                الذهاب لربط طالب
+              </Button>
             </section>
           )}
 
@@ -210,18 +206,14 @@ export default function ParentProfilePage() {
               <section className="glass-card p-4">
                 <h3 className="text-sm font-bold text-text">اختصارات</h3>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <Link href="/parent/dashboard">
-                    <Button type="button" variant="outline" size="sm" className="rounded-xl">
-                      <Icon name="dashboard" size={16} />
-                      الرئيسية
-                    </Button>
-                  </Link>
-                  <Link href="/parent/report">
-                    <Button type="button" variant="outline" size="sm" className="rounded-xl">
-                      <Icon name="book" size={16} />
-                      التقارير
-                    </Button>
-                  </Link>
+                  <Button href="/parent/dashboard" type="button" variant="outline" size="sm" className="rounded-xl">
+                    <Icon name="dashboard" size={16} />
+                    الرئيسية
+                  </Button>
+                  <Button href="/parent/report" type="button" variant="outline" size="sm" className="rounded-xl">
+                    <Icon name="book" size={16} />
+                    التقارير
+                  </Button>
                 </div>
               </section>
             </aside>

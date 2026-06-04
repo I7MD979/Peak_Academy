@@ -135,6 +135,7 @@ export async function getStudentReportForParent(parentId, studentProfileId) {
   return {
     student: {
       id: student.id,
+      user_id: student.user?.id || null,
       full_name: student.user?.full_name || "طالب",
       avatar_url: student.user?.avatar_url || null,
       grade: student.grade,

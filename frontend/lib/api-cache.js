@@ -12,8 +12,8 @@ const errorCache = new Map();
 let activeCount = 0;
 const waitQueue = [];
 
-function buildKey(method, path, body) {
-  return `${method}:${path}:${body || ""}`;
+function buildKey(method, path, body, authScope = "anon") {
+  return `${method}:${path}:${body || ""}:${authScope}`;
 }
 
 function runQueued(task) {
@@ -117,14 +117,24 @@ function wrapFetch(key, method, performFetch) {
 /**
  * جلب /auth/me مرة واحدة مع مشاركة النتيجة بين الشريط والصفحات
  */
-export function fetchAuthMe(fetcher) {
-  const key = buildKey("GET", "/auth/me", "");
+export function fetchAuthMe(fetcher, tokenOverride = null) {
+  const scope = tokenOverride ? String(tokenOverride).slice(-16) : "anon";
+  const key = buildKey("GET", "/auth/me", "", scope);
   return wrapFetch(key, "GET", fetcher);
 }
 
 export async function cachedApiRequest(path, options = {}, tokenOverride = null, performFetch) {
   const method = (options.method || "GET").toUpperCase();
   const body = options.body || "";
-  const key = buildKey(method, path, body);
+  const scope =
+    tokenOverride != null && String(tokenOverride).length > 0
+      ? String(tokenOverride).slice(-24)
+      : "anon";
+  const key = buildKey(method, path, body, scope);
+
+  if (method !== "GET") {
+    return performFetch();
+  }
+
   return wrapFetch(key, method, performFetch);
 }

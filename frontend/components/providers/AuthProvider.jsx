@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { clearApiCache } from "@/lib/api-cache";
 import { useAuthStore } from "@/store/authStore";
 
 let authSubscription = null;
@@ -36,6 +37,7 @@ export default function AuthProvider({ children }) {
 
     if (!authSubscription) {
       const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+        clearApiCache();
         setAuth({ user: nextSession?.user || null, session: nextSession || null });
         setLoading(false);
       });

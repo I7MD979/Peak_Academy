@@ -14,6 +14,7 @@ import adminRoutes from "./routes/admin.js";
 import notificationRoutes from "./routes/notifications.js";
 import studentRoutes from "./routes/student.js";
 import studyRoomsRoutes from "./routes/studyRooms.js";
+import { captureException } from "./lib/sentry.js";
 
 const app = express();
 
@@ -56,14 +57,19 @@ app.get("/api/diag", async (_req, res) => {
   }
 
   const needsSql = Object.values(checks).some((c) => !c.ok);
-  res.status(200).json({
+  const payload = {
     success: true,
     api_version: API_VERSION,
-    supabase_url: process.env.SUPABASE_URL || null,
     cache_mode: getCacheMode(),
     tables: checks,
     action: needsSql ? "Run backend/supabase/RUN_IN_SQL_EDITOR.sql in Supabase SQL Editor" : null
-  });
+  };
+
+  if (process.env.NODE_ENV !== "production") {
+    payload.supabase_url = process.env.SUPABASE_URL || null;
+  }
+
+  res.status(200).json(payload);
 });
 
 app.use("/api/auth", authRoutes);
@@ -77,7 +83,12 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/student", studentRoutes);
 app.use("/api/study-rooms", studyRoomsRoutes);
 
+app.use("/api/*", (_req, res) => {
+  res.status(404).json({ success: false, error: "المسار غير موجود" });
+});
+
 app.use((err, _req, res, _next) => {
+  captureException(err);
   console.error(err.stack);
   res.status(err.status || 500).json({
     success: false,

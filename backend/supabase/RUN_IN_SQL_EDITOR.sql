@@ -123,3 +123,17 @@ create table if not exists public.withdrawal_requests (
 create index if not exists idx_sessions_teacher_id on public.sessions(teacher_id);
 create index if not exists idx_sessions_status_scheduled_at on public.sessions(status, scheduled_at);
 create index if not exists idx_withdrawal_requests_status on public.withdrawal_requests(status, requested_at);
+
+create table if not exists public.notifications (
+  id text primary key,
+  user_id uuid not null references public.users(id) on delete cascade,
+  type text not null default 'general',
+  title text not null,
+  body text not null default '',
+  is_read boolean not null default false,
+  created_at timestamptz not null default now(),
+  read_at timestamptz
+);
+
+create index if not exists idx_notifications_user_read_created
+  on public.notifications(user_id, is_read, created_at desc);

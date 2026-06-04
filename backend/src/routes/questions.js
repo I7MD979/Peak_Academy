@@ -3,6 +3,7 @@ import { z } from "zod";
 import { auth } from "../middleware/auth.js";
 import { checkRole } from "../middleware/checkRole.js";
 import { success, error } from "../utils/response.js";
+import { supabase } from "../lib/supabase.js";
 import {
   createQuestion,
   getQuestionsOverview,
@@ -56,7 +57,7 @@ router.get("/:id", auth, checkRole("student"), async (req, res) => {
 router.post("/", auth, checkRole("student"), async (req, res) => {
   const parsed = submitSchema.safeParse(req.body);
   if (!parsed.success) {
-    const msg = parsed.error.errors[0]?.message || "بيانات السؤال غير صالحة";
+    const msg = parsed.error.issues[0]?.message || "بيانات السؤال غير صالحة";
     return error(res, msg, 400);
   }
 
@@ -70,8 +71,10 @@ router.post("/", auth, checkRole("student"), async (req, res) => {
 
     if (amount > 0) {
       if (!payment_id) {
-        return success(
+        return error(
           res,
+          "يتطلب الدفع قبل إرسال السؤال",
+          402,
           {
             requires_payment: true,
             amount,
@@ -79,18 +82,38 @@ router.post("/", auth, checkRole("student"), async (req, res) => {
             grade,
             subject_label: subject
           },
-          "يتطلب الدفع قبل إرسال السؤال"
+          "PAYMENT_REQUIRED"
         );
       }
 
+      const { data: tx } = await supabase
+        .from("transactions")
+        .select("*")
+        .eq("id", payment_id)
+        .eq("user_id", req.user.id)
+        .eq("type", "question_payment")
+        .maybeSingle();
+
+      if (!tx) {
+        return error(res, "معاملة الدفع غير موجودة", 400);
+      }
+
+      const meta = tx.metadata || {};
+      if (meta.subject !== subject || meta.content !== content) {
+        return error(res, "بيانات الدفع لا تطابق السؤال الحالي", 400);
+      }
+
       const paid = await verifyQuestionPayment(req.user.id, payment_id, { subject, content });
-      if (!paid) return error(res, "لم يتم التحقق من الدفع. أكمل الدفع ثم أعد الإرسال", 402);
+      if (!paid) {
+        return error(res, "لم يتم التحقق من الدفع. أكمل الدفع ثم أعد الإرسال", 402, null, "PAYMENT_REQUIRED");
+      }
     }
 
     const question = await createQuestion({
       userId: req.user.id,
       subject,
-      content
+      content,
+      paymentId: payment_id || null
     });
 
     return success(res, question, "تم إرسال سؤالك للمدرسين", 201);

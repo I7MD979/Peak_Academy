@@ -19,7 +19,7 @@ async function getStudentGrade(userId) {
     .from("student_profiles")
     .select("grade")
     .eq("user_id", userId)
-    .single();
+    .maybeSingle();
 
   if (studentError || !student?.grade) return null;
   return student.grade;

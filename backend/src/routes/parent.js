@@ -31,7 +31,7 @@ router.get("/dashboard", auth, checkRole("parent"), async (req, res) => {
       .from("users")
       .select("full_name")
       .eq("id", req.user.id)
-      .single();
+      .maybeSingle();
 
     return success(res, {
       children,
@@ -119,14 +119,16 @@ router.get("/report/:studentId/pdf", auth, checkRole("parent"), async (req, res)
     const buffer = Buffer.from(text, "utf8");
     const safeName = (report.student.full_name || "student").replace(/\s+/g, "-");
 
-    await supabase.from("parent_reports").insert({
-      id: `pr-${Date.now()}`,
-      parent_id: req.user.id,
-      student_id: req.params.studentId,
-      mime_type: "text/plain; charset=utf-8",
-      storage_key: `inline:${Date.now()}`,
-      generated_at: new Date().toISOString()
-    });
+    if (report.student.user_id) {
+      await supabase.from("parent_reports").insert({
+        id: `pr-${Date.now()}`,
+        parent_id: req.user.id,
+        student_id: report.student.user_id,
+        mime_type: "text/plain; charset=utf-8",
+        storage_key: `inline:${Date.now()}`,
+        generated_at: new Date().toISOString()
+      });
+    }
 
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     res.setHeader(

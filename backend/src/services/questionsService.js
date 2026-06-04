@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabase.js";
+import { reconcileCompletedTransaction } from "../utils/payments-fulfillment.js";
 import { SUBJECT_LABELS, GRADE_LABELS, SUBJECT_OPTIONS } from "./studyRoomsService.js";
 
 export { SUBJECT_OPTIONS, SUBJECT_LABELS, GRADE_LABELS };
@@ -24,7 +25,7 @@ export async function getStudentGrade(userId) {
     .from("student_profiles")
     .select("grade")
     .eq("user_id", userId)
-    .single();
+    .maybeSingle();
 
   if (error || !student?.grade) return null;
   return student.grade;
@@ -136,7 +137,7 @@ export async function getStudentQuestion(userId, questionId) {
     .select("*, teacher:users!questions_teacher_id_fkey(id, full_name, avatar_url)")
     .eq("id", questionId)
     .eq("student_id", userId)
-    .single();
+    .maybeSingle();
 
   if (error || !data) return null;
   return mapQuestionRow(data);
@@ -148,21 +149,45 @@ export async function verifyQuestionPayment(userId, paymentId, { subject, conten
     .select("*")
     .eq("id", paymentId)
     .eq("user_id", userId)
-    .eq("status", "completed")
     .eq("type", "question_payment")
     .maybeSingle();
 
   if (error || !tx) return false;
 
   const meta = tx.metadata || {};
-  return meta.subject === subject && meta.content === content;
+  if (meta.subject !== subject || meta.content !== content) return false;
+
+  const { data: existingQuestion } = await supabase
+    .from("questions")
+    .select("id")
+    .eq("id", `q-${paymentId}`)
+    .maybeSingle();
+
+  if (existingQuestion) return true;
+
+  if (tx.status !== "completed") return false;
+
+  const result = await reconcileCompletedTransaction(tx);
+  return Boolean(result.question_created);
 }
 
-export async function createQuestion({ userId, subject, content, teacherId = null }) {
+export async function createQuestion({ userId, subject, content, paymentId = null, teacherId = null }) {
+  const questionId = paymentId ? `q-${paymentId}` : `q-${Date.now()}`;
+
+  if (paymentId) {
+    const { data: existing } = await supabase
+      .from("questions")
+      .select("*, teacher:users!questions_teacher_id_fkey(id, full_name, avatar_url)")
+      .eq("id", questionId)
+      .maybeSingle();
+
+    if (existing) return mapQuestionRow(existing);
+  }
+
   const { data, error } = await supabase
     .from("questions")
     .insert({
-      id: `q-${Date.now()}`,
+      id: questionId,
       student_id: userId,
       teacher_id: teacherId,
       subject,

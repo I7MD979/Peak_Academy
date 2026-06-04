@@ -9,7 +9,7 @@ import {
   normalizeSessionRow,
   querySessionById
 } from "../utils/session-select.js";
-import { ensureUserProfile } from "../utils/ensure-user-profile.js";
+import { ensureUserProfile, isRoleProfileComplete } from "../utils/ensure-user-profile.js";
 
 const SESSION_SELECT = "*";
 
@@ -97,6 +97,15 @@ async function getStudentContext(userId) {
   return { student, user, enrollmentMap, enrolledIds };
 }
 
+function formatIdInList(ids) {
+  return `(${ids.map((id) => `"${id}"`).join(",")})`;
+}
+
+function excludeEnrolledIds(query, enrolledIds) {
+  if (enrolledIds.length === 0) return query;
+  return query.not("id", "in", formatIdInList(enrolledIds));
+}
+
 function applyAvailableFilters(query, { student, enrolledIds, onlyMyGrade, subject, maxPrice }) {
   const now = new Date().toISOString();
   query = query.eq("status", "scheduled").gte("scheduled_at", now).order("scheduled_at", { ascending: true });
@@ -114,28 +123,72 @@ function applyAvailableFilters(query, { student, enrolledIds, onlyMyGrade, subje
   }
 
   if (enrolledIds.length > 0) {
-    query = query.not("id", "in", `(${enrolledIds.join(",")})`);
+    query = excludeEnrolledIds(query, enrolledIds);
   }
 
   return query;
 }
 
-async function countAvailableSessions(student, enrolledIds, onlyMyGrade) {
-  let query = supabase
-    .from("sessions")
-    .select("id", { count: "exact", head: true })
-    .eq("status", "scheduled")
-    .gte("scheduled_at", new Date().toISOString());
+async function countAvailableSessions(ctx, queryParams) {
+  const { total } = await fetchAvailableSessionsPage(ctx, {
+    ...queryParams,
+    page: 1,
+    limit: 1
+  });
+  return total;
+}
 
-  if (onlyMyGrade !== "false" && student.grade) {
-    query = query.eq("grade", student.grade);
-  }
-  if (enrolledIds.length > 0) {
-    query = query.not("id", "in", `(${enrolledIds.join(",")})`);
+async function fetchAvailableSessionsPage(ctx, queryParams) {
+  const { student, enrolledIds } = ctx;
+  const {
+    page = 1,
+    limit = 12,
+    search = "",
+    only_my_grade = "true",
+    subject = "",
+    max_price = ""
+  } = queryParams;
+  const maxPrice = max_price ? Number(max_price) : null;
+  const pageNum = Math.max(1, Number(page));
+  const limitNum = Math.min(50, Math.max(1, Number(limit)));
+  const skip = (pageNum - 1) * limitNum;
+  const batchSize = Math.max(limitNum * 3, 36);
+  let dbOffset = 0;
+  const nonFull = [];
+
+  while (dbOffset < 2000) {
+    let query = supabase.from("sessions").select(SESSION_SELECT);
+    query = applyAvailableFilters(query, {
+      student,
+      enrolledIds,
+      onlyMyGrade: only_my_grade,
+      subject: subject || null,
+      maxPrice: maxPrice && maxPrice > 0 ? maxPrice : null
+    });
+
+    if (search) {
+      const term = String(search).trim();
+      if (term) query = query.ilike("title", `%${term}%`);
+    }
+
+    const { data, error: dbError } = await query.range(dbOffset, dbOffset + batchSize - 1);
+    if (dbError) throw dbError;
+    if (!data?.length) break;
+
+    const enriched = await enrichSessions(data);
+    for (const session of enriched) {
+      const row = mapSessionRow(session, { isEnrolled: false, enrollmentStatus: null });
+      if (!row.is_full) nonFull.push(row);
+    }
+
+    dbOffset += batchSize;
+    if (data.length < batchSize) break;
   }
 
-  const { count } = await query;
-  return count || 0;
+  return {
+    sessions: nonFull.slice(skip, skip + limitNum),
+    total: nonFull.length
+  };
 }
 
 router.get("/profile", auth, checkRole("student"), async (req, res) => {
@@ -201,7 +254,10 @@ router.get("/profile", auth, checkRole("student"), async (req, res) => {
       section: student.section,
       streak_days: student.streak_days || 0,
       link_code: student.link_code,
-      profile_complete: Boolean(student.grade),
+      profile_complete: isRoleProfileComplete("student", {
+        student_profile: student,
+        teacher_profile: null
+      }),
       stats: {
         streak_days: student.streak_days || 0,
         enrolled_upcoming: upcomingCount,
@@ -249,12 +305,14 @@ router.get("/dashboard", auth, checkRole("student"), async (req, res) => {
       .limit(8);
 
     if (student.grade) recommendedQuery = recommendedQuery.eq("grade", student.grade);
-    if (enrolledIds.length > 0) recommendedQuery = recommendedQuery.not("id", "in", `(${enrolledIds.join(",")})`);
+    if (enrolledIds.length > 0) recommendedQuery = excludeEnrolledIds(recommendedQuery, enrolledIds);
 
     const { data: recommendedRaw } = await recommendedQuery;
-    const recommendedSessions = (recommendedRaw || [])
-      .slice(0, 4)
-      .map((session) => mapSessionRow(session, { isEnrolled: false }));
+    const recommendedEnriched = await enrichSessions(recommendedRaw || []);
+    const recommendedSessions = recommendedEnriched
+      .map((session) => mapSessionRow(session, { isEnrolled: false }))
+      .filter((session) => session && !session.is_full)
+      .slice(0, 4);
 
     return success(res, {
       profile: {
@@ -349,21 +407,30 @@ router.get("/sessions", auth, checkRole("student"), async (req, res) => {
       if (term) query = query.ilike("title", `%${term}%`);
     }
 
-    query = query.range(from, to);
+    let sessions = [];
+    let totalForPagination = 0;
 
-    const { data, count, error: dbError } = await query;
-    if (dbError) throw dbError;
+    if (tab === "available") {
+      const available = await fetchAvailableSessionsPage(ctx, req.query);
+      sessions = available.sessions;
+      totalForPagination = available.total;
+    } else {
+      query = query.range(from, to);
 
-    const enriched = await enrichSessions(data || []);
-    const sessions = enriched
-      .map((session) => {
+      const { data, count, error: dbError } = await query;
+      if (dbError) throw dbError;
+
+      const enriched = await enrichSessions(data || []);
+      sessions = enriched.map((session) => {
         const isEnrolled = enrolledIds.includes(session.id);
         return mapSessionRow(session, {
           isEnrolled,
           enrollmentStatus: enrollmentMap[session.id] || null
         });
-      })
-      .filter((session) => (tab === "available" ? !session.is_full : true));
+      });
+
+      totalForPagination = count;
+    }
 
     const tabCounts = {
       available: 0,
@@ -373,7 +440,9 @@ router.get("/sessions", auth, checkRole("student"), async (req, res) => {
     };
 
     const [availableTotal, liveCountRes, completedCountRes] = await Promise.all([
-      countAvailableSessions(student, enrolledIds, only_my_grade),
+      tab === "available"
+        ? Promise.resolve(totalForPagination)
+        : countAvailableSessions(ctx, req.query),
       enrolledIds.length
         ? supabase
             .from("sessions")
@@ -394,7 +463,9 @@ router.get("/sessions", auth, checkRole("student"), async (req, res) => {
     tabCounts.live = liveCountRes.count || 0;
     tabCounts.completed = completedCountRes.count || 0;
 
-    const totalForPagination = tab === "available" ? tabCounts.available : count;
+    if (tab !== "available") {
+      totalForPagination = totalForPagination || 0;
+    }
 
     return success(res, {
       sessions,

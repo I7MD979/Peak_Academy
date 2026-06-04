@@ -121,14 +121,16 @@ export default function AdminDashboardPage() {
           راقب الإيرادات، المستخدمين، الجلسات المباشرة، وطلبات السحب بشكل لحظي.
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
-          <Link href="/admin/users">
-            <Button className="rounded-xl bg-accent text-white hover:bg-orange-600">إدارة المستخدمين</Button>
-          </Link>
-          <Link href="/admin/withdrawals">
-            <Button variant="outline" className="rounded-xl border-white/30 bg-white/10 text-white hover:bg-white/20">
-              طلبات السحب
-            </Button>
-          </Link>
+          <Button href="/admin/users" className="rounded-xl bg-accent text-white hover:bg-orange-600">
+            إدارة المستخدمين
+          </Button>
+          <Button
+            href="/admin/withdrawals"
+            variant="outline"
+            className="rounded-xl border-white/30 bg-white/10 text-white hover:bg-white/20"
+          >
+            طلبات السحب
+          </Button>
         </div>
       </section>
 

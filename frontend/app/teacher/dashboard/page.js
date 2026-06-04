@@ -7,11 +7,12 @@ import StatsCard from "@/components/shared/StatsCard";
 import DataTable from "@/components/admin/DataTable";
 import { dashboardApi, sessionsApi } from "@/lib/api";
 import { formatCurrencyEgp, formatDateTimeAr } from "@/lib/format";
+import { getStartAvailability } from "@/lib/teacher-sessions";
 
 export default function TeacherDashboardPage() {
   const [profile, setProfile] = useState(null);
   const [sessions, setSessions] = useState([]);
-  const [earnings, setEarnings] = useState([]);
+  const [earningsSummary, setEarningsSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [actionLoadingId, setActionLoadingId] = useState("");
   const [error, setError] = useState("");
@@ -20,19 +21,19 @@ export default function TeacherDashboardPage() {
     setLoading(true);
     setError("");
     try {
-      const [profileRes, sessionsRes, earningsRes] = await Promise.all([
+      const [profileRes, sessionsRes, summaryRes] = await Promise.all([
         dashboardApi.myProfile(),
         sessionsApi.list("status=all&limit=100"),
-        dashboardApi.teacherEarnings()
+        dashboardApi.teacherEarningsSummary()
       ]);
       setProfile(profileRes?.data || null);
       setSessions(sessionsRes?.data || []);
-      setEarnings(earningsRes?.data || []);
+      setEarningsSummary(summaryRes?.data || null);
     } catch (err) {
       setError(err.message || "تعذر تحميل لوحة المعلم");
       setProfile(null);
       setSessions([]);
-      setEarnings([]);
+      setEarningsSummary(null);
     } finally {
       setLoading(false);
     }
@@ -51,10 +52,7 @@ export default function TeacherDashboardPage() {
     () => sessions.filter((s) => s.status === "completed").length,
     [sessions]
   );
-  const totalEarnings = useMemo(
-    () => earnings.reduce((sum, row) => sum + Number(row.teacher_amount || 0), 0),
-    [earnings]
-  );
+  const totalEarnings = earningsSummary?.total_earnings ?? 0;
 
   const upcomingSessions = useMemo(() => {
     const now = Date.now();
@@ -73,12 +71,14 @@ export default function TeacherDashboardPage() {
     [sessions]
   );
 
-  const canStartSession = (session) => {
-    const diff = new Date(session.scheduled_at).getTime() - Date.now();
-    return diff <= 30 * 60 * 1000;
-  };
-
   const handleStartSession = async (sessionId) => {
+    const session = sessions.find((s) => s.id === sessionId);
+    const startInfo = session ? getStartAvailability(session) : { canStart: true };
+    if (!startInfo.canStart) {
+      setError(startInfo.reason || "لا يمكن بدء الجلسة الآن");
+      return;
+    }
+
     try {
       setActionLoadingId(`start-${sessionId}`);
       await sessionsApi.start(sessionId);
@@ -136,11 +136,13 @@ export default function TeacherDashboardPage() {
             </Button>
           );
         }
+        const startInfo = getStartAvailability(row);
         return (
           <Button
             type="button"
             size="sm"
-            disabled={!canStartSession(row) || actionLoadingId === `start-${row.id}`}
+            disabled={!startInfo.canStart || actionLoadingId === `start-${row.id}`}
+            title={startInfo.reason || undefined}
             onClick={() => handleStartSession(row.id)}
           >
             {actionLoadingId === `start-${row.id}` ? "جارٍ..." : "بدء"}
@@ -164,9 +166,7 @@ export default function TeacherDashboardPage() {
             </p>
           </div>
           <div className="flex gap-2">
-            <Link href="/teacher/sessions/new">
-              <Button type="button">إنشاء جلسة جديدة</Button>
-            </Link>
+            <Button href="/teacher/sessions/new">إنشاء جلسة جديدة</Button>
             <Button type="button" variant="outline" onClick={loadDashboard} disabled={loading}>
               تحديث
             </Button>

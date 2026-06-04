@@ -13,7 +13,7 @@ import { useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { authApi } from "@/lib/api";
 import { GRADE_OPTIONS } from "@/lib/profile-form";
-import { ROLE_HOME, resolvePostAuthPath } from "@/lib/role-routes";
+import { resolvePostAuthPathClient } from "@/lib/role-routes";
 
 const schema = z.object({
   full_name: z.string().min(2, "الاسم مطلوب"),
@@ -46,7 +46,10 @@ export default function OnboardingPage() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const path = await resolvePostAuthPath(supabase);
+      const {
+        data: { session }
+      } = await supabase.auth.getSession();
+      const path = await resolvePostAuthPathClient(session?.access_token);
       if (!cancelled && path !== "/onboarding") {
         router.replace(path);
       }
@@ -64,15 +67,18 @@ export default function OnboardingPage() {
         throw new Error("اختر الصف الدراسي");
       }
 
-      const res = await authApi.setupProfile({
+      await authApi.setupProfile({
         full_name: values.full_name,
         role: values.role,
         grade: values.role === "student" ? values.grade : undefined,
         phone: values.phone?.trim() || undefined
       });
 
-      const role = res?.data?.role || values.role;
-      router.replace(ROLE_HOME[role] || "/");
+      const {
+        data: { session }
+      } = await supabase.auth.getSession();
+      const nextPath = await resolvePostAuthPathClient(session?.access_token);
+      router.replace(nextPath);
     } catch (err) {
       setError(err.message || "حدث خطأ غير متوقع");
     } finally {

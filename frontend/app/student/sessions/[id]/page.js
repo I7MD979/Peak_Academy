@@ -11,6 +11,7 @@ import SubjectBadge from "@/components/shared/SubjectBadge";
 import LiveBadge from "@/components/shared/LiveBadge";
 import Icon from "@/components/shared/Icon";
 import { studentApi } from "@/lib/api";
+import { pollTransactionFulfillment } from "@/lib/paymob";
 import { mapSessionForCard } from "@/lib/session-mapper";
 import { formatCurrencyEgp, formatDateTimeAr } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -42,6 +43,35 @@ export default function StudentSessionDetailsPage({ params }) {
   useEffect(() => {
     loadSession();
   }, [loadSession]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function verifyPendingPayment() {
+      const txId = sessionStorage.getItem(`peak-tx-${params.id}`);
+      if (!txId) return;
+
+      try {
+        const fulfilled = await pollTransactionFulfillment(txId, {
+          kind: "session",
+          sessionId: params.id
+        });
+        if (!active) return;
+        sessionStorage.removeItem(`peak-tx-${params.id}`);
+        if (fulfilled) {
+          await loadSession();
+        }
+      } catch {
+        sessionStorage.removeItem(`peak-tx-${params.id}`);
+      }
+    }
+
+    verifyPendingPayment();
+
+    return () => {
+      active = false;
+    };
+  }, [params.id, loadSession]);
 
   if (loading) {
     return (
@@ -150,12 +180,10 @@ export default function StudentSessionDetailsPage({ params }) {
 
         <div className="mt-6 flex flex-wrap gap-2">
           {canJoinLive ? (
-            <Link href={`/student/live/${session.id}`}>
-              <Button className="rounded-xl" variant="destructive">
-                <Icon name="live" size={18} className="ml-2" />
-                دخول البث المباشر
-              </Button>
-            </Link>
+            <Button href={`/student/live/${session.id}`} className="rounded-xl" variant="destructive">
+              <Icon name="live" size={18} className="ml-2" />
+              دخول البث المباشر
+            </Button>
           ) : null}
 
           {canEnroll ? (

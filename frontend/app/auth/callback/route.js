@@ -17,6 +17,9 @@ export async function GET(request) {
     return NextResponse.redirect(new URL("/auth/login", request.url));
   }
 
-  const nextPath = await resolvePostAuthPath(supabase);
+  const {
+    data: { session }
+  } = await supabase.auth.getSession();
+  const nextPath = await resolvePostAuthPath(supabase, session?.access_token);
   return NextResponse.redirect(new URL(nextPath, request.url));
 }

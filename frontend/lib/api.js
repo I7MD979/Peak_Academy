@@ -1,3 +1,5 @@
+"use client";
+
 import { createClient } from "./supabase/client";
 import { useAuthStore } from "@/store/authStore";
 import { cachedApiRequest, clearApiCache, fetchAuthMe } from "@/lib/api-cache";
@@ -15,9 +17,9 @@ async function getAuthToken() {
     const {
       data: { session }
     } = await supabase.auth.getSession();
-    return session?.access_token || localStorage.getItem("peak_token");
+    return session?.access_token || null;
   } catch {
-    return localStorage.getItem("peak_token");
+    return null;
   }
 }
 
@@ -52,7 +54,9 @@ async function performApiFetch(path, options = {}, tokenOverride = null) {
     }
     const requestError = new Error(message);
     requestError.status = res.status;
+    requestError.code = payload?.code || payload?.data?.code;
     requestError.details = payload?.details;
+    requestError.data = payload?.data;
     requestError.apiVersion = apiVersion;
     throw requestError;
   }
@@ -61,24 +65,28 @@ async function performApiFetch(path, options = {}, tokenOverride = null) {
 }
 
 export async function apiRequest(path, options = {}, tokenOverride = null) {
-  return cachedApiRequest(path, options, tokenOverride, () =>
-    performApiFetch(path, options, tokenOverride)
+  const token = tokenOverride ?? (await getAuthToken());
+  return cachedApiRequest(path, options, token, () =>
+    performApiFetch(path, options, token ?? tokenOverride)
   );
 }
 
 export { clearApiCache };
 
 function fetchMe(tokenOverride) {
-  return fetchAuthMe(() => performApiFetch("/auth/me", {}, tokenOverride));
+  return fetchAuthMe(() => performApiFetch("/auth/me", {}, tokenOverride), tokenOverride);
 }
 
 export const authApi = {
   me: (token) => fetchMe(token),
-  setupProfile: (body) =>
-    apiRequest("/auth/setup-profile", {
+  setupProfile: async (body) => {
+    const result = await apiRequest("/auth/setup-profile", {
       method: "POST",
       body: JSON.stringify(body)
-    }),
+    });
+    clearApiCache();
+    return result;
+  },
   updateProfile: async (body) => {
     const result = await apiRequest("/auth/profile", {
       method: "PUT",
@@ -129,7 +137,9 @@ export const paymentsApi = {
         content,
         grade
       })
-    })
+    }),
+  transactionStatus: (transactionId) => apiRequest(`/payments/transactions/${transactionId}/status`),
+  history: (query = "") => apiRequest(`/payments/history${query ? `?${query}` : ""}`)
 };
 
 export const studentApi = {
@@ -195,6 +205,13 @@ export const dashboardApi = {
   parentReport: (studentId) => apiRequest(`/parent/report/${studentId}`),
   myProfile: () => fetchMe(),
   updateMyProfile: (body) => authApi.updateProfile(body)
+};
+
+export const notificationsApi = {
+  list: () => apiRequest("/notifications"),
+  unreadCount: () => apiRequest("/notifications/unread-count"),
+  markRead: (id) => apiRequest(`/notifications/${id}/read`, { method: "PATCH" }),
+  markAllRead: () => apiRequest("/notifications/read-all", { method: "PATCH" })
 };
 
 export const parentApi = {

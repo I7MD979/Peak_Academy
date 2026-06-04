@@ -16,12 +16,12 @@ export function getUserDisplay(authUser, apiUser = null) {
   }
 
   const meta = authUser.user_metadata || {};
-  const role = meta.role || "admin";
+  const role = meta.role || "";
   return {
     full_name: meta.full_name || authUser.email?.split("@")[0] || "مستخدم",
     avatar_url: meta.avatar_url || "",
     email: authUser.email || "",
     role,
-    roleLabel: ROLE_LABELS_AR[role] || ROLE_LABELS_AR.admin
+    roleLabel: ROLE_LABELS_AR[role] || "مستخدم"
   };
 }

@@ -40,8 +40,10 @@ router.get("/users", auth, checkRole("admin"), async (req, res) => {
     if (is_active === "true") query = query.eq("is_active", true);
     if (is_active === "false") query = query.eq("is_active", false);
     if (search) {
-      const term = String(search).trim();
-      query = query.or(`full_name.ilike.%${term}%,email.ilike.%${term}%`);
+      const term = String(search)
+        .trim()
+        .replace(/[%_,]/g, "");
+      if (term) query = query.or(`full_name.ilike.%${term}%,email.ilike.%${term}%`);
     }
     const { data, count } = await query;
     return paginated(res, data, paginationMeta(count, Number(page), Number(limit)));
@@ -52,8 +54,30 @@ router.get("/users", auth, checkRole("admin"), async (req, res) => {
 
 router.put("/users/:id/verify", auth, checkRole("admin"), async (req, res) => {
   try {
-    await supabase.from("teacher_profiles").update({ id_verified: true }).eq("user_id", req.params.id);
-    await supabase.from("users").update({ is_verified: true }).eq("id", req.params.id);
+    const { data: userRow, error: userLookupError } = await supabase
+      .from("users")
+      .select("id, role")
+      .eq("id", req.params.id)
+      .maybeSingle();
+
+    if (userLookupError) throw userLookupError;
+    if (!userRow) return error(res, "User not found", 404);
+    if (userRow.role !== "teacher") {
+      return error(res, "يمكن توثيق حسابات المدرسين فقط", 400);
+    }
+
+    const { error: teacherError } = await supabase
+      .from("teacher_profiles")
+      .update({ id_verified: true })
+      .eq("user_id", req.params.id);
+    const { error: userError } = await supabase
+      .from("users")
+      .update({ is_verified: true })
+      .eq("id", req.params.id);
+
+    if (teacherError) throw teacherError;
+    if (userError) throw userError;
+
     return success(res, null, "Teacher verified");
   } catch (_err) {
     return error(res, "Failed to verify teacher", 500);
@@ -145,7 +169,7 @@ router.get("/withdrawals", auth, checkRole("admin"), async (req, res) => {
     if (process.env.NODE_ENV !== "production") {
       console.error("admin withdrawals", err);
     }
-    return paginated(res, [], paginationMeta(0, page, limit));
+    return error(res, "Failed to fetch withdrawals", 500);
   }
 });
 
@@ -197,11 +221,32 @@ router.put("/withdrawals/:id", auth, checkRole("admin"), async (req, res) => {
     if (updateError) throw updateError;
 
     if (status === "paid") {
-      await supabase
+      const targetAmount = Number(withdrawal.amount);
+      const { data: pendingEarnings } = await supabase
         .from("teacher_earnings")
-        .update({ status: "paid", paid_at: new Date().toISOString() })
+        .select("id, teacher_amount")
         .eq("teacher_id", withdrawal.teacher_id)
-        .eq("status", "pending");
+        .eq("status", "pending")
+        .order("created_at", { ascending: true });
+
+      let covered = 0;
+      const idsToMark = [];
+      for (const row of pendingEarnings || []) {
+        if (covered >= targetAmount) break;
+        const rowAmount = Number(row.teacher_amount || 0);
+        if (rowAmount <= 0) continue;
+        if (covered + rowAmount <= targetAmount) {
+          idsToMark.push(row.id);
+          covered += rowAmount;
+        }
+      }
+
+      if (idsToMark.length > 0) {
+        await supabase
+          .from("teacher_earnings")
+          .update({ status: "paid", paid_at: new Date().toISOString() })
+          .in("id", idsToMark);
+      }
     }
 
     return success(res, null, "Withdrawal updated");
@@ -406,9 +451,24 @@ router.get("/reports", auth, checkRole("admin"), async (req, res) => {
       .map((item, index) => ({ rank: index + 1, ...item }));
 
     const subjectMap = new Map();
+    const completedSessionIds = (completedSessionsRes.data || []).map((row) => row.id);
+    let enrollmentCountBySession = {};
+
+    if (completedSessionIds.length > 0) {
+      const { data: enrollments } = await supabase
+        .from("session_enrollments")
+        .select("session_id")
+        .in("session_id", completedSessionIds);
+
+      for (const row of enrollments || []) {
+        enrollmentCountBySession[row.session_id] =
+          (enrollmentCountBySession[row.session_id] || 0) + 1;
+      }
+    }
+
     for (const row of completedSessionsRes.data || []) {
       const subjectName = typeof row.subject === "string" ? row.subject : "مادة";
-      const enrolled = 0;
+      const enrolled = enrollmentCountBySession[row.id] || 0;
       const current = subjectMap.get(subjectName) || {
         subject: subjectName,
         sessions_count: 0,

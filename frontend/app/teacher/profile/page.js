@@ -296,12 +296,10 @@ export default function TeacherProfilePage() {
                 <Button type="button" variant="outline" className="rounded-xl" disabled={saving} onClick={resetForm}>
                   تراجع
                 </Button>
-                <Link href="/teacher/earnings">
-                  <Button type="button" variant="outline" className="rounded-xl">
-                    <Icon name="wallet" size={16} />
-                    الأرباح
-                  </Button>
-                </Link>
+                <Button href="/teacher/earnings" type="button" variant="outline" className="rounded-xl">
+                  <Icon name="wallet" size={16} />
+                  الأرباح
+                </Button>
               </div>
             </div>
 

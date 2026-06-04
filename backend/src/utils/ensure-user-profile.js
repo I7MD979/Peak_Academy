@@ -48,10 +48,12 @@ export async function ensureUserProfile(
       .eq("user_id", id)
       .maybeSingle();
 
+    const requestedGrade = grade && VALID_GRADES.includes(grade) ? grade : null;
+
     const { error: studentError } = await supabase.from("student_profiles").upsert(
       {
         user_id: id,
-        grade: existing?.grade || safeGrade,
+        grade: requestedGrade || existing?.grade || safeGrade,
         section: section !== undefined && section !== null ? String(section).trim() || null : existing?.section ?? null,
         link_code: existing?.link_code || buildLinkCode(id)
       },
@@ -119,7 +121,9 @@ export async function fetchFullUserProfile(supabase, userId) {
 }
 
 export function isRoleProfileComplete(role, { student_profile, teacher_profile } = {}) {
-  if (role === "student") return Boolean(student_profile?.id);
+  if (role === "student") {
+    return Boolean(student_profile?.id && student_profile?.grade);
+  }
   if (role === "teacher") return Boolean(teacher_profile?.id);
   return true;
 }

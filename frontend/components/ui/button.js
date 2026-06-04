@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { cva } from "class-variance-authority";
 import { cn } from "../../lib/utils";
 
@@ -25,8 +26,15 @@ const buttonVariants = cva(
   }
 );
 
-function Button({ className, variant, size, ...props }) {
-  return <button className={cn(buttonVariants({ variant, size, className }))} {...props} />;
+function Button({ className, variant, size, href, type = "button", ...props }) {
+  const classes = cn(buttonVariants({ variant, size, className }));
+
+  if (href) {
+    const { type: _ignored, ...linkProps } = props;
+    return <Link href={href} className={classes} {...linkProps} />;
+  }
+
+  return <button type={type} className={classes} {...props} />;
 }
 
 export { Button, buttonVariants };

@@ -152,11 +152,9 @@ export default function StudentDashboardPage() {
                 <h2 className="text-lg font-black text-primary">جلساتي القادمة</h2>
                 <p className="text-sm text-text-muted">الجلسات التي سجلت فيها بالفعل</p>
               </div>
-              <Link href="/student/sessions">
-                <Button variant="outline" className="rounded-xl">
-                  عرض الكل
-                </Button>
-              </Link>
+              <Button href="/student/sessions" variant="outline" className="rounded-xl">
+                عرض الكل
+              </Button>
             </div>
 
             {upcomingSessions.length > 0 ? (
@@ -183,9 +181,9 @@ export default function StudentDashboardPage() {
                     : "جلسات جديدة يمكنك حجزها"}
                 </p>
               </div>
-              <Link href="/student/sessions">
-                <Button className="rounded-xl">استكشف المزيد</Button>
-              </Link>
+              <Button href="/student/sessions" className="rounded-xl">
+                استكشف المزيد
+              </Button>
             </div>
 
             {recommendedSessions.length > 0 ? (

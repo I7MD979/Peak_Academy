@@ -2,6 +2,7 @@
 
 import { useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { clearApiCache } from "@/lib/api-cache";
 import { useAuthStore } from "@/store/authStore";
 
 export const useAuth = () => {
@@ -35,6 +36,7 @@ export const useAuth = () => {
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    clearApiCache();
     clearAuth();
   };
 

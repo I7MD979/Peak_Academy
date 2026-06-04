@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { toast } from "sonner";
+import NotificationBell from "@/components/shared/NotificationBell";
 import Icon from "@/components/shared/Icon";
 import MenuButton from "@/components/shared/MenuButton";
 import PeakLogo from "@/components/shared/PeakLogo";
@@ -81,28 +81,7 @@ function TopbarBreadcrumbs({ crumbs, theme = "light" }) {
 }
 
 function NotificationsButton({ theme = "light" }) {
-  const isBrand = theme === "brand";
-
-  return (
-    <button
-      type="button"
-      title="الإشعارات — قريباً"
-      onClick={() => toast.message("الإشعارات ستكون متاحة قريباً")}
-      className={cn(
-        "relative rounded-xl border p-2 transition-colors",
-        isBrand
-          ? "border-white/15 text-white/80 hover:bg-white/10 hover:text-white"
-          : "border-border bg-card text-text-muted hover:border-accent/30 hover:bg-accent/5 hover:text-accent"
-      )}
-      aria-label="الإشعارات — قريباً"
-    >
-      <Icon name="bell" size={18} />
-      <span
-        className="absolute top-1.5 end-1.5 h-2 w-2 rounded-full bg-accent ring-2 ring-card"
-        aria-hidden
-      />
-    </button>
-  );
+  return <NotificationBell theme={theme} />;
 }
 
 function UserMenu({

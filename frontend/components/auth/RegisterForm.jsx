@@ -13,7 +13,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { authApi } from "@/lib/api";
 import { getAuthErrorMessage } from "@/lib/auth-errors";
 import { GRADE_OPTIONS } from "@/lib/profile-form";
-import { resolvePostAuthPath } from "@/lib/role-routes";
+import { resolvePostAuthPathClient } from "@/lib/role-routes";
 import { createClient } from "@/lib/supabase/client";
 import {
   REGISTER_ROLES,
@@ -106,7 +106,7 @@ export default function RegisterForm() {
         phone: profileValues.phone?.trim() || undefined
       });
 
-      const nextPath = await resolvePostAuthPath(supabase);
+      const nextPath = await resolvePostAuthPathClient(session?.access_token);
       router.replace(nextPath);
     } catch (err) {
       const needsOnboarding =
@@ -137,11 +137,9 @@ export default function RegisterForm() {
           </span>
           . بعد التأكيد سجّل الدخول لإكمال ملفك على المنصة.
         </p>
-        <Link href="/auth/login">
-          <Button variant="accent" className="mt-2 w-full">
-            الانتقال لتسجيل الدخول
-          </Button>
-        </Link>
+        <Button href="/auth/login" variant="accent" className="mt-2 w-full">
+          الانتقال لتسجيل الدخول
+        </Button>
       </div>
     );
   }

@@ -4,7 +4,18 @@ import { initSentry } from "./lib/sentry.js";
 import { startWorkers, shutdownWorkers } from "./lib/queue.js";
 import { getCacheMode } from "./lib/cache.js";
 
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 4000;
+
+if (process.env.NODE_ENV === "production" && !process.env.PAYMOB_HMAC_SECRET) {
+  console.warn(
+    "WARNING: PAYMOB_HMAC_SECRET is not set — Paymob webhooks will be rejected until configured."
+  );
+}
+
+if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
+  console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_KEY — set them in backend/.env");
+  process.exit(1);
+}
 
 await initSentry();
 

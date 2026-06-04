@@ -217,11 +217,9 @@ export default function ParentDashboardPage() {
                     {student.full_name} لديه {stats.live_sessions.toLocaleString("ar-EG")} جلسة مباشرة
                   </p>
                 </div>
-                <Link href={reportHref}>
-                  <Button type="button" variant="destructive" className="rounded-xl">
-                    عرض التفاصيل
-                  </Button>
-                </Link>
+                <Button href={reportHref} type="button" variant="destructive" className="rounded-xl">
+                  عرض التفاصيل
+                </Button>
               </div>
             </section>
           ) : null}
@@ -371,12 +369,10 @@ export default function ParentDashboardPage() {
           <section className="rounded-2xl border border-border bg-card p-4">
             <h3 className="mb-3 text-sm font-bold text-text">إجراءات سريعة</h3>
             <div className="flex flex-wrap gap-2">
-              <Link href={reportHref}>
-                <Button type="button" variant="accent" className="rounded-xl">
-                  <Icon name="book" size={18} />
-                  التقرير التفصيلي
-                </Button>
-              </Link>
+              <Button href={reportHref} type="button" variant="accent" className="rounded-xl">
+                <Icon name="book" size={18} />
+                التقرير التفصيلي
+              </Button>
               <Button
                 type="button"
                 variant="outline"

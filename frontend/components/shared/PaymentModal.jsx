@@ -17,8 +17,11 @@ export default function PaymentModal({ session, onClose }) {
     try {
       setLoading(true);
       setError("");
-      const checkoutUrl = await initiatePayment(session?.price_per_student, session?.id);
+      const { checkoutUrl, transactionId } = await initiatePayment(session?.price_per_student, session?.id);
       if (!checkoutUrl) throw new Error("لم يتم استلام رابط الدفع");
+      if (transactionId && session?.id) {
+        sessionStorage.setItem(`peak-tx-${session.id}`, transactionId);
+      }
       window.location.href = checkoutUrl;
       if (onClose) onClose();
     } catch (err) {

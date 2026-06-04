@@ -1,13 +1,14 @@
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import SubjectBadge from "@/components/shared/SubjectBadge";
 import LiveBadge from "@/components/shared/LiveBadge";
 import Icon from "@/components/shared/Icon";
 import { cn } from "@/lib/utils";
 
-export default function SessionCard({ session, detailHref, className }) {
+export default function SessionCard({ session, detailHref, liveHref, className }) {
   const href = detailHref || `/student/sessions/${session?.id || ""}`;
+  const liveLink = liveHref || `/student/live/${session?.id || ""}`;
   const isLive = session?.is_live || session?.status === "live";
+  const primaryHref = isLive ? liveLink : href;
 
   return (
     <article
@@ -51,20 +52,17 @@ export default function SessionCard({ session, detailHref, className }) {
       </dl>
 
       <div className="mt-4 flex gap-2">
-        <Link href={href} className="flex-1">
-          <Button
-            className="w-full rounded-xl"
-            variant={isLive ? "destructive" : session?.is_enrolled ? "outline" : "accent"}
-          >
-            {isLive ? "دخول البث" : session?.is_enrolled ? "عرض الجلسة" : "احجز الآن"}
-          </Button>
-        </Link>
+        <Button
+          href={primaryHref}
+          className="flex-1 rounded-xl"
+          variant={isLive ? "destructive" : session?.is_enrolled ? "outline" : "accent"}
+        >
+          {isLive ? "دخول البث" : session?.is_enrolled ? "عرض الجلسة" : "احجز الآن"}
+        </Button>
         {isLive ? (
-          <Link href={`/student/live/${session.id}`}>
-            <Button variant="outline" className="rounded-xl px-3" aria-label="دخول مباشر">
-              <Icon name="live" size={18} />
-            </Button>
-          </Link>
+          <Button href={href} variant="outline" className="rounded-xl px-3" aria-label="تفاصيل الجلسة">
+            <Icon name="book" size={18} />
+          </Button>
         ) : null}
       </div>
     </article>

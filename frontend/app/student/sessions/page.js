@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,7 +39,7 @@ const EMPTY_COPY = {
   }
 };
 
-export default function StudentSessionsPage() {
+function StudentSessionsContent() {
   const searchParams = useSearchParams();
   const [tab, setTab] = useState("available");
   const [search, setSearch] = useState("");
@@ -276,5 +276,19 @@ export default function StudentSessionsPage() {
         </div>
       ) : null}
     </div>
+  );
+}
+
+export default function StudentSessionsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-4 md:p-6">
+          <LoadingSkeleton />
+        </div>
+      }
+    >
+      <StudentSessionsContent />
+    </Suspense>
   );
 }

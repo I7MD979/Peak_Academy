@@ -81,11 +81,9 @@ function SessionCard({ session, onDetails, onStart, onEnd, onCancel, onJoin, act
       ) : null}
 
       <div className="mt-4 flex flex-wrap gap-2">
-        <Link href={`/teacher/sessions/${session.id}`}>
-          <Button type="button" size="sm" variant="outline">
-            التفاصيل
-          </Button>
-        </Link>
+        <Button href={`/teacher/sessions/${session.id}`} type="button" size="sm" variant="outline">
+          التفاصيل
+        </Button>
         <Button type="button" size="sm" variant="ghost" onClick={() => onDetails(session)}>
           معاينة سريعة
         </Button>
@@ -326,11 +324,9 @@ export default function TeacherSessionsPage() {
 
               {row.status === "live" ? (
                 <>
-                  <Link href={`/teacher/live/${row.id}`}>
-                    <Button type="button" size="sm">
-                      دخول البث
-                    </Button>
-                  </Link>
+                  <Button href={`/teacher/live/${row.id}`} type="button" size="sm">
+                    دخول البث
+                  </Button>
                   <Button
                     type="button"
                     size="sm"
@@ -380,9 +376,9 @@ export default function TeacherSessionsPage() {
           تابع الجلسات القادمة والمباشرة، ابدأ البث في الوقت المناسب، وأنهِ الجلسة لتسجيل الحضور والأرباح.
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
-          <Link href="/teacher/sessions/new">
-            <Button className="rounded-xl bg-accent text-white hover:bg-orange-500">إنشاء جلسة جديدة</Button>
-          </Link>
+          <Button href="/teacher/sessions/new" className="rounded-xl bg-accent text-white hover:bg-orange-500">
+            إنشاء جلسة جديدة
+          </Button>
           <Button
             type="button"
             variant="outline"
@@ -448,9 +444,9 @@ export default function TeacherSessionsPage() {
         <div className="rounded-2xl border border-dashed border-border bg-card p-10 text-center">
           <p className="text-lg font-bold text-text">لا توجد جلسات مطابقة</p>
           <p className="mt-2 text-sm text-text-muted">جرّب تغيير الفلتر أو أنشئ جلسة جديدة للبدء.</p>
-          <Link href="/teacher/sessions/new" className="mt-4 inline-block">
-            <Button>إنشاء أول جلسة</Button>
-          </Link>
+          <Button href="/teacher/sessions/new" className="mt-4">
+            إنشاء أول جلسة
+          </Button>
         </div>
       ) : (
         <>

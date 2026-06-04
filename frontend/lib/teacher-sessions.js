@@ -5,7 +5,12 @@ export const gradeLabels = {
 };
 
 export function getEnrollmentCount(session) {
-  return session?.enrollments?.[0]?.count ?? 0;
+  return (
+    session?.enrollment_count ??
+    session?.enrollments?.[0]?.count ??
+    session?.session_enrollments?.[0]?.count ??
+    0
+  );
 }
 
 export function getSubjectLabel(session) {

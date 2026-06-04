@@ -1,8 +1,27 @@
-import { sendEmail } from "../services/email.service.js";
 import { supabase } from "../lib/supabase.js";
+import { sendEmail } from "../services/email.service.js";
 import { buildParentReport } from "../services/report.service.js";
 import { getStudentReportForParent } from "../services/parentReportService.js";
-import { publishNotification } from "../services/notificationHub.js";
+import { createUserNotification } from "../services/notification.service.js";
+
+export async function handleNotificationJob(name, payload) {
+  if (name !== "push-notification") {
+    return { skipped: true, reason: "unknown_job" };
+  }
+
+  const { userId, type, title, body, data } = payload;
+  if (!userId || !title) return { skipped: true, reason: "missing_fields" };
+
+  const row = await createUserNotification({
+    userId,
+    type: type || "general",
+    title,
+    body: body || "",
+    data
+  });
+
+  return { notification_id: row.id };
+}
 
 export async function handleEmailJob(name, payload) {
   if (name === "enrollment-confirm") {
@@ -59,39 +78,18 @@ export async function handleReportJob(name, payload) {
 
   const built = buildParentReport(report);
   const reportId = `pr-${Date.now()}`;
+  const studentUserId = report.student.user_id;
+
+  if (!studentUserId) return { skipped: true, reason: "missing_student_user_id" };
 
   await supabase.from("parent_reports").insert({
     id: reportId,
     parent_id: parentId,
-    student_id: studentId,
+    student_id: studentUserId,
     mime_type: built.mimeType,
     storage_key: `generated:${reportId}`,
     generated_at: new Date().toISOString()
   });
 
   return { report_id: reportId, bytes: built.buffer.length };
-}
-
-export async function handleNotificationJob(name, payload) {
-  if (name !== "push-notification") {
-    return { skipped: true, reason: "unknown_job" };
-  }
-
-  const { userId, type, title, body, data } = payload;
-  if (!userId || !title) return { skipped: true, reason: "missing_fields" };
-
-  const id = `ntf-${Date.now()}`;
-  const row = {
-    id,
-    user_id: userId,
-    type: type || "general",
-    title,
-    body: body || "",
-    is_read: false,
-    created_at: new Date().toISOString()
-  };
-
-  await supabase.from("notifications").insert(row);
-  publishNotification(userId, { ...row, data: data || null });
-  return { notification_id: id };
 }

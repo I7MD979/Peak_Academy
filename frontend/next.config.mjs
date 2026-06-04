@@ -7,11 +7,6 @@ const nextConfig = {
         source: "/student/my-sessions",
         destination: "/student/sessions?tab=mine",
         permanent: true
-      },
-      {
-        source: "/dashboard",
-        destination: "/student/dashboard",
-        permanent: false
       }
     ];
   }

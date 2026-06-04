@@ -9,7 +9,11 @@ export const limiter = rateLimit({
   max: isProduction ? 120 : 10_000,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: () => disabled || !isProduction,
+  skip: (req) => {
+    if (disabled || !isProduction) return true;
+    const path = req.originalUrl || req.url || "";
+    return path.includes("/payments/webhook") || path.includes("/notifications/stream");
+  },
   message: {
     success: false,
     error: "طلبات كثيرة — انتظر قليلًا ثم أعد المحاولة"

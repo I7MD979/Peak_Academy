@@ -43,6 +43,11 @@ router.post("/setup-profile", auth, async (req, res) => {
     const grade = req.body.grade;
     const section = req.body.section;
 
+    const existing = await fetchFullUserProfile(supabase, req.user.id);
+    if (existing?.role && existing.role !== role) {
+      return error(res, "لا يمكن تغيير نوع الحساب بعد إنشاء الملف", 400);
+    }
+
     if (fullName.length < 2) {
       return error(res, "الاسم يجب أن يكون حرفين على الأقل", 400);
     }
@@ -192,20 +197,44 @@ router.put("/profile", auth, async (req, res) => {
 
 router.post("/complete-profile", auth, async (req, res) => {
   try {
-    const { role, grade, section, subjects, phone, full_name } = req.body;
+    const existing = await fetchFullUserProfile(supabase, req.user.id);
+    const fullName = String(req.body.full_name || req.user.full_name || "").trim();
+    const role = normalizeRole(req.body.role || req.user.role);
+
+    if (existing?.role && existing.role !== role) {
+      return error(res, "لا يمكن تغيير نوع الحساب بعد إنشاء الملف", 400);
+    }
+    const phone = String(req.body.phone || "").trim();
+    const { grade, section, subjects } = req.body;
+
+    if (fullName.length < 2) {
+      return error(res, "الاسم يجب أن يكون حرفين على الأقل", 400);
+    }
+
+    if (role === "student" && grade && !["first", "second", "third"].includes(grade)) {
+      return error(res, "الصف الدراسي غير صالح", 400);
+    }
+
+    if (phone && phone.length < 8) {
+      return error(res, "رقم الهاتف غير صالح", 400);
+    }
+
     const user = await ensureUserProfile(supabase, {
       id: req.user.id,
       email: req.user.email,
-      full_name: full_name || req.user.full_name,
-      role: role || req.user.role,
-      phone,
-      grade,
-      section,
+      full_name: fullName,
+      role,
+      phone: phone || null,
+      grade: role === "student" ? grade || "third" : null,
+      section: role === "student" ? section : null,
       subjects: subjects || []
     });
     return success(res, user, "تم إكمال الملف الشخصي بنجاح");
   } catch (err) {
-    return error(res, "تعذر إكمال الملف الشخصي", 500);
+    if (process.env.NODE_ENV !== "production") {
+      console.error("POST /auth/complete-profile", err);
+    }
+    return error(res, err.message || "تعذر إكمال الملف الشخصي", 500);
   }
 });
 
