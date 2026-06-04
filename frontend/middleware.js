@@ -27,6 +27,10 @@ const ROLE_ROUTES = {
 
 const AUTH_ENTRY_PATHS = new Set(["/auth/login", "/auth/register"]);
 
+function isOnboardingPath(path) {
+  return path === "/onboarding" || path.startsWith("/onboarding/");
+}
+
 function isPublicPath(path) {
   return PUBLIC_PATHS.some((p) => path === p || path.startsWith(`${p}/`));
 }
@@ -52,6 +56,11 @@ function redirectWithCookies(request, path, sessionResponse) {
 
 export async function middleware(request) {
   const { pathname } = request.nextUrl;
+
+  // Allow onboarding while auth cookies are still propagating after OAuth callback
+  if (isOnboardingPath(pathname)) {
+    return NextResponse.next({ request: { headers: request.headers } });
+  }
 
   if (isPublicPath(pathname)) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -130,14 +139,6 @@ export async function middleware(request) {
   }
 
   const requiredRole = getRoleForPath(pathname);
-
-  if (pathname === "/onboarding" || pathname.startsWith("/onboarding/")) {
-    const profile = await fetchAuthProfile(session.access_token, request);
-    if (profile && isProfileComplete(profile) && profile.role) {
-      return redirectWithCookies(request, ROLE_HOME[profile.role] || "/dashboard", res);
-    }
-    return res;
-  }
 
   if (requiredRole) {
     const profile = await fetchAuthProfile(session.access_token, request);
