@@ -6,9 +6,10 @@ import { useAuth } from "@/hooks/useAuth";
 import { getAuthErrorMessage } from "@/lib/auth-errors";
 import { createClient } from "@/lib/supabase/client";
 import { resolvePostAuthPathClient } from "@/lib/role-routes";
+import { sanitizeRedirectPath } from "@/lib/safe-redirect";
 import GoogleIcon from "@/components/auth/GoogleIcon";
 
-export default function LoginForm() {
+export default function LoginForm({ redirectTo: redirectToProp = null }) {
   const router = useRouter();
   const { signInWithGoogle, signInWithEmail } = useAuth();
 
@@ -60,7 +61,9 @@ export default function LoginForm() {
       const {
         data: { session }
       } = await supabase.auth.getSession();
-      const nextPath = await resolvePostAuthPathClient(session?.access_token);
+      const safeRedirect = sanitizeRedirectPath(redirectToProp);
+      const nextPath =
+        safeRedirect || (await resolvePostAuthPathClient(session?.access_token));
       setRedirecting(true);
       router.replace(nextPath);
     } catch {
@@ -116,7 +119,9 @@ export default function LoginForm() {
             <label htmlFor="login-password" className="text-sm font-bold">
               كلمة المرور
             </label>
-            <span className="text-xs text-text-muted">نسيت كلمة المرور؟ تواصل مع الدعم</span>
+            <a href="/auth/forgot-password" className="text-xs font-bold text-accent hover:underline">
+              نسيت كلمة المرور؟
+            </a>
           </div>
           <div className="relative">
             <input

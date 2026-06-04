@@ -61,7 +61,7 @@ app.use(
 );
 app.use(express.json());
 app.use(timeout);
-app.use("/api/", limiter);
+app.use(["/api", "/auth"], limiter);
 
 export const API_VERSION = "2026-06-09-schema-v2";
 
@@ -78,11 +78,6 @@ app.get("/api/health", (_req, res) => {
     sessions_query: "plain-select"
   });
 });
-
-function redirectToOnboarding(_req, res) {
-  const base = (process.env.FRONTEND_URL || "https://peak-academy.net").replace(/\/$/, "");
-  res.redirect(302, `${base}/onboarding`);
-}
 
 app.get("/api/diag", async (_req, res) => {
   const { supabase } = await import("./lib/supabase.js");
@@ -148,8 +143,12 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/student", studentRoutes);
 app.use("/api/study-rooms", studyRoomsRoutes);
 
-app.use("/api/*", (_req, res) => {
-  res.status(404).json({ success: false, error: "المسار غير موجود" });
+app.use((req, res, next) => {
+  const path = req.path || "";
+  if (path.startsWith("/api/") || path.startsWith("/auth/")) {
+    return res.status(404).json({ success: false, error: "المسار غير موجود" });
+  }
+  next();
 });
 
 setupExpressSentry(app);

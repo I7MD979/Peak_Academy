@@ -47,9 +47,9 @@ async function performApiFetch(path, options = {}, tokenOverride = null) {
     }
     if (res.status === 503) {
       message =
-        apiVersion && String(apiVersion).includes("sessions-v5")
+        apiVersion && String(apiVersion).includes("2026-06-09-schema-v2")
           ? message
-          : `الخادم على المنفذ 4000 قديم. أوقف كل نوافذ backend ثم من مجلد backend شغّل: npm run dev — ثم تحقق من ${API_URL.replace(/\/api$/, "")}/api/health (يجب أن يظهر sessions-v5).`;
+          : `الخادم على المنفذ 4000 قديم. أوقف كل نوافذ backend ثم من مجلد backend شغّل: npm run dev — ثم تحقق من ${API_URL.replace(/\/api$/, "")}/api/health (يجب أن يظهر api_version: 2026-06-09-schema-v2).`;
     }
     const requestError = new Error(message);
     requestError.status = res.status;

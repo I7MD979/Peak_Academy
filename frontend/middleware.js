@@ -1,5 +1,11 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse } from "next/server";
+import {
+  fetchAuthProfile,
+  isProfileComplete,
+  resolvePostAuthPath,
+  ROLE_HOME
+} from "./lib/role-routes-edge.js";
 
 const PROD_DOMAIN = "peak-academy.net";
 const PREVIEW_USER = "peak";
@@ -11,7 +17,8 @@ const PUBLIC_PATHS = [
   "/auth/register",
   "/auth/callback",
   "/auth/forgot-password",
-  "/auth/reset-password"
+  "/auth/reset-password",
+  "/auth/setup-profile"
 ];
 
 const ROLE_ROUTES = {
@@ -21,12 +28,7 @@ const ROLE_ROUTES = {
   "/admin": "admin"
 };
 
-const ROLE_REDIRECTS = {
-  student: "/student/dashboard",
-  teacher: "/teacher/dashboard",
-  parent: "/parent/dashboard",
-  admin: "/admin/dashboard"
-};
+const AUTH_ENTRY_PATHS = new Set(["/auth/login", "/auth/register"]);
 
 function isPublicPath(path) {
   return PUBLIC_PATHS.some((p) => path === p || path.startsWith(`${p}/`));
@@ -56,6 +58,12 @@ function copyCookies(from, to) {
   });
 }
 
+function redirectWithCookies(request, path, sessionResponse) {
+  const redirect = NextResponse.redirect(new URL(path, request.url));
+  if (sessionResponse) copyCookies(sessionResponse, redirect);
+  return redirect;
+}
+
 export async function middleware(request) {
   const { pathname } = request.nextUrl;
   const host = request.headers.get("host") || "";
@@ -74,7 +82,39 @@ export async function middleware(request) {
   }
 
   if (isPublicPath(pathname)) {
-    return NextResponse.next();
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    if (!AUTH_ENTRY_PATHS.has(pathname) || !supabaseUrl || !supabaseAnonKey) {
+      return NextResponse.next();
+    }
+
+    const res = NextResponse.next({ request: { headers: request.headers } });
+    const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            res.cookies.set(name, value, options);
+          });
+        }
+      }
+    });
+
+    const {
+      data: { session }
+    } = await supabase.auth.getSession();
+
+    if (session?.access_token) {
+      const dest = await resolvePostAuthPath(session.access_token, request);
+      if (dest && dest !== pathname && !dest.startsWith("/auth/login")) {
+        return redirectWithCookies(request, dest, res);
+      }
+    }
+
+    return res;
   }
 
   const res = NextResponse.next({
@@ -118,18 +158,32 @@ export async function middleware(request) {
   }
 
   const requiredRole = getRoleForPath(pathname);
-  if (requiredRole) {
-    const { data: profile } = await supabase
-      .from("users")
-      .select("role")
-      .eq("id", session.user.id)
-      .single();
 
-    if (profile?.role !== requiredRole) {
-      const correctPath = ROLE_REDIRECTS[profile?.role] || "/auth/login";
-      const redirect = NextResponse.redirect(new URL(correctPath, request.url));
-      copyCookies(res, redirect);
-      return redirect;
+  if (pathname === "/onboarding" || pathname.startsWith("/onboarding/")) {
+    const profile = await fetchAuthProfile(session.access_token, request);
+    if (profile && isProfileComplete(profile) && profile.role) {
+      return redirectWithCookies(request, ROLE_HOME[profile.role] || "/dashboard", res);
+    }
+    return res;
+  }
+
+  if (requiredRole) {
+    const profile = await fetchAuthProfile(session.access_token, request);
+
+    if (!profile?.role || !isProfileComplete(profile)) {
+      return redirectWithCookies(request, "/onboarding", res);
+    }
+
+    if (profile.role !== requiredRole) {
+      const correctPath = ROLE_HOME[profile.role] || "/onboarding";
+      return redirectWithCookies(request, correctPath, res);
+    }
+  }
+
+  if (pathname === "/dashboard") {
+    const dest = await resolvePostAuthPath(session.access_token, request);
+    if (dest && dest !== pathname) {
+      return redirectWithCookies(request, dest, res);
     }
   }
 

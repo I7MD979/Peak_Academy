@@ -1,8 +1,10 @@
 import Link from "next/link";
 import AuthLogoHeader from "@/components/auth/AuthLogoHeader";
 import LoginForm from "@/components/auth/LoginForm";
+import { sanitizeRedirectPath } from "@/lib/safe-redirect";
 
-export default function LoginPage() {
+export default function LoginPage({ searchParams }) {
+  const redirectTo = sanitizeRedirectPath(searchParams?.redirect);
   return (
     <div
       className="flex min-h-screen items-center justify-center bg-gradient-to-b from-bg via-bg to-white p-4 font-cairo"
@@ -17,7 +19,7 @@ export default function LoginPage() {
             سجّل دخولك لمتابعة الجلسات، الأداء، والتقارير في لوحة Peak Academy.
           </p>
 
-          <LoginForm />
+          <LoginForm redirectTo={redirectTo} />
         </div>
 
         <p className="mt-5 text-center text-sm text-text-muted">

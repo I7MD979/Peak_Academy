@@ -1,15 +1,9 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { resolvePostAuthPath } from "@/lib/role-routes-server";
 
 export const dynamic = "force-dynamic";
-
-const ROLE_REDIRECTS = {
-  student: "/student/dashboard",
-  teacher: "/teacher/dashboard",
-  parent: "/parent/dashboard",
-  admin: "/admin/dashboard"
-};
 
 function applyCookiesToResponse(target, cookiesToSet) {
   cookiesToSet.forEach(({ name, value, options }) => {
@@ -72,20 +66,15 @@ export async function GET(request) {
       return loginResponse;
     }
 
-    // Brief wait for handle_new_user trigger after Google OAuth
     await new Promise((resolve) => setTimeout(resolve, 300));
 
-    const { data: profile } = await supabase
-      .from("users")
-      .select("role")
-      .eq("id", user.id)
-      .single();
+    const {
+      data: { session }
+    } = await supabase.auth.getSession();
 
-    console.log("[callback] user_id:", user.id, "role:", profile?.role);
+    const redirectPath = await resolvePostAuthPath(supabase, session?.access_token);
 
-    const redirectPath = profile?.role
-      ? ROLE_REDIRECTS[profile.role] || "/student/dashboard"
-      : "/student/dashboard";
+    console.log("[callback] user_id:", user.id, "redirect:", redirectPath);
 
     const response = NextResponse.redirect(new URL(redirectPath, origin));
     applyCookiesToResponse(response, pendingAuthCookies);
