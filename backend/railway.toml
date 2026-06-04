@@ -1,0 +1,10 @@
+# Railway config when Root Directory is set to /backend (recommended).
+
+[build]
+builder = "RAILPACK"
+
+[deploy]
+startCommand = "npm start"
+healthcheckPath = "/api/health"
+healthcheckTimeout = 120
+restartPolicyType = "ON_FAILURE"

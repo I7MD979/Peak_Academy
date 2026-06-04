@@ -1,0 +1,12 @@
+# Railway config when the service builds from the repository root.
+# Recommended: set Service → Settings → Root Directory = /backend
+# and Config file path = /backend/railway.toml
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+healthcheckPath = "/api/health"
+healthcheckTimeout = 120
+restartPolicyType = "ON_FAILURE"

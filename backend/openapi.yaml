@@ -1,0 +1,166 @@
+openapi: 3.0.3
+info:
+  title: Peak Academy API
+  version: 2026-06-04
+  description: |
+    Mounted routes only. Auth register/login are handled by Supabase client-side.
+servers:
+  - url: http://localhost:4000
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+paths:
+  /api/health:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          description: OK
+  /api/diag:
+    get:
+      summary: Database diagnostics
+      responses:
+        "200":
+          description: Table probe results
+  /api/auth/me:
+    get:
+      summary: Current user profile
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Profile
+  /api/auth/setup-profile:
+    post:
+      summary: Complete onboarding profile
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Profile created
+  /api/auth/profile:
+    put:
+      summary: Update profile
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Updated
+  /api/sessions:
+    get:
+      summary: List sessions (teacher/admin)
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Paginated sessions
+    post:
+      summary: Create session
+      security: [{ bearerAuth: [] }]
+      responses:
+        "201":
+          description: Created
+  /api/sessions/{id}/enroll:
+    post:
+      summary: Enroll with payment_id
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "201":
+          description: Enrolled
+  /api/payments/initiate:
+    post:
+      summary: Start Paymob checkout
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: checkout_url + transaction_id
+  /api/payments/webhook:
+    post:
+      summary: Paymob webhook (HMAC)
+      responses:
+        "200":
+          description: Processed
+  /api/payments/transactions/{id}/status:
+    get:
+      summary: Transaction status + fulfillment flags
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: transaction, enrolled, question_created
+  /api/payments/history:
+    get:
+      summary: Payment history
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Paginated transactions
+  /api/earnings/summary:
+    get:
+      summary: Teacher earnings summary
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Balance summary
+  /api/earnings/withdraw:
+    post:
+      summary: Request withdrawal
+      security: [{ bearerAuth: [] }]
+      responses:
+        "201":
+          description: Created
+  /api/student/sessions:
+    get:
+      summary: Student session catalog (tabs)
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: sessions + pagination + tab_counts
+  /api/questions:
+    post:
+      summary: Submit question (402 if payment required)
+      security: [{ bearerAuth: [] }]
+      responses:
+        "201":
+          description: Created
+        "402":
+          description: Payment required
+  /api/parent/report/{studentId}:
+    get:
+      summary: Parent student report
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: studentId
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Report JSON
+  /api/notifications:
+    get:
+      summary: List notifications
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Array in data
+  /api/notifications/{id}/read:
+    patch:
+      summary: Mark notification read
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Updated
