@@ -349,6 +349,25 @@ export default function TeacherSessionsPage() {
     }
   };
 
+  const handlePurgeDailyOnly = async () => {
+    const confirmed = window.confirm(
+      "سيتم حذف كل غرف الفيديو التي تبدأ بـ session- من حساب Daily (حتى اليتيمة). هل تريد المتابعة؟"
+    );
+    if (!confirmed) return;
+
+    try {
+      setClosingAll(true);
+      const res = await sessionsApi.purgeDailyRooms();
+      const deleted = res?.data?.deleted ?? 0;
+      toast.success(`تم حذف ${deleted} غرفة من Daily`);
+      await refreshAll();
+    } catch (err) {
+      toast.error(err.message || "تعذر تنظيف غرف Daily");
+    } finally {
+      setClosingAll(false);
+    }
+  };
+
   const handleCloseAllOpen = async () => {
     if (openSessionsCount <= 0) {
       toast.info("لا توجد جلسات مفتوحة (مباشرة أو مجدولة)");
@@ -367,12 +386,15 @@ export default function TeacherSessionsPage() {
       const data = res?.data || {};
       const ended = data.ended ?? 0;
       const cancelled = data.cancelled ?? 0;
+      const dailyDeleted = data.daily_rooms_deleted ?? 0;
       if (data.failures?.length) {
         toast.warning(
-          `تم إغلاق ${ended + cancelled} جلسة مع ${data.failures.length} أخطاء جزئية`
+          `تم إغلاق ${ended + cancelled} جلسة مع ${data.failures.length} أخطاء. حُذفت ${dailyDeleted} غرفة Daily.`
         );
       } else {
-        toast.success(`تم الإغلاق: ${ended} مباشرة، ${cancelled} مجدولة`);
+        toast.success(
+          `تم الإغلاق: ${ended} مباشرة، ${cancelled} مجدولة. حُذفت ${dailyDeleted} غرفة فيديو من Daily.`
+        );
       }
       await refreshAll();
     } catch (err) {
@@ -511,24 +533,42 @@ export default function TeacherSessionsPage() {
           className="h-11 w-full rounded-xl border border-border px-4 text-sm font-cairo focus:border-accent focus:outline-none"
         />
 
-        {openSessionsCount > 0 ? (
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-warning/30 bg-warning/5 px-4 py-3">
-            <p className="text-sm font-semibold text-text">
-              لديك {openSessionsCount.toLocaleString("ar-EG")} جلسة مفتوحة (
-              {(tabCounts.live ?? 0).toLocaleString("ar-EG")} مباشرة،{" "}
-              {(tabCounts.scheduled ?? 0).toLocaleString("ar-EG")} مجدولة)
+        <div className="mt-4 space-y-3">
+          {openSessionsCount > 0 ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-warning/30 bg-warning/5 px-4 py-3">
+              <p className="text-sm font-semibold text-text">
+                لديك {openSessionsCount.toLocaleString("ar-EG")} جلسة مفتوحة (
+                {(tabCounts.live ?? 0).toLocaleString("ar-EG")} مباشرة،{" "}
+                {(tabCounts.scheduled ?? 0).toLocaleString("ar-EG")} مجدولة)
+              </p>
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                disabled={closingAll || countsLoading}
+                onClick={handleCloseAllOpen}
+              >
+                {closingAll ? "جارٍ الإغلاق..." : "إغلاق وحذف كل الجلسات المفتوحة"}
+              </Button>
+            </div>
+          ) : null}
+
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-bg px-4 py-3">
+            <p className="text-sm text-text-muted">
+              غرف Daily تبقى في الحساب حتى بعد إنهاء الجلسة. استخدم التنظيف لإفراغ العدد في لوحة
+              Daily.
             </p>
             <Button
               type="button"
-              variant="destructive"
+              variant="outline"
               size="sm"
               disabled={closingAll || countsLoading}
-              onClick={handleCloseAllOpen}
+              onClick={handlePurgeDailyOnly}
             >
-              {closingAll ? "جارٍ الإغلاق..." : "إغلاق وحذف كل الجلسات المفتوحة"}
+              تنظيف غرف Daily
             </Button>
           </div>
-        ) : null}
+        </div>
       </section>
 
       {error ? (

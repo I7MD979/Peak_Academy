@@ -133,10 +133,23 @@ export const authApi = {
 
 export const sessionsApi = {
   list: (query = "") => apiRequest(withQuery("/sessions", query)),
-  closeOpen: () => apiRequest("/sessions/close-open", { method: "POST" }),
-  cancel: (sessionId) => apiRequest(`/sessions/${sessionId}/cancel`, { method: "PATCH" }),
+  closeOpen: async () => {
+    clearApiCache("/sessions");
+    return apiRequest("/sessions/close-open", { method: "POST" });
+  },
+  purgeDailyRooms: async () => {
+    clearApiCache("/sessions");
+    return apiRequest("/sessions/purge-daily-rooms", { method: "POST" });
+  },
+  cancel: async (sessionId) => {
+    clearApiCache("/sessions");
+    return apiRequest(`/sessions/${sessionId}/cancel`, { method: "PATCH" });
+  },
   start: (sessionId) => apiRequest(`/sessions/${sessionId}/start`, { method: "POST" }),
-  end: (sessionId) => apiRequest(`/sessions/${sessionId}/end`, { method: "POST" }),
+  end: async (sessionId) => {
+    clearApiCache("/sessions");
+    return apiRequest(`/sessions/${sessionId}/end`, { method: "POST" });
+  },
   get: (sessionId) => apiRequest(`/sessions/${sessionId}`),
   create: (body) =>
     apiRequest("/sessions", {

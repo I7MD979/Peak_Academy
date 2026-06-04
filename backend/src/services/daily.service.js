@@ -267,12 +267,81 @@ export const createMeetingToken = async (roomName, userId, { isOwner = false, us
 };
 
 export const deleteDailyRoom = async (roomName) => {
-  if (!process.env.DAILY_API_KEY || !roomName) return;
-  await fetch(`${DAILY_API}/rooms/${encodeURIComponent(roomName)}`, {
-    method: "DELETE",
+  if (!process.env.DAILY_API_KEY || !roomName) return false;
+  try {
+    const response = await fetch(`${DAILY_API}/rooms/${encodeURIComponent(roomName)}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${process.env.DAILY_API_KEY}` }
+    });
+    return response.ok || response.status === 404;
+  } catch (err) {
+    console.warn("[daily] delete room failed:", roomName, err?.message || err);
+    return false;
+  }
+};
+
+/** List rooms in the Daily domain (paginated). */
+export async function listDailyRooms({ limit = 100, startingAfter = null } = {}) {
+  if (!process.env.DAILY_API_KEY) {
+    return { rooms: [], total_count: 0 };
+  }
+
+  const params = new URLSearchParams({ limit: String(Math.min(limit, 100)) });
+  if (startingAfter) params.set("starting_after", String(startingAfter));
+
+  const response = await fetch(`${DAILY_API}/rooms?${params}`, {
     headers: { Authorization: `Bearer ${process.env.DAILY_API_KEY}` }
   });
-};
+
+  let payload = {};
+  try {
+    payload = await response.json();
+  } catch {
+    payload = {};
+  }
+
+  if (!response.ok) {
+    const err = new Error(payload?.info || payload?.error || "Failed to list Daily rooms");
+    err.dailyError = payload?.error;
+    throw err;
+  }
+
+  return {
+    rooms: Array.isArray(payload?.data) ? payload.data : [],
+    total_count: payload?.total_count ?? 0
+  };
+}
+
+/** Delete all Peak session rooms (name prefix session-) including orphans not stored in DB. */
+export async function purgeSessionDailyRooms({ prefix = "session-" } = {}) {
+  if (!process.env.DAILY_API_KEY) {
+    return { deleted: [], failed: [], skipped: true };
+  }
+
+  const deleted = [];
+  const failed = [];
+  let startingAfter = null;
+  let pages = 0;
+
+  while (pages < 20) {
+    const { rooms } = await listDailyRooms({ limit: 100, startingAfter });
+    if (!rooms.length) break;
+
+    for (const room of rooms) {
+      const name = room?.name;
+      if (!name || !name.startsWith(prefix)) continue;
+      const ok = await deleteDailyRoom(name);
+      if (ok) deleted.push(name);
+      else failed.push(name);
+    }
+
+    if (rooms.length < 100) break;
+    startingAfter = rooms[rooms.length - 1]?.name;
+    pages += 1;
+  }
+
+  return { deleted, failed, skipped: false };
+}
 
 export function resolveRoomName(session) {
   if (session?.daily_room_name) return session.daily_room_name;

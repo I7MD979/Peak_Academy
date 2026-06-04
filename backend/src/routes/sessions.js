@@ -6,6 +6,7 @@ import { supabase } from "../lib/supabase.js";
 import {
   createDailyRoomOptional,
   deleteDailyRoom,
+  purgeSessionDailyRooms,
   ensureDailyMeetingAccess,
   getRoomUrl,
   mapDailyError,
@@ -21,7 +22,7 @@ import { ensureUserProfile } from "../utils/ensure-user-profile.js";
 import { incrementAttendeeStreaks, recordSessionEarnings } from "../utils/session-earnings.js";
 import { getSessionStartAvailability } from "../utils/session-start.js";
 import { reconcileCompletedTransaction } from "../utils/payments-fulfillment.js";
-import { CACHE, withCache, safeInvalidateSessionCaches } from "../lib/cache.js";
+import { CACHE, withCache, safeInvalidateSessionCaches, invalidatePattern } from "../lib/cache.js";
 import {
   clampSessionDuration,
   fetchSessionForJoin,
@@ -426,83 +427,154 @@ router.post("/", auth, checkRole("teacher"), async (req, res) => {
   }
 });
 
+function isOpenSessionStatus(status) {
+  const normalized = String(status || "")
+    .trim()
+    .toLowerCase();
+  return normalized === "live" || normalized === "scheduled";
+}
+
+async function closeOneOpenSessionRow(session) {
+  const status = String(session.status || "")
+    .trim()
+    .toLowerCase();
+  const endedAt = new Date().toISOString();
+
+  if (status === "live") {
+    const { error: sessionError } = await supabase
+      .from("sessions")
+      .update({ status: "completed", ended_at: endedAt })
+      .eq("id", session.id);
+    if (sessionError) throw sessionError;
+
+    await supabase
+      .from("session_enrollments")
+      .update({ status: "attended", left_at: endedAt })
+      .eq("session_id", session.id)
+      .eq("status", "enrolled");
+
+    try {
+      const teacherProfile = await getTeacherProfileForUser(session.teacher_id);
+      if (teacherProfile) {
+        await incrementAttendeeStreaks(session.id);
+        await recordSessionEarnings(
+          session.id,
+          teacherProfile.id,
+          teacherProfile.commission_rate
+        );
+      }
+    } catch (earnErr) {
+      console.warn("[sessions] close-open earnings skipped:", session.id, earnErr?.message || earnErr);
+    }
+
+    return "ended";
+  }
+
+  const { error: cancelError } = await supabase
+    .from("sessions")
+    .update({ status: "cancelled", ended_at: endedAt })
+    .eq("id", session.id);
+  if (cancelError) throw cancelError;
+
+  try {
+    await refundAllSessionEnrollments(session.id);
+  } catch (refundErr) {
+    console.warn("[sessions] close-open refund skipped:", session.id, refundErr?.message || refundErr);
+  }
+
+  return "cancelled";
+}
+
 router.post("/close-open", auth, checkRole("teacher", "admin"), async (req, res) => {
   try {
     let query = supabase
       .from("sessions")
-      .select("id, status, teacher_id, daily_room_name, daily_room_url, room_url")
-      .in("status", ["live", "scheduled"]);
+      .select("id, status, teacher_id, daily_room_name, daily_room_url, room_url");
 
     if (req.user.role === "teacher") {
       query = query.eq("teacher_id", req.user.id);
     }
 
-    const { data: openSessions, error: listError } = await query;
+    const { data: allSessions, error: listError } = await query;
     if (listError) throw listError;
 
-    const rows = openSessions || [];
-    if (rows.length === 0) {
-      return success(res, { ended: 0, cancelled: 0, total: 0 }, "لا توجد جلسات مفتوحة");
-    }
+    const rows = (allSessions || []).filter((session) => isOpenSessionStatus(session.status));
 
     let ended = 0;
     let cancelled = 0;
     const failures = [];
+    const roomNames = new Set();
 
     for (const session of rows) {
       try {
-        if (session.status === "live") {
-          const teacherProfile = await getTeacherProfileForUser(session.teacher_id);
-          await supabase
-            .from("sessions")
-            .update({ status: "completed", ended_at: new Date().toISOString() })
-            .eq("id", session.id);
-
-          await supabase
-            .from("session_enrollments")
-            .update({ status: "attended", left_at: new Date().toISOString() })
-            .eq("session_id", session.id)
-            .eq("status", "enrolled");
-
-          if (teacherProfile) {
-            await incrementAttendeeStreaks(session.id);
-            await recordSessionEarnings(
-              session.id,
-              teacherProfile.id,
-              teacherProfile.commission_rate
-            );
-          }
-          ended += 1;
-        } else {
-          const { error: updateError } = await supabase
-            .from("sessions")
-            .update({ status: "cancelled", ended_at: new Date().toISOString() })
-            .eq("id", session.id);
-          if (updateError) throw updateError;
-          await refundAllSessionEnrollments(session.id);
-          cancelled += 1;
-        }
+        const result = await closeOneOpenSessionRow(session);
+        if (result === "ended") ended += 1;
+        else cancelled += 1;
 
         const roomName = resolveRoomName(session);
-        if (roomName) await deleteDailyRoom(roomName);
+        if (roomName) roomNames.add(roomName);
         await safeInvalidateSessionCaches(session.id);
       } catch (err) {
         failures.push({ id: session.id, message: err?.message || "فشل الإغلاق" });
       }
     }
 
+    for (const roomName of roomNames) {
+      await deleteDailyRoom(roomName);
+    }
+
+    let dailyPurge = { deleted: [], failed: [], skipped: true };
+    try {
+      dailyPurge = await purgeSessionDailyRooms();
+    } catch (purgeErr) {
+      console.warn("[sessions] daily purge:", purgeErr?.message || purgeErr);
+      dailyPurge = { deleted: [], failed: [], skipped: true, error: purgeErr?.message };
+    }
+
+    await invalidatePattern("sessions:list:");
+
+    const closedCount = ended + cancelled;
     const message =
-      failures.length > 0
-        ? `تم إغلاق ${ended + cancelled} جلسة مع ${failures.length} أخطاء`
-        : "تم إغلاق كل الجلسات المفتوحة";
+      rows.length === 0 && (dailyPurge.deleted?.length || 0) === 0
+        ? "لا توجد جلسات مفتوحة"
+        : failures.length > 0
+          ? `تم إغلاق ${closedCount} جلسة مع ${failures.length} أخطاء`
+          : "تم إغلاق كل الجلسات المفتوحة وتنظيف غرف الفيديو";
 
     return success(
       res,
-      { ended, cancelled, total: rows.length, failures },
+      {
+        ended,
+        cancelled,
+        total: rows.length,
+        failures,
+        daily_rooms_deleted: dailyPurge.deleted?.length || 0,
+        daily_rooms_failed: dailyPurge.failed?.length || 0
+      },
       message
     );
   } catch (err) {
     return handleRouteError(res, err, "تعذر إغلاق الجلسات المفتوحة");
+  }
+});
+
+router.post("/purge-daily-rooms", auth, checkRole("teacher", "admin"), async (req, res) => {
+  try {
+    if (!process.env.DAILY_API_KEY) {
+      return error(res, "DAILY_API_KEY غير مضبوط على الخادم", 503);
+    }
+    const dailyPurge = await purgeSessionDailyRooms();
+    return success(
+      res,
+      {
+        deleted: dailyPurge.deleted?.length || 0,
+        failed: dailyPurge.failed?.length || 0,
+        room_names: dailyPurge.deleted || []
+      },
+      `تم حذف ${dailyPurge.deleted?.length || 0} غرفة فيديو من Daily`
+    );
+  } catch (err) {
+    return handleRouteError(res, err, "تعذر تنظيف غرف Daily");
   }
 });
 
