@@ -21,29 +21,63 @@ router.get("/setup-profile", (_req, res) => {
   res.redirect(302, onboardingRedirectUrl());
 });
 
+function profileFromReqUser(reqUser) {
+  const role = normalizeRole(reqUser.role);
+  return {
+    id: reqUser.id,
+    email: reqUser.email || "",
+    phone: reqUser.phone || null,
+    full_name: reqUser.full_name || "مستخدم",
+    avatar_url: reqUser.avatar_url || null,
+    role,
+    is_active: reqUser.is_active !== false,
+    is_verified: Boolean(reqUser.is_verified),
+    student_profile: null,
+    teacher_profile: null,
+    profile_complete: role === "admin" || role === "parent"
+  };
+}
+
 router.get("/me", auth, async (req, res) => {
   try {
-    let user = await fetchFullUserProfile(supabase, req.user.id);
+    let user = null;
 
-    if (!user) {
-      user = await ensureUserProfile(supabase, {
-        id: req.user.id,
-        email: req.user.email,
-        full_name: req.user.full_name,
-        role: req.user.role,
-        phone: req.user.phone
-      });
+    try {
+      user = await fetchFullUserProfile(supabase, req.user.id);
+    } catch (fetchErr) {
+      console.error("GET /auth/me fetchFullUserProfile:", fetchErr?.message || fetchErr);
     }
 
-    if (user?.role === "student") {
-      await ensureReferralCode(user);
+    if (!user) {
+      try {
+        user = await ensureUserProfile(supabase, {
+          id: req.user.id,
+          email: req.user.email,
+          full_name: req.user.full_name,
+          role: req.user.role,
+          phone: req.user.phone
+        });
+      } catch (ensureErr) {
+        console.error("GET /auth/me ensureUserProfile:", ensureErr?.message || ensureErr);
+        user = profileFromReqUser(req.user);
+      }
+    }
+
+    if (!user) {
+      return error(res, "تعذر تحميل بيانات الحساب", 404);
+    }
+
+    if (user.role === "student") {
+      try {
+        await ensureReferralCode(user);
+      } catch (refErr) {
+        console.warn("GET /auth/me referral:", refErr?.message || refErr);
+      }
     }
 
     return success(res, user);
   } catch (err) {
-    if (process.env.NODE_ENV !== "production") {
-      console.error("GET /auth/me", err);
-    }
+    console.error("GET /auth/me", err?.message || err);
     return error(res, "تعذر تحميل بيانات الحساب", 500);
   }
 });
