@@ -5,7 +5,7 @@ import {
   isProfileComplete,
   ROLE_HOME,
   resolvePostAuthPath
-} from "@/lib/role-routes-server";
+} from "./lib/role-routes-edge.js";
 
 const ROLE_PREFIXES = {
   "/admin": "admin",
@@ -49,9 +49,8 @@ export async function middleware(request) {
   }
 
   let session = null;
-  let supabase = null;
   try {
-    supabase = createSupabaseForRequest(request, response);
+    const supabase = createSupabaseForRequest(request, response);
     const {
       data: { session: currentSession }
     } = await supabase.auth.getSession();
@@ -85,18 +84,20 @@ export async function middleware(request) {
     }
   }
 
+  const token = session?.access_token;
+
   if (pathname.startsWith("/auth") && session) {
     try {
-      const destination = await resolvePostAuthPath(supabase, session.access_token);
+      const destination = await resolvePostAuthPath(token);
       return NextResponse.redirect(new URL(destination, request.url));
     } catch (_err) {
       return NextResponse.redirect(new URL("/onboarding", request.url));
     }
   }
 
-  if (pathname.startsWith("/onboarding") && session?.access_token) {
+  if (pathname.startsWith("/onboarding") && token) {
     try {
-      const destination = await resolvePostAuthPath(supabase, session.access_token);
+      const destination = await resolvePostAuthPath(token);
       if (destination !== "/onboarding") {
         return NextResponse.redirect(new URL(destination, request.url));
       }
@@ -105,9 +106,9 @@ export async function middleware(request) {
     }
   }
 
-  if (pathname === "/" && session?.access_token) {
+  if (pathname === "/" && token) {
     try {
-      const destination = await resolvePostAuthPath(supabase, session.access_token);
+      const destination = await resolvePostAuthPath(token);
       if (destination !== "/onboarding" && destination !== "/auth/login") {
         return NextResponse.redirect(new URL(destination, request.url));
       }
@@ -121,7 +122,7 @@ export async function middleware(request) {
       return NextResponse.redirect(new URL("/auth/login", request.url));
     }
     try {
-      const destination = await resolvePostAuthPath(supabase, session.access_token);
+      const destination = await resolvePostAuthPath(token);
       return NextResponse.redirect(new URL(destination, request.url));
     } catch {
       return NextResponse.redirect(new URL("/auth/login", request.url));
