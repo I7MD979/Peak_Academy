@@ -20,7 +20,8 @@ async function authenticateStream(req) {
 
   const resolved = await resolveAuthUserFromToken(token);
   if (!resolved?.user) return null;
-  if (!resolved.profileReady) return null;
+  const staff = resolved.user.role === "admin" || resolved.user.role === "parent";
+  if (!resolved.profileReady && !staff) return null;
   return resolved.user;
 }
 

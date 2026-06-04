@@ -22,7 +22,7 @@ export default function AdminPromotionsPage() {
     setLoading(true);
     try {
       const [listRes, statsRes] = await Promise.all([
-        adminPromotionsApi.list("?limit=50"),
+        adminPromotionsApi.list("limit=50"),
         adminPromotionsApi.stats()
       ]);
       setPromos(listRes?.data || []);

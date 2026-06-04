@@ -30,7 +30,16 @@ export function mapDbError(err) {
     };
   }
 
-  return { status: 500, message: err.message || "خطأ في قاعدة البيانات" };
+  const msg = String(err.message || "");
+  if (/invalid api key/i.test(msg)) {
+    return {
+      status: 503,
+      message:
+        "مفتاح Supabase على الخادم غير صالح. في Railway استخدم service_role من نفس مشروع Vercel (ليس anon)."
+    };
+  }
+
+  return { status: 500, message: msg || "خطأ في قاعدة البيانات" };
 }
 
 export const SQL_SETUP_HINT =

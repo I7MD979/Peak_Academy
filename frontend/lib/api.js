@@ -5,6 +5,13 @@ import { useAuthStore } from "@/store/authStore";
 import { cachedApiRequest, clearApiCache, fetchAuthMe } from "@/lib/api-cache";
 import { getApiBaseUrl } from "@/lib/api-base";
 
+/** Append query string; accepts "limit=50" or "?limit=50" without duplicating "?". */
+function withQuery(path, query = "") {
+  const q = String(query || "").trim();
+  if (!q) return path;
+  return q.startsWith("?") ? `${path}${q}` : `${path}?${q}`;
+}
+
 async function getAuthToken() {
   if (typeof window === "undefined") return null;
 
@@ -121,7 +128,7 @@ export const authApi = {
 };
 
 export const sessionsApi = {
-  list: (query = "") => apiRequest(`/sessions${query ? `?${query}` : ""}`),
+  list: (query = "") => apiRequest(withQuery("/sessions", query)),
   cancel: (sessionId) => apiRequest(`/sessions/${sessionId}/cancel`, { method: "PATCH" }),
   start: (sessionId) => apiRequest(`/sessions/${sessionId}/start`, { method: "POST" }),
   end: (sessionId) => apiRequest(`/sessions/${sessionId}/end`, { method: "POST" }),
@@ -172,14 +179,14 @@ export const paymentsApi = {
       })
     }),
   transactionStatus: (transactionId) => apiRequest(`/payments/transactions/${transactionId}/status`),
-  history: (query = "") => apiRequest(`/payments/history${query ? `?${query}` : ""}`)
+  history: (query = "") => apiRequest(withQuery("/payments/history", query))
 };
 
 export const studentApi = {
   dashboard: () => apiRequest("/student/dashboard"),
   profile: () => apiRequest("/student/profile"),
   updateProfile: (body) => authApi.updateProfile(body),
-  sessions: (query = "") => apiRequest(`/student/sessions${query ? `?${query}` : ""}`),
+  sessions: (query = "") => apiRequest(withQuery("/student/sessions", query)),
   session: (id) => apiRequest(`/student/sessions/${id}`),
   enrollmentOptions: (sessionId) =>
     apiRequest(`/student/enrollment-options?session_id=${encodeURIComponent(sessionId)}`)
@@ -212,7 +219,7 @@ export const promotionsApi = {
 };
 
 export const adminPromotionsApi = {
-  list: (query = "") => apiRequest(`/admin/promotions${query ? `?${query}` : ""}`),
+  list: (query = "") => apiRequest(withQuery("/admin/promotions", query)),
   create: (body) =>
     apiRequest("/admin/promotions", { method: "POST", body: JSON.stringify(body) }),
   update: (id, body) =>
@@ -226,7 +233,7 @@ export const adminPromotionsApi = {
 
 export const questionsApi = {
   overview: () => apiRequest("/questions/overview"),
-  list: (query = "") => apiRequest(`/questions${query ? `?${query}` : ""}`),
+  list: (query = "") => apiRequest(withQuery("/questions", query)),
   get: (id) => apiRequest(`/questions/${id}`),
   submit: (body) =>
     apiRequest("/questions", {
@@ -256,11 +263,11 @@ export const studyRoomsApi = {
 
 export const dashboardApi = {
   adminStats: () => apiRequest("/admin/stats"),
-  adminUsers: (query = "") => apiRequest(`/admin/users${query ? `?${query}` : ""}`),
+  adminUsers: (query = "") => apiRequest(withQuery("/admin/users", query)),
   adminVerifyUser: (userId) => apiRequest(`/admin/users/${userId}/verify`, { method: "PUT" }),
   adminSuspendUser: (userId) => apiRequest(`/admin/users/${userId}/suspend`, { method: "PUT" }),
   adminActivateUser: (userId) => apiRequest(`/admin/users/${userId}/activate`, { method: "PUT" }),
-  adminWithdrawals: (query = "") => apiRequest(`/admin/withdrawals${query ? `?${query}` : ""}`),
+  adminWithdrawals: (query = "") => apiRequest(withQuery("/admin/withdrawals", query)),
   adminUpdateWithdrawal: (id, body) =>
     apiRequest(`/admin/withdrawals/${id}`, {
       method: "PUT",
@@ -269,8 +276,8 @@ export const dashboardApi = {
   adminReports: (period = "month") =>
     apiRequest(`/admin/reports?period=${encodeURIComponent(period)}`),
   teacherEarningsSummary: () => apiRequest("/earnings/summary"),
-  teacherEarnings: (query = "") => apiRequest(`/earnings${query ? `?${query}` : ""}`),
-  teacherWithdrawals: (query = "") => apiRequest(`/earnings/withdrawals${query ? `?${query}` : ""}`),
+  teacherEarnings: (query = "") => apiRequest(withQuery("/earnings", query)),
+  teacherWithdrawals: (query = "") => apiRequest(withQuery("/earnings/withdrawals", query)),
   teacherRequestWithdrawal: (body) =>
     apiRequest("/earnings/withdraw", {
       method: "POST",

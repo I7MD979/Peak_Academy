@@ -21,13 +21,19 @@ function metaFullName(meta) {
   return String(meta.full_name || meta.name || meta.display_name || "").trim();
 }
 
+function resolveRoleFromAuth(authUser, profile) {
+  const meta = authUser.user_metadata || {};
+  const appMeta = authUser.app_metadata || {};
+  return normalizeRole(profile?.role || meta.role || appMeta.role);
+}
+
 /** Admin/parent need no student/teacher profile; student/teacher need role-specific rows. */
 async function computeProfileReady(supabase, reqUser, profile) {
-  const fullName = String(reqUser.full_name || "").trim();
-  if (fullName.length < 2) return false;
-
   const role = reqUser.role;
   if (role === "admin" || role === "parent") return true;
+
+  const fullName = String(reqUser.full_name || "").trim();
+  if (fullName.length < 2) return false;
 
   if (!profile?.id) return false;
 
@@ -55,7 +61,7 @@ async function computeProfileReady(supabase, reqUser, profile) {
 function buildReqUser(authUser, profile) {
   const meta = authUser.user_metadata || {};
   const name = metaFullName(meta);
-  const role = normalizeRole(profile?.role || meta.role);
+  const role = resolveRoleFromAuth(authUser, profile);
   const fullName =
     profile?.full_name ||
     (name.length >= 2 ? name : String(authUser.email?.split("@")?.[0] || "مستخدم بيك").trim());
@@ -94,28 +100,59 @@ export async function resolveAuthUserFromToken(token) {
       .eq("id", authUser.id)
       .maybeSingle();
 
-    if ((!profile || profileError) && name.length >= 2) {
-      try {
-        await ensureUserProfile(supabase, {
+    if (profileError && process.env.NODE_ENV !== "production") {
+      console.warn("[auth] users lookup:", profileError.message);
+    }
+
+    if (!profile?.id) {
+      const { data: roleRow } = await supabase
+        .from("users")
+        .select("id, full_name, email, role, avatar_url, phone, is_active")
+        .eq("id", authUser.id)
+        .maybeSingle();
+      if (roleRow?.id) profile = roleRow;
+    }
+
+    if (!profile?.id && name.length >= 2) {
+      const appMeta = authUser.app_metadata || {};
+      const { data: existing } = await supabase
+        .from("users")
+        .select("id, role")
+        .eq("id", authUser.id)
+        .maybeSingle();
+
+      if (!existing?.id) {
+        try {
+          await ensureUserProfile(supabase, {
+            id: authUser.id,
+            email: authUser.email,
+            full_name: name,
+            role: meta.role || appMeta.role || "student",
+            phone: meta.phone || null,
+            grade: meta.grade || null
+          });
+
+          const retry = await supabase
+            .from("users")
+            .select("id, full_name, email, role, avatar_url, phone, is_active")
+            .eq("id", authUser.id)
+            .maybeSingle();
+          profile = retry.data;
+        } catch (provisionError) {
+          if (process.env.NODE_ENV !== "production") {
+            console.warn("[auth] auto-provision skipped:", provisionError.message);
+          }
+        }
+      } else {
+        profile = {
           id: authUser.id,
           email: authUser.email,
           full_name: name,
-          role: meta.role || "student",
+          role: existing.role,
+          avatar_url: meta.avatar_url || null,
           phone: meta.phone || null,
-          grade: meta.grade || null
-        });
-
-        const retry = await supabase
-          .from("users")
-          .select("id, full_name, email, role, avatar_url, phone, is_active")
-          .eq("id", authUser.id)
-          .maybeSingle();
-        profile = retry.data;
-        profileError = retry.error;
-      } catch (provisionError) {
-        if (process.env.NODE_ENV !== "production") {
-          console.warn("[auth] auto-provision skipped:", provisionError.message);
-        }
+          is_active: true
+        };
       }
     }
 

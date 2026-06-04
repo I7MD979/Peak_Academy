@@ -22,7 +22,13 @@ export async function ensureUserProfile(
 ) {
   if (!id) throw new Error("معرّف المستخدم مطلوب");
 
-  const safeRole = normalizeRole(role);
+  const { data: existingUser } = await supabase
+    .from("users")
+    .select("role")
+    .eq("id", id)
+    .maybeSingle();
+
+  const safeRole = normalizeRole(role || existingUser?.role);
   const name = String(full_name || email?.split("@")?.[0] || "مستخدم").trim();
   const safeEmail = String(email || "").trim().toLowerCase();
 
