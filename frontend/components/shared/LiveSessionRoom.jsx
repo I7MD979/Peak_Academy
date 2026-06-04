@@ -55,12 +55,24 @@ export default function LiveSessionRoom({ sessionId, isTeacher, sessionStart }) 
         }
 
         if (!cancelled) {
-          setRoomUrl(payload?.room_url || "");
-          setToken(payload?.token || "");
+          const url = payload?.room_url || "";
+          const meetingToken = payload?.token || "";
+          if (!url) {
+            setError("رابط غرفة الفيديو غير متاح. أعد بدء الجلسة من قائمة الجلسات.");
+            return;
+          }
+          if (!meetingToken) {
+            setError(
+              "لا يوجد رمز دخول للغرفة الخاصة. تأكد من ضبط DAILY_API_KEY على Railway ثم أعد نشر الخادم."
+            );
+            return;
+          }
+          setRoomUrl(url);
+          setToken(meetingToken);
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err.message || "تعذر الدخول إلى الجلسة");
+          setError(err.message || "تعذر تحميل بيانات الغرفة من الخادم");
         }
       } finally {
         if (!cancelled) setLoading(false);

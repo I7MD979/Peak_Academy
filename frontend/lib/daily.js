@@ -33,10 +33,27 @@ export default function LiveRoom({ roomUrl, token, isTeacher }) {
         showFullscreenButton: true,
         iframeStyle: { width: "100%", height: "100%" }
       });
-      const joinOpts = token ? { url: roomUrl, token } : { url: roomUrl };
-      call.join(joinOpts).catch(() => {
-        setJoinError("تعذر الانضمام إلى الغرفة");
-      });
+      if (!token) {
+        setJoinError(
+          "الغرفة تتطلب رمز دخول. تحقق من DAILY_API_KEY على الخادم ثم أعد فتح الصفحة."
+        );
+        return undefined;
+      }
+
+      call
+        .join({ url: roomUrl, token })
+        .catch((joinErr) => {
+          const detail =
+            joinErr?.errorMsg ||
+            joinErr?.error?.msg ||
+            joinErr?.message ||
+            "";
+          setJoinError(
+            detail
+              ? `تعذر الانضمام إلى الغرفة: ${detail}`
+              : "تعذر الانضمام إلى الغرفة. قد تكون الغرفة منتهية أو DAILY_API_KEY غير صالح."
+          );
+        });
     } catch {
       setJoinError("تعذر تهيئة غرفة البث");
     }

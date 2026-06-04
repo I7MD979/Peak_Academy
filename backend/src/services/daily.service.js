@@ -197,28 +197,14 @@ export async function createMeetingTokenOptional(
   }
 }
 
-export const createMeetingToken = async (roomName, userId, { isOwner = false, userName = "" } = {}) => {
-  if (!process.env.DAILY_API_KEY) {
-    throw new Error("DAILY_API_KEY is not configured");
-  }
-
+async function postMeetingToken(body) {
   const response = await fetch(`${DAILY_API}/meeting-tokens`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${process.env.DAILY_API_KEY}`
     },
-    body: JSON.stringify({
-      properties: {
-        room_name: roomName,
-        user_id: String(userId),
-        user_name: userName || String(userId),
-        is_owner: isOwner,
-        exp: Math.floor(Date.now() / 1000) + 7200,
-        start_video_off: false,
-        start_audio_off: false
-      }
-    })
+    body: JSON.stringify(body)
   });
 
   let data = {};
@@ -237,6 +223,47 @@ export const createMeetingToken = async (roomName, userId, { isOwner = false, us
     throw err;
   }
   return data.token;
+}
+
+export const createMeetingToken = async (roomName, userId, { isOwner = false, userName = "" } = {}) => {
+  if (!process.env.DAILY_API_KEY) {
+    throw new Error("DAILY_API_KEY is not configured");
+  }
+
+  const exp = Math.floor(Date.now() / 1000) + 7200;
+  const payloads = [
+    {
+      properties: {
+        room_name: roomName,
+        user_id: String(userId),
+        user_name: userName || String(userId),
+        is_owner: isOwner,
+        exp,
+        start_video_off: false,
+        start_audio_off: false
+      }
+    },
+    {
+      properties: {
+        room_name: roomName,
+        user_id: String(userId),
+        user_name: String(userId).slice(0, 32),
+        is_owner: isOwner,
+        exp
+      }
+    }
+  ];
+
+  let lastErr = null;
+  for (const body of payloads) {
+    try {
+      return await postMeetingToken(body);
+    } catch (err) {
+      lastErr = err;
+      if (err.dailyError !== "invalid-request-error") throw err;
+    }
+  }
+  throw lastErr || new Error("Failed to create Daily meeting token");
 };
 
 export const deleteDailyRoom = async (roomName) => {

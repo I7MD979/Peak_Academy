@@ -803,6 +803,7 @@ router.post("/:id/join", auth, async (req, res) => {
       );
     }
 
+    const resolvedUrl = roomUrl || (roomName ? getRoomUrl(roomName) : null);
     const token = roomName
       ? await createMeetingTokenOptional(roomName, req.user.id, {
           isOwner: isTeacher,
@@ -810,14 +811,19 @@ router.post("/:id/join", auth, async (req, res) => {
         })
       : null;
 
+    if (process.env.DAILY_API_KEY && resolvedUrl && !token) {
+      return error(
+        res,
+        "تعذر إنشاء رمز الدخول لغرفة الفيديو. تحقق من DAILY_API_KEY في Railway (مفتاح صالح من Daily.co).",
+        502
+      );
+    }
+
     return success(res, {
-      room_url: roomUrl || (roomName ? getRoomUrl(roomName) : null),
+      room_url: resolvedUrl,
       token,
       is_teacher: isTeacher,
-      session_start: sessionStartTime(session),
-      ...(!token && process.env.DAILY_API_KEY
-        ? { token_warning: "تعذر إنشاء رمز الدخول لغرفة الفيديو" }
-        : {})
+      session_start: sessionStartTime(session)
     });
   } catch (err) {
     if (err?.dailyError) {
@@ -857,6 +863,7 @@ router.get("/:id/room", auth, async (req, res) => {
       );
     }
 
+    const resolvedUrl = roomUrl || (roomName ? getRoomUrl(roomName) : null);
     const token = roomName
       ? await createMeetingTokenOptional(roomName, req.user.id, {
           isOwner: isTeacher,
@@ -864,11 +871,18 @@ router.get("/:id/room", auth, async (req, res) => {
         })
       : null;
 
+    if (process.env.DAILY_API_KEY && resolvedUrl && !token) {
+      return error(
+        res,
+        "تعذر إنشاء رمز الدخول. تحقق من DAILY_API_KEY في Railway.",
+        502
+      );
+    }
+
     return success(res, {
-      room_url: roomUrl || (roomName ? getRoomUrl(roomName) : null),
+      room_url: resolvedUrl,
       token,
-      is_teacher: isTeacher,
-      ...(!token && process.env.DAILY_API_KEY ? { token_warning: "تعذر إنشاء رمز الدخول" } : {})
+      is_teacher: isTeacher
     });
   } catch (err) {
     if (err?.dailyError) {
