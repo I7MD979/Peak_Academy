@@ -1,16 +1,19 @@
 import { supabase } from "../lib/supabase.js";
 import { enqueueJob } from "../lib/queue.js";
-import { invalidateSessionCaches } from "../lib/cache.js";
 import { recordPromoUse } from "./promoValidator.js";
 import { activateSubscriptionFromTransaction } from "../services/subscriptionService.js";
 import { creditReferrerOnFirstPaidEnrollment } from "../services/referralService.js";
+import { isSchemaV2 } from "../lib/schema.js";
+import { findPaymentByPaymobOrder, fulfillPayment } from "../data/enrollmentRepository.js";
+import { invalidateSessionCaches, invalidateStudentCaches } from "../lib/cache.js";
+import { notifyEnrollmentConfirm } from "../services/enrollmentService.js";
 
-async function notifyEnrollment(transaction, sessionId) {
+async function notifyEnrollmentLegacy(transaction, sessionId) {
   const [{ data: user }, { data: session }] = await Promise.all([
     supabase.from("users").select("email, full_name").eq("id", transaction.user_id).maybeSingle(),
     supabase
       .from("sessions")
-      .select("title, scheduled_at")
+      .select("title, scheduled_at, start_time")
       .eq("id", sessionId)
       .maybeSingle()
   ]);
@@ -20,7 +23,7 @@ async function notifyEnrollment(transaction, sessionId) {
       studentEmail: user?.email,
       studentName: user?.full_name,
       sessionTitle: session?.title,
-      startTime: session?.scheduled_at,
+      startTime: session?.start_time ?? session?.scheduled_at,
       amountPaid: transaction.amount
     }),
     enqueueJob("notifications", "push-notification", {
@@ -31,6 +34,52 @@ async function notifyEnrollment(transaction, sessionId) {
       data: { session_id: sessionId }
     })
   ]);
+}
+
+export async function fulfillPaymentV2(payment, paymobTxnId) {
+  if (payment.status !== "pending") {
+    return { ok: true, duplicate: payment.status === "paid" };
+  }
+
+  const result = await fulfillPayment(payment, paymobTxnId);
+  if (!result?.enrolled) return result;
+
+  const enrollment = payment.enrollment;
+  if (payment.promotion_id) {
+    await recordPromoUse(
+      payment.promotion_id,
+      payment.student_id,
+      enrollment.id,
+      payment.discount_amount
+    );
+    await supabase.rpc("increment_used_count", { promo_id: payment.promotion_id });
+    await creditReferrerOnFirstPaidEnrollment(payment.student_id, payment.promotion_id);
+  }
+
+  await notifyEnrollmentConfirm(payment.student_id, enrollment.session_id, payment.amount);
+  return { enrolled: true, ok: true };
+}
+
+export async function markPaymentFailedV2(payment) {
+  if (!payment || payment.status !== "pending") return;
+
+  await supabase.from("payments").update({ status: "failed" }).eq("id", payment.id).eq("status", "pending");
+
+  const sessionId = payment.enrollment?.session_id;
+  if (payment.enrollment_id) {
+    await supabase
+      .from("enrollments")
+      .update({ payment_status: "failed" })
+      .eq("id", payment.enrollment_id);
+  }
+
+  await enqueueJob("notifications", "push-notification", {
+    userId: payment.student_id,
+    type: "payment_failed",
+    title: "فشل الدفع",
+    body: "تعذر إتمام عملية الدفع. يمكنك المحاولة مرة أخرى.",
+    data: { session_id: sessionId || null }
+  });
 }
 
 export async function reconcileCompletedTransaction(transaction) {
@@ -130,12 +179,21 @@ export async function reconcileCompletedTransaction(transaction) {
   }
 
   await invalidateSessionCaches(sessionId);
-  await notifyEnrollment(transaction, sessionId);
+  await invalidateStudentCaches(transaction.user_id);
+  await notifyEnrollmentLegacy(transaction, sessionId);
 
   return { enrolled: true };
 }
 
 export async function fulfillCompletedTransaction(transaction, paymobTxnId) {
+  if (isSchemaV2()) {
+    const payment = transaction.enrollment ? transaction : null;
+    if (payment?.id && payment.enrollment_id !== undefined) {
+      return fulfillPaymentV2(payment, paymobTxnId);
+    }
+    return { reconciled: false };
+  }
+
   if (!transaction) return { reconciled: false };
 
   if (transaction.status === "completed") {
@@ -173,6 +231,10 @@ export async function fulfillCompletedTransaction(transaction, paymobTxnId) {
 }
 
 export async function markTransactionFailed(transaction) {
+  if (isSchemaV2() && transaction?.enrollment_id !== undefined) {
+    return markPaymentFailedV2(transaction);
+  }
+
   if (!transaction || transaction.status !== "pending") return;
 
   await supabase.from("transactions").update({ status: "failed" }).eq("id", transaction.id).eq("status", "pending");
@@ -187,4 +249,40 @@ export async function markTransactionFailed(transaction) {
       transaction_id: transaction.id
     }
   });
+}
+
+export async function handlePaymobWebhook(orderId, paymobTxnId, success) {
+  if (isSchemaV2()) {
+    const payment = await findPaymentByPaymobOrder(orderId);
+    if (!payment) return { processed: false, ok: true };
+
+    if (payment.status !== "pending") {
+      return { processed: true, ok: true };
+    }
+
+    if (!success) {
+      await markPaymentFailedV2(payment);
+      return { processed: true, ok: true };
+    }
+
+    await fulfillPaymentV2(payment, paymobTxnId);
+    return { processed: true, ok: true };
+  }
+
+  const { data: transaction } = await supabase
+    .from("transactions")
+    .select("*")
+    .eq("paymob_order_id", String(orderId))
+    .maybeSingle();
+
+  if (!transaction) return { processed: false, ok: true };
+  if (transaction.status !== "pending") return { processed: true, ok: true };
+
+  if (!success) {
+    await markTransactionFailed(transaction);
+    return { processed: true, ok: true };
+  }
+
+  await fulfillCompletedTransaction(transaction, paymobTxnId);
+  return { processed: true, ok: true };
 }

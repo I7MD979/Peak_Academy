@@ -86,6 +86,18 @@ test("admin promotions requires auth", async () => {
   assert.equal(res.statusCode, 401);
 });
 
+test("enrollments trial-status requires auth", async () => {
+  const res = await request(app).get(
+    "/api/enrollments/trial-status?teacher_id=00000000-0000-0000-0000-000000000001&subject_id=00000000-0000-0000-0000-000000000002"
+  );
+  assert.equal(res.statusCode, 401);
+});
+
+test("promotions validate requires auth", async () => {
+  const res = await request(app).post("/api/promotions/validate").send({ code: "TEST" });
+  assert.equal(res.statusCode, 401);
+});
+
 test("refund calculator tiers", async () => {
   const { calculateRefundAmount } = await import("../src/utils/refundCalculator.js");
   const payment = { amount: 100 };

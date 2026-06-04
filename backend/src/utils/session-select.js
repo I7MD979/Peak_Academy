@@ -1,5 +1,6 @@
 import { supabase } from "../lib/supabase.js";
 import { SQL_SETUP_HINT } from "./db-errors.js";
+import { isSchemaV2, SCHEMA } from "../lib/schema.js";
 
 /** @deprecated */
 export const SESSION_LIST_SELECT = "*";
@@ -55,10 +56,13 @@ async function loadTeachersMap(teacherIds) {
 async function loadEnrollmentCounts(sessionIds) {
   if (!sessionIds.length) return {};
   try {
-    const { data, error } = await supabase
-      .from("session_enrollments")
-      .select("session_id")
-      .in("session_id", sessionIds);
+    const table = isSchemaV2() ? "enrollments" : "session_enrollments";
+    const statusFilter = SCHEMA.confirmedEnrollmentStatuses();
+    let query = supabase.from(table).select("session_id").in("session_id", sessionIds);
+    if (isSchemaV2()) {
+      query = query.in("status", statusFilter);
+    }
+    const { data, error } = await query;
     if (error) return {};
     const counts = {};
     for (const row of data || []) {

@@ -3,10 +3,11 @@ import { Button } from "@/components/ui/button";
 
 export default function LandingHero() {
   return (
-    <section className="landing-hero relative overflow-hidden px-4 pb-20 pt-10 md:px-6 md:pb-28 md:pt-14">
+    <section className="landing-hero relative overflow-hidden px-4 pb-20 pt-10 md:px-8 md:pb-24 md:pt-14">
       <div className="landing-hero-glow pointer-events-none absolute inset-0" aria-hidden="true" />
       <div className="relative z-10 mx-auto max-w-4xl text-center">
-        <p className="landing-fade-in mb-4 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-1.5 text-xs font-semibold text-white/90 md:text-sm">
+        <p className="landing-hero-badge landing-fade-in mb-5 inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/10 px-4 py-1.5 text-xs font-semibold text-accent md:text-sm">
+          <span className="landing-pulse-dot h-2 w-2 rounded-full bg-accent" aria-hidden="true" />
           <Icon name="live" size={14} className="text-accent" />
           منصة تعليمية مصرية — ثانوية عامة
         </p>
@@ -18,7 +19,7 @@ export default function LandingHero() {
           </span>
         </h1>
 
-        <p className="landing-fade-in landing-delay-2 mx-auto mt-5 max-w-2xl text-base leading-relaxed text-white/85 md:text-lg">
+        <p className="landing-fade-in landing-delay-2 mx-auto mt-5 max-w-2xl text-base leading-relaxed text-white/70 md:text-lg">
           جلسات لايف تفاعلية، متابعة لوليّ الأمر، ومعلّمون على منهج الثانوية العامة — في تجربة واحدة
           عصرية وسهلة الاستخدام.
         </p>
@@ -36,25 +37,25 @@ export default function LandingHero() {
           <Button
             href="/auth/login"
             size="lg"
-            className="w-full min-w-[200px] border border-white/30 bg-white/10 text-white hover:bg-white/20 sm:order-2 sm:w-auto"
+            className="w-full min-w-[200px] border-0 bg-white text-primary shadow-lg shadow-black/15 hover:bg-slate-100 sm:order-2 sm:w-auto"
           >
             تسجيل الدخول
           </Button>
         </div>
 
-        <ul className="landing-fade-in landing-delay-4 mt-10 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-white/70 md:text-sm">
-          <li className="flex items-center gap-1.5">
-            <Icon name="check" size={16} className="text-success" />
-            بدون بطاقة عند التسجيل
-          </li>
-          <li className="flex items-center gap-1.5">
-            <Icon name="check" size={16} className="text-success" />
-            واجهة عربية كاملة
-          </li>
-          <li className="flex items-center gap-1.5">
-            <Icon name="check" size={16} className="text-success" />
-            أدوار: طالب، معلّم، وليّ أمر
-          </li>
+        <ul className="landing-fade-in landing-delay-4 mt-10 flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-xs text-white/55 md:text-sm">
+          {[
+            "بدون بطاقة عند التسجيل",
+            "أول حصة مجانية",
+            "واجهة عربية كاملة"
+          ].map((text) => (
+            <li key={text} className="flex items-center gap-2">
+              <span className="flex h-[18px] w-[18px] items-center justify-center rounded-full bg-accent/20 text-[10px] text-accent">
+                <Icon name="check" size={12} />
+              </span>
+              {text}
+            </li>
+          ))}
         </ul>
       </div>
 

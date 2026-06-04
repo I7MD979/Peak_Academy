@@ -16,6 +16,8 @@ import subscriptionRoutes from "./routes/subscriptions.js";
 import notificationRoutes from "./routes/notifications.js";
 import studentRoutes from "./routes/student.js";
 import studyRoomsRoutes from "./routes/studyRooms.js";
+import enrollmentRoutes from "./routes/enrollments.js";
+import promotionRoutes from "./routes/promotions.js";
 import { captureException } from "./lib/sentry.js";
 
 const app = express();
@@ -31,7 +33,7 @@ app.use(express.json());
 app.use(timeout);
 app.use("/api/", limiter);
 
-export const API_VERSION = "2026-06-02-sessions-v5";
+export const API_VERSION = "2026-06-09-schema-v2";
 
 app.use("/api", (_req, res, next) => {
   res.setHeader("X-Peak-Api-Version", API_VERSION);
@@ -54,6 +56,10 @@ app.get("/api/diag", async (_req, res) => {
     "users",
     "sessions",
     "session_enrollments",
+    "enrollments",
+    "payments",
+    "parent_children",
+    "performance_reports",
     "withdrawal_requests",
     "teacher_profiles",
     "subscription_plans",
@@ -93,6 +99,8 @@ app.get("/api/diag", async (_req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/sessions", sessionRoutes);
 app.use("/api/payments", paymentRoutes);
+app.use("/api/enrollments", enrollmentRoutes);
+app.use("/api/promotions", promotionRoutes);
 app.use("/api/earnings", earningRoutes);
 app.use("/api/questions", questionRoutes);
 app.use("/api/parent", parentRoutes);

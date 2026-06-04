@@ -4,7 +4,7 @@ import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import SessionCard from "@/components/shared/SessionCard";
+import SessionCard from "@/components/sessions/SessionCard";
 import EmptyState from "@/components/shared/EmptyState";
 import LoadingSkeleton from "@/components/shared/LoadingSkeleton";
 import Icon from "@/components/shared/Icon";
@@ -241,7 +241,7 @@ function StudentSessionsContent() {
       {!loading && !error && sessions.length > 0 ? (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {sessions.map((session) => (
-            <SessionCard key={session.id} session={session} />
+            <SessionCard key={session.id} session={session} showEnroll={tab === "available"} />
           ))}
         </div>
       ) : null}

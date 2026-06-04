@@ -170,6 +170,22 @@ export const subscriptionsApi = {
     })
 };
 
+export const enrollmentsApi = {
+  trialStatus: ({ teacher_id, subject_id, session_id }) => {
+    const q = new URLSearchParams({ teacher_id, subject_id });
+    if (session_id) q.set("session_id", session_id);
+    return apiRequest(`/enrollments/trial-status?${q}`);
+  }
+};
+
+export const promotionsApi = {
+  validate: ({ code, payment_type = "per_session", session_id, plan_id }) =>
+    apiRequest("/promotions/validate", {
+      method: "POST",
+      body: JSON.stringify({ code, payment_type, session_id, plan_id })
+    })
+};
+
 export const adminPromotionsApi = {
   list: (query = "") => apiRequest(`/admin/promotions${query ? `?${query}` : ""}`),
   create: (body) =>

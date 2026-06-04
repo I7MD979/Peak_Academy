@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "predev": "node ../backend/scripts/kill-port.mjs 3000",
     "dev": "next dev",
+    "dev:clean": "node ../backend/scripts/kill-port.mjs 3000 && node ../backend/scripts/kill-port.mjs 3001 && node scripts/rm-next.mjs && next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
@@ -17,6 +19,7 @@
     "@hookform/resolvers": "^5.4.0",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.49.4",
+    "@tanstack/react-query": "^5.101.0",
     "autoprefixer": "^10.5.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

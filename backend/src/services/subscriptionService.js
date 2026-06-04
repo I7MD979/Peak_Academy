@@ -128,6 +128,17 @@ export async function createSubscriptionPurchaseCheckout(user, planId, promoCode
 }
 
 export async function countPaidSessionEnrollments(userId) {
+  const { isSchemaV2 } = await import("../lib/schema.js");
+  if (isSchemaV2()) {
+    const { count } = await supabase
+      .from("enrollments")
+      .select("*", { count: "exact", head: true })
+      .eq("student_id", userId)
+      .eq("payment_status", "paid")
+      .in("status", ["confirmed", "attended"]);
+    return count || 0;
+  }
+
   const { data: student } = await supabase
     .from("student_profiles")
     .select("id")

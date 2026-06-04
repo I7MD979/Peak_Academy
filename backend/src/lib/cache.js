@@ -125,6 +125,8 @@ export const CACHE = {
   subjectsList: () => "subjects:all",
   teacherProfile: (id) => `teacher:${id}:profile`,
   studentDashboard: (id) => `student:${id}:dashboard`,
+  studentSubscription: (id) => `student:${id}:subscription`,
+  subscriptionPlans: () => "subscription:plans",
   parentReport: (parentId, studentId, month) => `parent:${parentId}:${studentId}:${month}`,
   adminDashboard: () => "admin:dashboard"
 };
@@ -157,8 +159,23 @@ export async function invalidateSessionCaches(sessionId) {
   await Promise.all([
     invalidatePattern(`session:${sessionId}:`),
     invalidatePattern("sessions:list:"),
+    invalidatePattern(`teacher:`),
     invalidate(CACHE.adminDashboard())
   ]);
+}
+
+/** RULE 7 — student dashboard / sessions after enrollment or payment */
+export async function invalidateStudentCaches(studentUserId) {
+  if (!studentUserId) return;
+  await Promise.all([
+    invalidate(CACHE.studentDashboard(studentUserId)),
+    invalidatePattern(`student:${studentUserId}:`)
+  ]);
+}
+
+export async function invalidateSubscriptionCaches(studentUserId) {
+  if (!studentUserId) return;
+  await invalidate(`student:${studentUserId}:subscription`);
 }
 
 export function getCacheMode() {

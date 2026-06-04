@@ -260,3 +260,8 @@ create table if not exists public.referral_codes (
 alter table public.transactions add column if not exists promotion_id uuid references public.promotions(id);
 alter table public.transactions add column if not exists discount_amount numeric(10,2) not null default 0;
 alter table public.transactions add column if not exists original_amount numeric(10,2);
+
+-- === Master Prompt v2 (after core tables above) ===
+-- Run full script: backend/supabase/migrations/20260609_master_schema_v2.sql
+-- Then optional UUID map: backend/supabase/migrations/20260610_master_schema_uuid.sql
+-- Enable on Railway: FF_SCHEMA_V2=true

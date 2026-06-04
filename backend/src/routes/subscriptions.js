@@ -9,12 +9,13 @@ import {
 import { getActiveSubscription } from "../services/enrollmentService.js";
 import { countPaidSessionEnrollments } from "../services/subscriptionService.js";
 import { ensureReferralCode } from "../services/referralService.js";
+import { CACHE, withCache } from "../lib/cache.js";
 
 const router = Router();
 
 router.get("/plans", auth, async (_req, res) => {
   try {
-    const plans = await listActivePlans();
+    const plans = await withCache(CACHE.subscriptionPlans(), 3600, listActivePlans);
     return success(res, plans);
   } catch (err) {
     return error(res, err.message || "فشل تحميل الخطط", 500);
@@ -23,14 +24,18 @@ router.get("/plans", auth, async (_req, res) => {
 
 router.get("/me", auth, checkRole("student"), async (req, res) => {
   try {
-    await ensureReferralCode(req.user);
-    const subscription = await getActiveSubscription(req.user.id);
-    const paidSessions = await countPaidSessionEnrollments(req.user.id);
-    return success(res, {
-      subscription,
-      paid_session_count: paidSessions,
-      show_subscription_cta: paidSessions >= 3 && !subscription
+    const data = await withCache(CACHE.studentSubscription(req.user.id), 60, async () => {
+      await ensureReferralCode(req.user);
+      const subscription = await getActiveSubscription(req.user.id);
+      const paidSessions = await countPaidSessionEnrollments(req.user.id);
+      return {
+        subscription,
+        paid_session_count: paidSessions,
+        show_subscription_cta: paidSessions >= 3 && !subscription,
+        sessions_remaining: subscription?.sessions_remaining ?? 0
+      };
     });
+    return success(res, data);
   } catch (err) {
     return error(res, err.message || "فشل تحميل الاشتراك", 500);
   }

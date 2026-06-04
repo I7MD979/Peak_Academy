@@ -27,7 +27,10 @@ import {
   X,
   CheckCircle2,
   CircleDollarSign,
-  ChevronDown
+  ChevronDown,
+  Gift,
+  PenLine,
+  Tag
 } from "lucide-react";
 
 /** @type {Record<string, import('lucide-react').LucideIcon>} */
@@ -61,7 +64,10 @@ export const iconMap = {
   search: Search,
   shield: Shield,
   chevronDown: ChevronDown,
-  arrowRight: ArrowRight
+  arrowRight: ArrowRight,
+  gift: Gift,
+  edit: PenLine,
+  tag: Tag
 };
 
 export function resolveIcon(name) {

@@ -25,8 +25,10 @@ import {
   createSessionPaymentCheckout,
   finalizeFreeOrPromoEnrollment,
   notifyEnrollmentConfirm,
-  confirmEnrollment
+  confirmEnrollment,
+  normalizePaymentType
 } from "../services/enrollmentService.js";
+import { mapCheckoutResponse } from "../lib/schema.js";
 import { cancelStudentEnrollment } from "../services/refundService.js";
 import { refundAllSessionEnrollments } from "../services/refundService.js";
 
@@ -316,9 +318,14 @@ router.post("/:id/enroll", auth, checkRole("student"), async (req, res) => {
       return error(res, "الحصة ممتلئة", 400);
     }
 
-    const existing = await checkExistingEnrollment(studentProfileId, sessionId);
+    const existing = await checkExistingEnrollment(studentProfileId, sessionId, req.user.id);
     if (existing) {
-      return success(res, { enrollment: existing, checkout_url: null }, "مسجل بالفعل", 200);
+      return success(
+        res,
+        mapCheckoutResponse({ enrollment: existing, checkout_url: null, paymob_url: null }),
+        "مسجل بالفعل",
+        200
+      );
     }
 
     if (payment_id) {
@@ -355,7 +362,7 @@ router.post("/:id/enroll", auth, checkRole("student"), async (req, res) => {
       return success(res, { enrollment, checkout_url: null }, "تم التسجيل", 201);
     }
 
-    const type = payment_type || "pay_per_session";
+    const type = normalizePaymentType(payment_type);
     const subjectId = await resolveSessionSubjectId(session);
     const frontendUrl = (process.env.FRONTEND_URL || "http://localhost:3000").replace(/\/$/, "");
 
@@ -376,7 +383,12 @@ router.post("/:id/enroll", auth, checkRole("student"), async (req, res) => {
         promotionId: null,
         discountAmount: 0
       });
-      return success(res, { enrollment, checkout_url: null }, "تم التسجيل", 201);
+      return success(
+        res,
+        mapCheckoutResponse({ enrollment, checkout_url: null, paymob_url: null, success: true }),
+        "تم التسجيل",
+        201
+      );
     }
 
     if (type === "subscription") {
@@ -388,10 +400,16 @@ router.post("/:id/enroll", auth, checkRole("student"), async (req, res) => {
       const enrollment = await confirmEnrollment({
         studentProfileId,
         sessionId,
-        paymentId: null
+        paymentId: null,
+        userId: req.user.id
       });
-      await notifyEnrollmentConfirm(req.user.id, sessionId);
-      return success(res, { enrollment, checkout_url: null }, "تم التسجيل", 201);
+      await notifyEnrollmentConfirm(req.user.id, sessionId, 0);
+      return success(
+        res,
+        mapCheckoutResponse({ enrollment, checkout_url: null, paymob_url: null, success: true }),
+        "تم التسجيل",
+        201
+      );
     }
 
     const checkout = await computeSessionCheckout(session, {
@@ -411,7 +429,12 @@ router.post("/:id/enroll", auth, checkRole("student"), async (req, res) => {
         promotionId: checkout.promotionId,
         discountAmount: checkout.discountAmount
       });
-      return success(res, { enrollment, checkout_url: null }, "تم التسجيل", 201);
+      return success(
+        res,
+        mapCheckoutResponse({ enrollment, checkout_url: null, paymob_url: null, success: true }),
+        "تم التسجيل",
+        201
+      );
     }
 
     const pay = await createSessionPaymentCheckout({
@@ -421,14 +444,22 @@ router.post("/:id/enroll", auth, checkRole("student"), async (req, res) => {
       originalPrice: checkout.originalPrice,
       discountAmount: checkout.discountAmount,
       promotionId: checkout.promotionId,
-      frontendUrl
+      frontendUrl,
+      studentProfileId
     });
 
-    return success(res, {
-      enrollment: null,
-      checkout_url: pay.checkout_url,
-      transaction_id: pay.transaction_id
-    });
+    return success(
+      res,
+      mapCheckoutResponse({
+        success: true,
+        enrollment: pay.enrollment || null,
+        checkout_url: pay.checkout_url,
+        paymob_url: pay.paymob_url,
+        transaction_id: pay.transaction_id
+      }),
+      "تابع الدفع",
+      201
+    );
   } catch (err) {
     if (err.code === "session_full") return error(res, "الحصة ممتلئة", 400);
     return handleRouteError(res, err, "Failed to enroll");

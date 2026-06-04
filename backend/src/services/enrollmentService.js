@@ -1,8 +1,15 @@
 import { supabase } from "../lib/supabase.js";
 import { enqueueJob } from "../lib/queue.js";
-import { invalidateSessionCaches } from "../lib/cache.js";
 import { validatePromoCode, applyPromoToPrice, recordPromoUse } from "../utils/promoValidator.js";
 import { createPaymobOrder } from "./paymob.service.js";
+import { isSchemaV2, sessionPrice, mapCheckoutResponse } from "../lib/schema.js";
+import {
+  fetchSessionForEnroll,
+  findEnrollmentByStudentAndSession,
+  insertEnrollment,
+  confirmEnrollmentV2,
+  createSessionPayment
+} from "../data/enrollmentRepository.js";
 
 export async function resolveSessionSubjectId(session) {
   if (session.subject_id) return session.subject_id;
@@ -24,27 +31,7 @@ export async function resolveSessionSubjectId(session) {
 }
 
 export async function getSessionForEnroll(sessionId) {
-  const { data: session, error } = await supabase
-    .from("sessions")
-    .select(
-      "id, title, teacher_id, subject_id, subject, price_per_student, max_students, status, scheduled_at"
-    )
-    .eq("id", sessionId)
-    .maybeSingle();
-  if (error) throw error;
-  if (!session) return null;
-
-  const { count: enrolledCount } = await supabase
-    .from("session_enrollments")
-    .select("*", { count: "exact", head: true })
-    .eq("session_id", sessionId)
-    .in("status", ["enrolled", "attended"]);
-
-  return {
-    ...session,
-    enrolled_count: enrolledCount || 0,
-    seats_left: Math.max(0, (session.max_students || 0) - (enrolledCount || 0))
-  };
+  return fetchSessionForEnroll(sessionId);
 }
 
 export async function getStudentProfileId(userId) {
@@ -56,14 +43,8 @@ export async function getStudentProfileId(userId) {
   return student?.id || null;
 }
 
-export async function checkExistingEnrollment(studentProfileId, sessionId) {
-  const { data } = await supabase
-    .from("session_enrollments")
-    .select("*")
-    .eq("session_id", sessionId)
-    .eq("student_id", studentProfileId)
-    .maybeSingle();
-  return data;
+export async function checkExistingEnrollment(studentProfileId, sessionId, userId) {
+  return findEnrollmentByStudentAndSession(studentProfileId, sessionId, { userId });
 }
 
 export async function checkFreeTrialUsed(studentUserId, teacherId, subjectId) {
@@ -119,10 +100,14 @@ export async function deductSubscriptionSession(subscriptionId) {
   if (error) throw error;
 }
 
-export async function notifyEnrollmentConfirm(userId, sessionId) {
+export async function notifyEnrollmentConfirm(userId, sessionId, amountPaid) {
   const [{ data: user }, { data: session }] = await Promise.all([
     supabase.from("users").select("email, full_name").eq("id", userId).maybeSingle(),
-    supabase.from("sessions").select("title, scheduled_at").eq("id", sessionId).maybeSingle()
+    supabase
+      .from("sessions")
+      .select("title, scheduled_at, start_time")
+      .eq("id", sessionId)
+      .maybeSingle()
   ]);
 
   await Promise.all([
@@ -130,7 +115,8 @@ export async function notifyEnrollmentConfirm(userId, sessionId) {
       studentEmail: user?.email,
       studentName: user?.full_name,
       sessionTitle: session?.title,
-      startTime: session?.scheduled_at
+      startTime: session?.start_time ?? session?.scheduled_at,
+      amountPaid
     }),
     enqueueJob("notifications", "push-notification", {
       userId,
@@ -146,8 +132,13 @@ export async function confirmEnrollment({
   studentProfileId,
   sessionId,
   paymentId = null,
-  enrollmentId = null
+  enrollmentId = null,
+  userId
 }) {
+  if (isSchemaV2()) {
+    return confirmEnrollmentV2(userId, sessionId);
+  }
+
   const id = enrollmentId || `en-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const { data: existing } = await supabase
     .from("session_enrollments")
@@ -187,19 +178,21 @@ export async function confirmEnrollment({
     .single();
 
   if (error) throw error;
+  const { invalidateSessionCaches } = await import("../lib/cache.js");
   await invalidateSessionCaches(sessionId);
   return enrollment;
 }
 
 export async function computeSessionCheckout(session, { promoCode, userId, paymentType }) {
-  const originalPrice = Number(session.price_per_student) || 0;
+  const originalPrice = sessionPrice(session);
   let discountAmount = 0;
   let finalPrice = originalPrice;
   let promotionId = null;
   let promo = null;
+  const pType = paymentType === "per_session" ? "pay_per_session" : paymentType || "pay_per_session";
 
   if (promoCode && originalPrice > 0) {
-    const validation = await validatePromoCode(promoCode, userId, paymentType || "pay_per_session");
+    const validation = await validatePromoCode(promoCode, userId, pType);
     if (!validation.valid) {
       return { error: validation.reason };
     }
@@ -220,13 +213,38 @@ export async function createSessionPaymentCheckout({
   originalPrice,
   discountAmount,
   promotionId,
-  frontendUrl
+  frontendUrl,
+  studentProfileId
 }) {
   const amountCents = Math.round(finalPrice * 100);
   const returnUrl = `${frontendUrl}/student/sessions/${session.id}`;
   const { checkoutUrl, orderId } = await createPaymobOrder(amountCents, user, { returnUrl });
-  const transactionId = `tx-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
+  if (isSchemaV2()) {
+    const pending = await insertEnrollment({
+      userId: user.id,
+      sessionId: session.id,
+      status: "pending",
+      paymentStatus: "pending"
+    });
+    await createSessionPayment({
+      userId: user.id,
+      enrollmentId: pending.id,
+      finalPrice,
+      originalPrice,
+      discountAmount,
+      promotionId,
+      paymobOrderId: orderId
+    });
+    return mapCheckoutResponse({
+      checkout_url: checkoutUrl,
+      paymob_url: checkoutUrl,
+      enrollment: pending,
+      order_id: orderId
+    });
+  }
+
+  const transactionId = `tx-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const { error: insertError } = await supabase.from("transactions").insert({
     id: transactionId,
     user_id: user.id,
@@ -241,11 +259,12 @@ export async function createSessionPaymentCheckout({
   });
   if (insertError) throw insertError;
 
-  return {
+  return mapCheckoutResponse({
     checkout_url: checkoutUrl,
+    paymob_url: checkoutUrl,
     transaction_id: transactionId,
     order_id: orderId
-  };
+  });
 }
 
 export async function getEnrollmentOptionsForSession(userId, session) {
@@ -255,9 +274,11 @@ export async function getEnrollmentOptionsForSession(userId, session) {
     : true;
   const subscription = await getActiveSubscription(userId);
   const seatsLeft = session.seats_left ?? Math.max(0, (session.max_students || 0) - (session.enrolled_count || 0));
+  const price = sessionPrice(session);
 
   return {
-    free_trial_available: Boolean(subjectId) && !trialUsed && Number(session.price_per_student) > 0,
+    free_trial_available: Boolean(subjectId) && !trialUsed && price > 0,
+    used: trialUsed,
     active_subscription: subscription
       ? {
           id: subscription.id,
@@ -265,6 +286,7 @@ export async function getEnrollmentOptionsForSession(userId, session) {
           plan_name: subscription.plan?.name
         }
       : null,
+    sessions_remaining: subscription?.sessions_remaining ?? 0,
     seats_left: seatsLeft,
     low_seats: seatsLeft > 0 && seatsLeft <= 3
   };
@@ -280,20 +302,37 @@ export async function finalizeFreeOrPromoEnrollment({
   discountAmount,
   enrollmentId
 }) {
-  const enrollment = await confirmEnrollment({
-    studentProfileId,
-    sessionId: session.id,
-    enrollmentId
-  });
+  let enrollment;
+  if (isSchemaV2()) {
+    enrollment = await confirmEnrollmentV2(userId, session.id);
+  } else {
+    enrollment = await confirmEnrollment({
+      studentProfileId,
+      sessionId: session.id,
+      enrollmentId,
+      userId
+    });
+  }
 
   if (paymentType === "free_trial" && subjectId) {
     await recordFreeTrial(userId, session.teacher_id, subjectId, session.id);
   }
 
   if (promotionId) {
-    await recordPromoUse(promotionId, userId, enrollment.id, discountAmount);
+    const enrollId = isSchemaV2() ? enrollment.id : enrollment.id;
+    await recordPromoUse(promotionId, userId, enrollId, discountAmount);
+    if (isSchemaV2()) {
+      await supabase.rpc("increment_used_count", { promo_id: promotionId });
+    }
   }
 
-  await notifyEnrollmentConfirm(userId, session.id);
+  await notifyEnrollmentConfirm(userId, session.id, 0);
   return enrollment;
+}
+
+/** Normalize payment_type from master prompt */
+export function normalizePaymentType(type) {
+  if (!type) return "pay_per_session";
+  if (type === "per_session") return "pay_per_session";
+  return type;
 }

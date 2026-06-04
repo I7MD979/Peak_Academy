@@ -13,6 +13,8 @@ import { ensureUserProfile, isRoleProfileComplete } from "../utils/ensure-user-p
 import { getEnrollmentOptionsForSession, getSessionForEnroll } from "../services/enrollmentService.js";
 import { countPaidSessionEnrollments } from "../services/subscriptionService.js";
 import { getActiveSubscription } from "../services/enrollmentService.js";
+import { CACHE, withCache } from "../lib/cache.js";
+import { isSchemaV2, SCHEMA } from "../lib/schema.js";
 
 const SESSION_SELECT = "*";
 
@@ -84,10 +86,12 @@ async function getStudentContext(userId) {
     .eq("id", userId)
     .single();
 
+  const enrollTable = SCHEMA.enrollmentsTable();
+  const studentKey = isSchemaV2() ? userId : student.id;
   const { data: enrollmentRows } = await supabase
-    .from("session_enrollments")
+    .from(enrollTable)
     .select("session_id, status")
-    .eq("student_id", student.id);
+    .eq("student_id", studentKey);
 
   const enrollmentMap = {};
   const enrolledIds = [];
@@ -238,10 +242,12 @@ router.get("/profile", auth, checkRole("student"), async (req, res) => {
 
     const { student, user, enrolledIds } = ctx;
 
+    const enrollTable = SCHEMA.enrollmentsTable();
+    const studentKey = isSchemaV2() ? req.user.id : student.id;
     const { data: enrollmentDetails } = await supabase
-      .from("session_enrollments")
-      .select("id, status, session:sessions(status, scheduled_at)")
-      .eq("student_id", student.id);
+      .from(enrollTable)
+      .select("id, status, session:sessions(status, scheduled_at, start_time)")
+      .eq("student_id", studentKey);
 
     const now = Date.now();
     const enrollments = enrollmentDetails || [];
@@ -294,15 +300,21 @@ router.get("/profile", auth, checkRole("student"), async (req, res) => {
 
 router.get("/dashboard", auth, checkRole("student"), async (req, res) => {
   try {
+    const payload = await withCache(
+      CACHE.studentDashboard(req.user.id),
+      CACHE.TTL.studentDashboard,
+      async () => {
     const ctx = await getStudentContext(req.user.id);
-    if (!ctx) return error(res, "ملف الطالب غير موجود", 404);
+    if (!ctx) return null;
 
     const { student, user, enrollmentMap, enrolledIds } = ctx;
+    const enrollTable = SCHEMA.enrollmentsTable();
+    const studentKey = isSchemaV2() ? req.user.id : student.id;
 
     const { data: enrollmentDetails } = await supabase
-      .from("session_enrollments")
+      .from(enrollTable)
       .select(`id, status, session:sessions(${SESSION_SELECT})`)
-      .eq("student_id", student.id);
+      .eq("student_id", studentKey);
 
     const enrolledSessions = (enrollmentDetails || [])
       .map((row) => mapSessionRow(row.session, { isEnrolled: true, enrollmentStatus: row.status }))
@@ -334,7 +346,7 @@ router.get("/dashboard", auth, checkRole("student"), async (req, res) => {
       .filter((session) => session && !session.is_full)
       .slice(0, 4);
 
-    return success(res, {
+    return {
       profile: {
         full_name: user?.full_name || "",
         avatar_url: user?.avatar_url || null,
@@ -354,7 +366,12 @@ router.get("/dashboard", auth, checkRole("student"), async (req, res) => {
       live_sessions: liveSessions,
       upcoming_sessions: upcomingSessions.slice(0, 4),
       recommended_sessions: recommendedSessions
-    });
+    };
+      }
+    );
+
+    if (!payload) return error(res, "ملف الطالب غير موجود", 404);
+    return success(res, payload);
   } catch (_err) {
     return error(res, "تعذر تحميل لوحة الطالب", 500);
   }

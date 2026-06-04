@@ -5,7 +5,8 @@ import { supabase } from "../lib/supabase.js";
 import { paginate, paginationMeta } from "../utils/paginate.js";
 import { success, error, paginated } from "../utils/response.js";
 import { verifyPaymobHmac } from "../utils/paymob-hmac.js";
-import { fulfillCompletedTransaction, markTransactionFailed } from "../utils/payments-fulfillment.js";
+import { handlePaymobWebhook } from "../utils/payments-fulfillment.js";
+import { mapCheckoutResponse } from "../lib/schema.js";
 import { resolveTransactionFulfillment } from "../utils/transaction-status.js";
 import { validatePromoCode, calculateDiscount } from "../utils/promoValidator.js";
 import { getSessionForEnroll, computeSessionCheckout } from "../services/enrollmentService.js";
@@ -180,27 +181,8 @@ router.post("/webhook", async (req, res) => {
     const orderId = String(obj.order?.id ?? "");
     const paymobTxnId = String(obj.id ?? "");
 
-    const { data: transaction } = await supabase
-      .from("transactions")
-      .select("*")
-      .eq("paymob_order_id", orderId)
-      .maybeSingle();
-
-    if (!transaction) {
-      return success(res, { received: true, processed: false });
-    }
-
-    if (transaction.status !== "pending") {
-      return success(res, { received: true, processed: true, ok: true });
-    }
-
-    if (!obj?.success) {
-      await markTransactionFailed(transaction);
-      return success(res, { received: true, processed: true, ok: true });
-    }
-
-    await fulfillCompletedTransaction(transaction, paymobTxnId);
-    return success(res, { received: true, processed: true, ok: true });
+    const result = await handlePaymobWebhook(orderId, paymobTxnId, Boolean(obj?.success));
+    return success(res, { received: true, ...result });
   } catch (_err) {
     return error(res, "Webhook error", 500);
   }

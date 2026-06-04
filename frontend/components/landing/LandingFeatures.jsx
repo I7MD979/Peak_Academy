@@ -1,66 +1,38 @@
 import Icon from "@/components/shared/Icon";
-import { landingFeatures, landingSteps } from "@/lib/landing-content";
+import LandingReveal from "@/components/landing/LandingReveal";
+import LandingSectionHeader from "@/components/landing/LandingSectionHeader";
+import { landingFeatures } from "@/lib/landing-content";
 
 export default function LandingFeatures() {
   return (
-    <>
-      <section className="px-4 py-16 md:px-6 md:py-20" aria-labelledby="features-heading">
-        <div className="mx-auto max-w-6xl">
-          <div className="mb-10 text-center md:mb-12">
-            <h2 id="features-heading" className="text-2xl font-black text-primary md:text-3xl">
-              لماذا Peak Academy؟
-            </h2>
-            <p className="mx-auto mt-3 max-w-2xl text-sm text-text-muted md:text-base">
-              كل ما يحتاجه طالب الثانوية العامة ومعلّمه ووليّ أمره — من الجلسة المباشرة حتى التقرير
-              الأسبوعي.
-            </p>
-          </div>
+    <section
+      id="features"
+      className="landing-section scroll-mt-20 bg-slate-50 px-4 md:px-8"
+      aria-labelledby="features-heading"
+    >
+      <LandingSectionHeader
+        theme="light"
+        align="center"
+        tag="لماذا نحن"
+        title="لماذا Peak Academy؟"
+        subtitle="كل ما يحتاجه طالب الثانوية العامة ومعلّمه ووليّ أمره — من الجلسة المباشرة حتى التقرير الأسبوعي."
+      />
 
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {landingFeatures.map((feature) => (
-              <article
-                key={feature.title}
-                className="glass-card rounded-2xl p-5 transition hover:border-accent/30 hover:shadow-md"
-              >
-                <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-accent/10 text-accent">
-                  <Icon name={feature.icon} size={22} />
-                </span>
-                <h3 className="text-lg font-bold text-text">{feature.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-text-muted">{feature.description}</p>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section
-        className="border-y border-border bg-white px-4 py-16 md:px-6 md:py-20"
-        aria-labelledby="steps-heading"
-      >
-        <div className="mx-auto max-w-6xl">
-          <div className="mb-10 text-center">
-            <h2 id="steps-heading" className="text-2xl font-black text-primary md:text-3xl">
-              كيف تبدأ؟
-            </h2>
-            <p className="mt-3 text-sm text-text-muted md:text-base">ثلاث خطوات للوصول إلى أول جلسة لايف</p>
-          </div>
-
-          <ol className="grid gap-6 md:grid-cols-3">
-            {landingSteps.map((item) => (
-              <li key={item.step} className="relative rounded-2xl border border-border bg-bg p-6 text-center">
-                <span
-                  className="mx-auto mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-primary text-sm font-black text-white"
-                  aria-hidden="true"
-                >
-                  {item.step}
-                </span>
-                <h3 className="text-lg font-bold text-text">{item.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-text-muted">{item.description}</p>
-              </li>
-            ))}
-          </ol>
-        </div>
-      </section>
-    </>
+      <div className="mx-auto grid max-w-6xl gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {landingFeatures.map((feature, index) => (
+          <LandingReveal key={feature.title} delay={index * 60}>
+            <article className="group h-full rounded-2xl border border-border bg-white p-5 shadow-sm transition hover:border-accent/25 hover:shadow-md">
+              <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-accent/10 text-accent transition group-hover:bg-accent group-hover:text-white">
+                <Icon name={feature.icon} size={22} />
+              </span>
+              <h3 id={index === 0 ? "features-heading" : undefined} className="text-lg font-bold text-primary">
+                {feature.title}
+              </h3>
+              <p className="mt-2 text-sm leading-relaxed text-text-muted">{feature.description}</p>
+            </article>
+          </LandingReveal>
+        ))}
+      </div>
+    </section>
   );
 }
