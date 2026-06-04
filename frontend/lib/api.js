@@ -16,14 +16,38 @@ async function getAuthToken() {
     const {
       data: { session }
     } = await supabase.auth.getSession();
-    return session?.access_token || null;
+
+    if (session?.access_token) {
+      useAuthStore.getState().setAuth({
+        user: session.user ?? null,
+        session
+      });
+      return session.access_token;
+    }
+
+    const { data: refreshed } = await supabase.auth.refreshSession();
+    if (refreshed.session?.access_token) {
+      useAuthStore.getState().setAuth({
+        user: refreshed.session.user ?? null,
+        session: refreshed.session
+      });
+      return refreshed.session.access_token;
+    }
   } catch {
     return null;
   }
+
+  return null;
 }
 
 async function performApiFetch(path, options = {}, tokenOverride = null) {
-  const token = tokenOverride ?? (await getAuthToken());
+  let token = tokenOverride ?? (await getAuthToken());
+
+  if (!token && path.startsWith("/auth/me")) {
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    token = tokenOverride ?? (await getAuthToken());
+  }
+
   const headers = {
     "Content-Type": "application/json",
     ...(token ? { Authorization: `Bearer ${token}` } : {}),

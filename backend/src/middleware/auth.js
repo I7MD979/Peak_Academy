@@ -23,18 +23,22 @@ export async function resolveAuthUserFromToken(token) {
   if (error || !user) return null;
 
   const meta = user.user_metadata || {};
+  const metaFullName = String(
+    meta.full_name || meta.name || meta.display_name || ""
+  ).trim();
+
   let { data: dbUser, error: profileError } = await supabase
     .from("users")
     .select("id, role, full_name, is_active, email, phone")
     .eq("id", user.id)
     .maybeSingle();
 
-  if ((!dbUser || profileError) && meta.role && String(meta.full_name || "").trim().length >= 2) {
+  if ((!dbUser || profileError) && meta.role && metaFullName.length >= 2) {
     try {
       await ensureUserProfile(supabase, {
         id: user.id,
         email: user.email,
-        full_name: String(meta.full_name).trim(),
+        full_name: metaFullName,
         role: meta.role,
         phone: meta.phone || null,
         grade: meta.grade || null
@@ -59,17 +63,20 @@ export async function resolveAuthUserFromToken(token) {
     return { user: dbUser, profileReady: true };
   }
 
+  // Valid JWT but no public.users row yet (common right after Google OAuth)
   const role = normalizeRole(meta.role);
-  const fullName = String(meta.full_name || "").trim();
-  if (!role || fullName.length < 2) return null;
+  const fullName =
+    metaFullName.length >= 2
+      ? metaFullName
+      : String(user.email?.split("@")?.[0] || "مستخدم بيك").trim();
 
   return {
     user: {
       id: user.id,
       email: user.email || "",
       role,
-      full_name: fullName,
-      phone: null,
+      full_name: fullName.length >= 2 ? fullName : "مستخدم بيك",
+      phone: meta.phone ? String(meta.phone).trim() : null,
       is_active: true
     },
     profileReady: false

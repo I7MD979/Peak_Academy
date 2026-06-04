@@ -17,7 +17,7 @@ export function useSidebarProfile() {
       return;
     }
     try {
-      const res = await authApi.me();
+      const res = await authApi.me(session.access_token);
       setApiUser(res?.data || null);
     } catch {
       setApiUser(null);
