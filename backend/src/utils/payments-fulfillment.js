@@ -1,4 +1,33 @@
 import { supabase } from "../lib/supabase.js";
+import { enqueueJob } from "../lib/queue.js";
+import { invalidateSessionCaches } from "../lib/cache.js";
+
+async function notifyEnrollment(transaction, sessionId) {
+  const [{ data: user }, { data: session }] = await Promise.all([
+    supabase.from("users").select("email, full_name").eq("id", transaction.user_id).single(),
+    supabase
+      .from("sessions")
+      .select("title, scheduled_at")
+      .eq("id", sessionId)
+      .single()
+  ]);
+
+  await Promise.all([
+    enqueueJob("email", "enrollment-confirm", {
+      studentEmail: user?.email,
+      studentName: user?.full_name,
+      sessionTitle: session?.title,
+      startTime: session?.scheduled_at
+    }),
+    enqueueJob("notifications", "push-notification", {
+      userId: transaction.user_id,
+      type: "enrollment",
+      title: "تم تأكيد التسجيل",
+      body: `تم تأكيد تسجيلك في ${session?.title || "الحصة"}`,
+      data: { session_id: sessionId }
+    })
+  ]);
+}
 
 export async function fulfillCompletedTransaction(transaction, paymobTxnId) {
   if (!transaction || transaction.status === "completed") {
@@ -80,5 +109,9 @@ export async function fulfillCompletedTransaction(transaction, paymobTxnId) {
   });
 
   if (enrollError) throw enrollError;
+
+  await invalidateSessionCaches(sessionId);
+  await notifyEnrollment(transaction, sessionId);
+
   return { enrolled: true };
 }

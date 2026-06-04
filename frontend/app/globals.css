@@ -53,3 +53,46 @@ a {
     transform: translateY(0);
   }
 }
+
+/* ——— Landing page ——— */
+.landing-hero {
+  background: linear-gradient(145deg, #0f1424 0%, var(--primary) 45%, #1e3a5f 100%);
+}
+
+.landing-hero-glow {
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(249, 115, 22, 0.22), transparent),
+    radial-gradient(ellipse 60% 40% at 100% 50%, rgba(59, 130, 246, 0.12), transparent),
+    radial-gradient(ellipse 50% 30% at 0% 80%, rgba(249, 115, 22, 0.08), transparent);
+}
+
+.landing-wave {
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 64px;
+  background: var(--bg);
+  clip-path: ellipse(75% 100% at 50% 100%);
+}
+
+.landing-fade-in {
+  animation: fadeIn 0.7s ease-out both;
+}
+
+.landing-delay-1 {
+  animation-delay: 0.08s;
+}
+.landing-delay-2 {
+  animation-delay: 0.16s;
+}
+.landing-delay-3 {
+  animation-delay: 0.24s;
+}
+.landing-delay-4 {
+  animation-delay: 0.32s;
+}
+
+.landing-stat-card {
+  animation: fadeIn 0.6s ease-out both;
+}

@@ -9,8 +9,9 @@ const cairo = Cairo({
 });
 
 export const metadata = {
-  title: "Peak Academy",
-  description: "Peak Academy - منصة تعليمية لطلاب الثانوية العامة",
+  title: "Peak Academy | منصة الثانوية العامة",
+  description:
+    "منصة تعليمية مصرية لطلاب الثانوية العامة: جلسات لايف، متابعة لوليّ الأمر، ومعلّمون معتمدون.",
   icons: {
     icon: [
       {

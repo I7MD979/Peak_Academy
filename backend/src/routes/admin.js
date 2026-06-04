@@ -4,24 +4,28 @@ import { checkRole } from "../middleware/checkRole.js";
 import { supabase } from "../lib/supabase.js";
 import { paginate, paginationMeta } from "../utils/paginate.js";
 import { success, error, paginated } from "../utils/response.js";
+import { CACHE, withCache } from "../lib/cache.js";
 
 const router = Router();
 
 router.get("/stats", auth, checkRole("admin"), async (_req, res) => {
   try {
-    const [users, sessions, revenue, withdrawals] = await Promise.all([
-      supabase.from("users").select("role", { count: "exact", head: true }),
-      supabase.from("sessions").select("status", { count: "exact", head: true }).eq("status", "live"),
-      supabase.from("teacher_earnings").select("platform_amount"),
-      supabase.from("withdrawal_requests").select("id", { count: "exact", head: true }).eq("status", "pending")
-    ]);
-    const totalRevenue = revenue.data?.reduce((sum, e) => sum + Number(e.platform_amount || 0), 0) || 0;
-    return success(res, {
-      total_users: users.count || 0,
-      live_sessions: sessions.count || 0,
-      total_revenue: totalRevenue,
-      pending_withdrawals: withdrawals.count || 0
+    const stats = await withCache(CACHE.adminDashboard(), CACHE.TTL.adminDashboard, async () => {
+      const [users, sessions, revenue, withdrawals] = await Promise.all([
+        supabase.from("users").select("role", { count: "exact", head: true }),
+        supabase.from("sessions").select("status", { count: "exact", head: true }).eq("status", "live"),
+        supabase.from("teacher_earnings").select("platform_amount"),
+        supabase.from("withdrawal_requests").select("id", { count: "exact", head: true }).eq("status", "pending")
+      ]);
+      const totalRevenue = revenue.data?.reduce((sum, e) => sum + Number(e.platform_amount || 0), 0) || 0;
+      return {
+        total_users: users.count || 0,
+        live_sessions: sessions.count || 0,
+        total_revenue: totalRevenue,
+        pending_withdrawals: withdrawals.count || 0
+      };
     });
+    return success(res, stats);
   } catch (_err) {
     return error(res, "تعذر تحميل الإحصائيات", 500);
   }

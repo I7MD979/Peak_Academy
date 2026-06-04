@@ -9,6 +9,7 @@ import { isSchemaError, mapDbError, SQL_SETUP_HINT } from "../utils/db-errors.js
 import { querySessionById, querySessionsList } from "../utils/session-select.js";
 import { ensureUserProfile } from "../utils/ensure-user-profile.js";
 import { incrementAttendeeStreaks, recordSessionEarnings } from "../utils/session-earnings.js";
+import { CACHE, withCache, invalidateSessionCaches } from "../lib/cache.js";
 
 const router = Router();
 
@@ -72,7 +73,19 @@ router.get("/", auth, async (req, res) => {
     const { from, to } = paginate(page, limit);
     const ascending = status === "completed" || status === "cancelled" ? false : true;
 
-    const { data, count, db_warning } = await querySessionsList((query) => {
+    const cacheKey = CACHE.sessionsList({
+      page: Number(page),
+      limit: Number(limit),
+      subject: subject || null,
+      grade: grade || null,
+      status: status || "scheduled",
+      search: search || null,
+      role: req.user.role,
+      userId: req.user.role === "teacher" ? req.user.id : null
+    });
+
+    const cached = await withCache(cacheKey, CACHE.TTL.sessionsList, async () => {
+      const { data, count, db_warning } = await querySessionsList((query) => {
       let q = query.range(from, to);
 
       if (req.user.role === "teacher") {
@@ -97,7 +110,12 @@ router.get("/", auth, async (req, res) => {
       }
 
       return q;
+      });
+
+      return { data, count, db_warning };
     });
+
+    const { data, count, db_warning } = cached;
 
     if (db_warning) {
       res.setHeader("X-Peak-Db-Warning", "schema");
@@ -160,12 +178,16 @@ router.get("/:id/enrollments", auth, checkRole("teacher", "admin"), async (req, 
 
 router.get("/:id", auth, async (req, res) => {
   try {
-    const session = await querySessionById(req.params.id, (q) => {
-      if (req.user.role === "teacher") {
-        return q.eq("teacher_id", req.user.id);
-      }
-      return q;
-    });
+    const scope = req.user.role === "teacher" ? req.user.id : "public";
+    const cacheKey = CACHE.sessionDetail(req.params.id, scope);
+    const session = await withCache(cacheKey, CACHE.TTL.sessionDetail, async () =>
+      querySessionById(req.params.id, (q) => {
+        if (req.user.role === "teacher") {
+          return q.eq("teacher_id", req.user.id);
+        }
+        return q;
+      })
+    );
 
     if (!session) return error(res, "الجلسة غير موجودة", 404);
     return success(res, session);
@@ -203,6 +225,7 @@ router.post("/", auth, checkRole("teacher"), async (req, res) => {
       .select()
       .single();
     if (dbError) throw dbError;
+    await invalidateSessionCaches(session.id);
     return success(res, session, "Session created", 201);
   } catch (err) {
     return handleRouteError(res, err, "Failed to create session");
@@ -263,6 +286,7 @@ router.post("/:id/enroll", auth, checkRole("student"), async (req, res) => {
       .select()
       .single();
     if (dbError) throw dbError;
+    await invalidateSessionCaches(req.params.id);
     return success(res, enrollment, "Enrolled successfully", 201);
   } catch (err) {
     return handleRouteError(res, err, "Failed to enroll");
@@ -281,6 +305,7 @@ router.post("/:id/start", auth, checkRole("teacher"), async (req, res) => {
       .single();
     if (dbError) throw dbError;
 
+    await invalidateSessionCaches(req.params.id);
     return success(res, { room_url: session.daily_room_url || session.room_url });
   } catch (err) {
     return handleRouteError(res, err, "Failed to start session");
@@ -307,6 +332,7 @@ router.post("/:id/end", auth, checkRole("teacher"), async (req, res) => {
     await incrementAttendeeStreaks(req.params.id);
     const earning = await recordSessionEarnings(req.params.id, teacher.id, teacher.commission_rate);
 
+    await invalidateSessionCaches(req.params.id);
     return success(res, { teacher_id: teacher.id, earning }, "Session ended");
   } catch (err) {
     return handleRouteError(res, err, "Failed to end session");
@@ -345,6 +371,7 @@ router.patch("/:id/cancel", auth, async (req, res) => {
       .eq("id", req.params.id);
 
     if (updateError) throw updateError;
+    await invalidateSessionCaches(req.params.id);
     return success(res, null, "تم إلغاء الجلسة");
   } catch (err) {
     return handleRouteError(res, err, "تعذر إلغاء الجلسة");

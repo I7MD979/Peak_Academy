@@ -46,6 +46,7 @@ app.get("/api/health", (_req, res) => {
 
 app.get("/api/diag", async (_req, res) => {
   const { supabase } = await import("./lib/supabase.js");
+  const { getCacheMode } = await import("./lib/cache.js");
   const tables = ["users", "sessions", "session_enrollments", "withdrawal_requests", "teacher_profiles"];
   const checks = {};
 
@@ -59,6 +60,7 @@ app.get("/api/diag", async (_req, res) => {
     success: true,
     api_version: API_VERSION,
     supabase_url: process.env.SUPABASE_URL || null,
+    cache_mode: getCacheMode(),
     tables: checks,
     action: needsSql ? "Run backend/supabase/RUN_IN_SQL_EDITOR.sql in Supabase SQL Editor" : null
   });

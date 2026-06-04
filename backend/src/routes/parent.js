@@ -8,6 +8,7 @@ import {
   getStudentReportForParent,
   listLinkedStudents
 } from "../services/parentReportService.js";
+import { CACHE, withCache, invalidatePattern } from "../lib/cache.js";
 
 const router = Router();
 
@@ -84,6 +85,7 @@ router.post("/link-student", auth, checkRole("parent"), async (req, res) => {
 
     if (updateError) throw updateError;
 
+    await invalidatePattern(`parent:${req.user.id}:`);
     return success(
       res,
       { student_id: student.id, full_name: student.user?.full_name },
@@ -96,7 +98,11 @@ router.post("/link-student", auth, checkRole("parent"), async (req, res) => {
 
 router.get("/report/:studentId", auth, checkRole("parent"), async (req, res) => {
   try {
-    const report = await getStudentReportForParent(req.user.id, req.params.studentId);
+    const month = new Date().toISOString().slice(0, 7);
+    const cacheKey = CACHE.parentReport(req.user.id, req.params.studentId, month);
+    const report = await withCache(cacheKey, CACHE.TTL.parentReport, async () =>
+      getStudentReportForParent(req.user.id, req.params.studentId)
+    );
     if (!report) return error(res, "الطالب غير موجود أو غير مربوط بحسابك", 404);
     return success(res, report);
   } catch (_err) {

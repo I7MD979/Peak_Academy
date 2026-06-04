@@ -11,6 +11,7 @@
     "restart": "node scripts/kill-port.mjs 4000 && node src/index.js",
     "verify": "node scripts/verify-api.mjs",
     "start": "node src/index.js",
+    "worker": "node src/index.js",
     "test": "node -e \"console.log('No tests configured yet')\"",
     "lint": "node -e \"console.log('No linter configured yet')\"",
     "seed:auth": "node scripts/seed-auth-users.mjs"
@@ -20,12 +21,16 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@sentry/node": "^9.30.0",
     "@supabase/supabase-js": "^2.106.2",
+    "@upstash/redis": "^1.35.0",
+    "bullmq": "^5.56.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^4.21.2",
     "express-rate-limit": "^7.5.0",
     "helmet": "^8.2.0",
+    "ioredis": "^5.6.1",
     "resend": "^3.5.0",
     "zod": "^4.4.3"
   },
