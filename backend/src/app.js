@@ -79,6 +79,14 @@ app.get("/api/health", (_req, res) => {
   });
 });
 
+function redirectToOnboarding(_req, res) {
+  const base = (process.env.FRONTEND_URL || "https://peak-academy.net").replace(/\/$/, "");
+  res.redirect(302, `${base}/onboarding`);
+}
+
+/** Legacy paths without /api prefix (e.g. Railway URL opened in browser) */
+app.get("/auth/setup-profile", redirectToOnboarding);
+
 app.get("/api/diag", async (_req, res) => {
   const { supabase } = await import("./lib/supabase.js");
   const { getCacheMode } = await import("./lib/cache.js");
