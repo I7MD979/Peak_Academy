@@ -40,6 +40,17 @@ function redirectTo(path, request, sessionResponse) {
   }
 }
 
+/** Avoid ERR_TOO_MANY_REDIRECTS when destination equals current path or bounces auth↔auth. */
+function redirectIfNeeded(request, destination, sessionResponse, pathname) {
+  if (!destination || destination === pathname) {
+    return sessionResponse;
+  }
+  if (pathname.startsWith("/auth") && destination.startsWith("/auth")) {
+    return sessionResponse;
+  }
+  return redirectTo(destination, request, sessionResponse);
+}
+
 async function handleSupabaseAuth(request) {
   const pathname = request.nextUrl.pathname;
 
@@ -60,50 +71,44 @@ async function handleSupabaseAuth(request) {
   )?.[1];
 
   if (user && requiredRole && accessToken) {
-    try {
-      const profile = await fetchAuthProfile(accessToken);
+    const profile = await fetchAuthProfile(accessToken, request);
 
-      if (!profile?.role || !isProfileComplete(profile)) {
-        return redirectTo("/onboarding", request, response);
-      }
+    if (!profile) {
+      return response;
+    }
 
-      if (profile.role !== requiredRole) {
-        const destination = ROLE_HOME[profile.role] || "/onboarding";
-        return redirectTo(destination, request, response);
-      }
-    } catch {
-      return redirectTo("/auth/login", request, response);
+    if (!profile.role || !isProfileComplete(profile)) {
+      return redirectIfNeeded(request, "/onboarding", response, pathname);
+    }
+
+    if (profile.role !== requiredRole) {
+      const destination = ROLE_HOME[profile.role] || "/onboarding";
+      return redirectIfNeeded(request, destination, response, pathname);
     }
   }
 
   if (pathname.startsWith("/auth") && user) {
-    try {
-      const destination = await resolvePostAuthPath(accessToken);
-      return redirectTo(destination, request, response);
-    } catch {
-      return redirectTo("/onboarding", request, response);
-    }
+    const destination = await resolvePostAuthPath(accessToken, request);
+    return redirectIfNeeded(request, destination, response, pathname);
   }
 
   if (pathname.startsWith("/onboarding") && accessToken) {
-    try {
-      const destination = await resolvePostAuthPath(accessToken);
-      if (destination !== "/onboarding") {
-        return redirectTo(destination, request, response);
-      }
-    } catch {
-      // stay on onboarding
+    const destination = await resolvePostAuthPath(accessToken, request);
+    if (destination === null) {
+      return redirectIfNeeded(request, "/auth/login", response, pathname);
     }
+    return redirectIfNeeded(request, destination, response, pathname);
   }
 
   if (pathname === "/" && accessToken) {
-    try {
-      const destination = await resolvePostAuthPath(accessToken);
-      if (destination !== "/onboarding" && destination !== "/auth/login") {
-        return redirectTo(destination, request, response);
-      }
-    } catch {
-      // stay on landing
+    const destination = await resolvePostAuthPath(accessToken, request);
+    if (
+      destination &&
+      destination !== "/onboarding" &&
+      destination !== "/auth/login" &&
+      destination !== pathname
+    ) {
+      return redirectTo(destination, request, response);
     }
   }
 
@@ -111,12 +116,11 @@ async function handleSupabaseAuth(request) {
     if (!user) {
       return redirectTo("/auth/login", request, response);
     }
-    try {
-      const destination = await resolvePostAuthPath(accessToken);
-      return redirectTo(destination, request, response);
-    } catch {
+    const destination = await resolvePostAuthPath(accessToken, request);
+    if (!destination || destination === "/auth/login") {
       return redirectTo("/auth/login", request, response);
     }
+    return redirectIfNeeded(request, destination, response, pathname);
   }
 
   return response;
@@ -135,5 +139,5 @@ export async function middleware(request) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml).*)"]
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|peak-api).*)"]
 };

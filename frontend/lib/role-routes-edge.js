@@ -3,7 +3,7 @@
  * Do not import server-only modules here — Vercel Edge bundles this file.
  */
 
-import { getApiBaseUrl, normalizeApiBaseUrl } from "@/lib/api-base";
+import { normalizeApiBaseUrl } from "@/lib/api-base";
 
 export const ROLE_HOME = {
   student: "/student/dashboard",
@@ -26,23 +26,22 @@ export function isProfileComplete(user) {
   return true;
 }
 
-function getApiUrl() {
-  if (process.env.NEXT_PUBLIC_API_URL?.trim()) {
-    return normalizeApiBaseUrl(process.env.NEXT_PUBLIC_API_URL);
+/** Same-origin /peak-api proxy (matches browser + next.config rewrites). */
+function getApiUrl(request) {
+  const configured = process.env.NEXT_PUBLIC_API_URL?.trim();
+  if (configured) return normalizeApiBaseUrl(configured);
+  if (request?.url) {
+    return `${new URL(request.url).origin}/peak-api`;
   }
   if (process.env.VERCEL_URL) {
     return `https://${process.env.VERCEL_URL}/peak-api`;
   }
-  const site = process.env.NEXT_PUBLIC_SITE_URL || process.env.FRONTEND_URL;
-  if (site) return `${site.replace(/\/$/, "")}/peak-api`;
-  if (process.env.VERCEL) return null;
   return "http://localhost:4000/api";
 }
 
-export async function fetchAuthProfile(accessToken) {
+export async function fetchAuthProfile(accessToken, request) {
   if (!accessToken) return null;
-  const apiUrl = getApiUrl();
-  if (!apiUrl) return null;
+  const apiUrl = getApiUrl(request);
   try {
     const res = await fetch(`${apiUrl}/auth/me`, {
       headers: { Authorization: `Bearer ${accessToken}` },
@@ -56,11 +55,13 @@ export async function fetchAuthProfile(accessToken) {
   }
 }
 
-export async function resolvePostAuthPath(accessToken) {
+/**
+ * Post-auth destination. Returns null when the API rejects the token (stale session).
+ */
+export async function resolvePostAuthPath(accessToken, request) {
   if (!accessToken) return "/auth/login";
 
-  const apiUrl = getApiUrl();
-  if (!apiUrl) return "/onboarding";
+  const apiUrl = getApiUrl(request);
 
   try {
     const res = await fetch(`${apiUrl}/auth/me`, {
@@ -68,7 +69,7 @@ export async function resolvePostAuthPath(accessToken) {
       cache: "no-store"
     });
 
-    if (res.status === 401) return "/auth/login";
+    if (res.status === 401) return null;
 
     const payload = await res.json();
     const user = payload?.data;
