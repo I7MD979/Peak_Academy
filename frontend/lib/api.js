@@ -3,8 +3,9 @@
 import { createClient } from "./supabase/client";
 import { useAuthStore } from "@/store/authStore";
 import { cachedApiRequest, clearApiCache, fetchAuthMe } from "@/lib/api-cache";
+import { normalizeApiBaseUrl } from "@/lib/api-base";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
+const API_URL = normalizeApiBaseUrl(process.env.NEXT_PUBLIC_API_URL);
 
 async function getAuthToken() {
   if (typeof window === "undefined") return null;
@@ -276,7 +277,6 @@ export const parentApi = {
     }),
   report: (studentId) => apiRequest(`/parent/report/${studentId}`),
   downloadReport: async (studentId, token) => {
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
     const authToken = token ?? (await getAuthToken());
     const res = await fetch(`${API_URL}/parent/report/${studentId}/pdf`, {
       headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},

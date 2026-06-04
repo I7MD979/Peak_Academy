@@ -3,6 +3,8 @@
  * Do not import server-only modules here — Vercel Edge bundles this file.
  */
 
+import { normalizeApiBaseUrl } from "@/lib/api-base";
+
 export const ROLE_HOME = {
   student: "/student/dashboard",
   teacher: "/teacher/dashboard",
@@ -26,11 +28,11 @@ export function isProfileComplete(user) {
 
 function getApiUrl() {
   const configured = process.env.NEXT_PUBLIC_API_URL?.trim();
-  if (configured) return configured.replace(/\/$/, "");
-
-  if (process.env.VERCEL) return null;
-
-  return "http://localhost:4000/api";
+  if (!configured) {
+    if (process.env.VERCEL) return null;
+    return "http://localhost:4000/api";
+  }
+  return normalizeApiBaseUrl(configured);
 }
 
 export async function fetchAuthProfile(accessToken) {

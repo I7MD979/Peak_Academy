@@ -4,8 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useAuthStore } from "@/store/authStore";
 import { notificationsApi } from "@/lib/api";
+import { normalizeApiBaseUrl } from "@/lib/api-base";
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api").replace(/\/api$/, "");
+const API_BASE = normalizeApiBaseUrl(process.env.NEXT_PUBLIC_API_URL).replace(/\/api$/, "");
 
 function parseSseBlocks(buffer) {
   const events = [];

@@ -84,9 +84,6 @@ function redirectToOnboarding(_req, res) {
   res.redirect(302, `${base}/onboarding`);
 }
 
-/** Legacy paths without /api prefix (e.g. Railway URL opened in browser) */
-app.get("/auth/setup-profile", redirectToOnboarding);
-
 app.get("/api/diag", async (_req, res) => {
   const { supabase } = await import("./lib/supabase.js");
   const { getCacheMode } = await import("./lib/cache.js");
@@ -135,6 +132,8 @@ app.get("/api/diag", async (_req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
+/** Same routes without /api prefix when NEXT_PUBLIC_API_URL omits /api */
+app.use("/auth", authRoutes);
 app.use("/api/sessions", sessionRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/enrollments", enrollmentRoutes);

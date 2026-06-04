@@ -1,8 +1,9 @@
 import { ROLE_HOME, isProfileComplete } from "./role-routes.js";
+import { normalizeApiBaseUrl } from "@/lib/api-base";
 
 export { ROLE_HOME, isProfileComplete };
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
+const API_URL = normalizeApiBaseUrl(process.env.NEXT_PUBLIC_API_URL);
 
 export async function fetchAuthProfile(accessToken) {
   if (!accessToken) return null;
