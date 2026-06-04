@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { auth } from "../middleware/auth.js";
 import { supabase } from "../lib/supabase.js";
+import { mapDbError } from "../utils/db-errors.js";
 import { success, error } from "../utils/response.js";
 import {
   buildLinkCode,
@@ -82,6 +83,32 @@ router.get("/me", auth, async (req, res) => {
   }
 });
 
+async function fetchExistingUserRole(userId) {
+  const { data, error: dbError } = await supabase
+    .from("users")
+    .select("role")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (dbError && process.env.NODE_ENV !== "production") {
+    console.warn("setup-profile role lookup:", dbError.message);
+  }
+
+  return data?.role ? normalizeRole(data.role) : null;
+}
+
+async function syncAuthUserMetadata(userId, { role, full_name, phone }) {
+  try {
+    const meta = { role, full_name };
+    if (phone) meta.phone = phone;
+    await supabase.auth.admin.updateUserById(userId, { user_metadata: meta });
+  } catch (metaErr) {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("setup-profile auth metadata:", metaErr?.message || metaErr);
+    }
+  }
+}
+
 /** إنشاء / إكمال الملف الشخصي بعد التسجيل (onboarding) */
 router.post("/setup-profile", auth, async (req, res) => {
   try {
@@ -91,8 +118,8 @@ router.post("/setup-profile", auth, async (req, res) => {
     const grade = req.body.grade;
     const section = req.body.section;
 
-    const existing = await fetchFullUserProfile(supabase, req.user.id);
-    if (existing?.role && existing.role !== role) {
+    const existingRole = await fetchExistingUserRole(req.user.id);
+    if (existingRole && existingRole !== role) {
       return error(res, "لا يمكن تغيير نوع الحساب بعد إنشاء الملف", 400);
     }
 
@@ -110,22 +137,55 @@ router.post("/setup-profile", auth, async (req, res) => {
 
     const email = req.user.email || req.body.email;
 
-    const user = await ensureUserProfile(supabase, {
-      id: req.user.id,
-      email,
+    let user;
+    try {
+      user = await ensureUserProfile(supabase, {
+        id: req.user.id,
+        email,
+        full_name: fullName,
+        role,
+        phone: phone || null,
+        grade: role === "student" ? grade || "third" : null,
+        section: role === "student" ? section : null
+      });
+    } catch (ensureErr) {
+      console.error("POST /auth/setup-profile ensure:", ensureErr?.message || ensureErr);
+      const mapped = mapDbError(ensureErr);
+      return error(res, mapped.message, mapped.status);
+    }
+
+    if (!user) {
+      user = profileFromReqUser({
+        ...req.user,
+        full_name: fullName,
+        role,
+        phone: phone || null
+      });
+      if (role === "student") {
+        user.student_profile = {
+          grade: grade && ["first", "second", "third"].includes(grade) ? grade : "third",
+          section: section || null,
+          link_code: buildLinkCode(req.user.id)
+        };
+        user.profile_complete = true;
+      }
+      if (role === "teacher") {
+        user.teacher_profile = { subjects: [] };
+        user.profile_complete = true;
+      }
+    }
+
+    await syncAuthUserMetadata(req.user.id, {
+      role: user.role || role,
       full_name: fullName,
-      role,
-      phone: phone || null,
-      grade: role === "student" ? grade || "third" : null,
-      section: role === "student" ? section : null
+      phone: phone || null
     });
 
     return success(res, user, "تم إنشاء ملفك الشخصي بنجاح");
   } catch (err) {
-    if (process.env.NODE_ENV !== "production") {
-      console.error("POST /auth/setup-profile", err);
-    }
-    return error(res, err.message || "تعذر إنشاء الملف الشخصي", 500);
+    console.error("POST /auth/setup-profile", err?.message || err);
+    const mapped = mapDbError(err);
+    return error(res, mapped.message, mapped.status);
   }
 });
 

@@ -30,6 +30,21 @@ export function mapDbError(err) {
     };
   }
 
+  if (err.code === "23503") {
+    return {
+      status: 500,
+      message:
+        "حساب المصادقة غير مرتبط بقاعدة البيانات. سجّل الخروج ثم سجّل الدخول مرة أخرى، أو نفّذ backend/supabase/RUN_AUTH_FIX_SQL.sql في Supabase."
+    };
+  }
+
+  if (err.code === "23505") {
+    return {
+      status: 409,
+      message: "البريد الإلكتروني مستخدم لحساب آخر. استخدم بريدًا مختلفًا أو تواصل مع الدعم."
+    };
+  }
+
   const msg = String(err.message || "");
   if (/invalid api key/i.test(msg)) {
     return {
