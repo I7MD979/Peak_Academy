@@ -1,0 +1,10 @@
+frontend
+docs
+.git
+.github
+**/.next
+**/node_modules
+**/.env
+**/.env.*
+*.md
+!backend/**
