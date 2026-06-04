@@ -63,4 +63,45 @@ See [docs/schema-v2-migration-inventory.md](docs/schema-v2-migration-inventory.m
 
 ## Frontend hosting
 
-Deploy `frontend/` on Vercel with `NEXT_PUBLIC_API_URL` pointing to your Railway API URL.
+Deploy `frontend/` on Vercel with **Root Directory** = `frontend` and **Framework Preset** = Next.js.
+
+### Vercel env vars
+
+| Variable | Purpose |
+|----------|---------|
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon (publishable) key |
+| `NEXT_PUBLIC_API_URL` | Railway API base, e.g. `https://<service>.up.railway.app/api` |
+
+### Supabase Auth (Dashboard)
+
+**Authentication → URL configuration**
+
+| Setting | Example values |
+|---------|----------------|
+| Site URL | `https://peak-academy.net` |
+| Redirect URLs | `https://peak-academy.net/auth/callback`, `https://www.peak-academy.net/auth/callback`, `http://localhost:3000/auth/callback`, your `https://*.vercel.app/auth/callback` preview URL |
+
+**Providers:** enable Email (password) and Google if you use OAuth on the login page.
+
+### Middleware behavior
+
+| Host | Behavior |
+|------|----------|
+| `peak-academy.net` / `www.peak-academy.net` | Coming Soon at `/` only; all other paths redirect to `/` |
+| Vercel preview (`*.vercel.app`) / `localhost` | Supabase session refresh, protected routes, role redirects |
+
+Client layouts still use `RoleGate` for role checks after the page loads.
+
+### Railway CORS (preview + production)
+
+Set `FRONTEND_URL` to your production site. Add preview and local URLs via `ALLOWED_ORIGINS` (comma-separated), for example:
+
+```env
+FRONTEND_URL=https://peak-academy.net
+ALLOWED_ORIGINS=https://your-app.vercel.app,http://localhost:3000
+```
+
+### Local frontend env
+
+Copy `frontend/.env.local.example` to `frontend/.env.local` and fill Supabase + API URL values before testing login.

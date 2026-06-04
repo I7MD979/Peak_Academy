@@ -22,10 +22,40 @@ import { captureException } from "./lib/sentry.js";
 
 const app = express();
 
+function getAllowedOrigins() {
+  const origins = new Set();
+  const primary = (process.env.FRONTEND_URL || "http://localhost:3000").trim();
+  if (primary) origins.add(primary.replace(/\/$/, ""));
+
+  const extra = process.env.ALLOWED_ORIGINS || "";
+  extra
+    .split(",")
+    .map((value) => value.trim().replace(/\/$/, ""))
+    .filter(Boolean)
+    .forEach((value) => origins.add(value));
+
+  if (process.env.NODE_ENV !== "production") {
+    origins.add("http://localhost:3000");
+    origins.add("http://127.0.0.1:3000");
+  }
+
+  return origins;
+}
+
+const allowedOrigins = getAllowedOrigins();
+
 app.use(helmet());
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || "http://localhost:3000",
+    origin(origin, callback) {
+      if (!origin) {
+        return callback(null, true);
+      }
+      if (allowedOrigins.has(origin)) {
+        return callback(null, true);
+      }
+      return callback(null, false);
+    },
     credentials: true
   })
 );
