@@ -20,7 +20,17 @@ async function getRedisClient() {
         async get(key) {
           const value = await upstash.get(key);
           if (value === null || value === undefined) return null;
-          return typeof value === "string" ? JSON.parse(value) : value;
+          if (typeof value === "object") return value;
+          try {
+            return JSON.parse(value);
+          } catch {
+            try {
+              await upstash.del(key);
+            } catch {
+              /* ignore */
+            }
+            return null;
+          }
         },
         async setex(key, ttl, value) {
           await upstash.set(key, value, { ex: ttl });
@@ -51,7 +61,17 @@ async function getRedisClient() {
       redisClient = {
         async get(key) {
           const value = await client.get(key);
-          return value ? JSON.parse(value) : null;
+          if (!value) return null;
+          try {
+            return JSON.parse(value);
+          } catch {
+            try {
+              await client.del(key);
+            } catch {
+              /* ignore */
+            }
+            return null;
+          }
         },
         async setex(key, ttl, value) {
           await client.setex(key, ttl, JSON.stringify(value));
@@ -142,15 +162,28 @@ export async function setCacheEntry(key, ttlSeconds, value) {
 }
 
 export async function withCache(key, ttlSeconds, fetchFn) {
-  const client = await getRedisClient();
-  const cached = await client.get(key);
-  if (cached !== null && cached !== undefined) {
-    return cached;
-  }
+  try {
+    const client = await getRedisClient();
+    try {
+      const cached = await client.get(key);
+      if (cached !== null && cached !== undefined) {
+        return cached;
+      }
+    } catch (getErr) {
+      console.warn("[cache] get failed:", getErr?.message || getErr);
+    }
 
-  const data = await fetchFn();
-  await client.setex(key, ttlSeconds, data);
-  return data;
+    const data = await fetchFn();
+    try {
+      await client.setex(key, ttlSeconds, data);
+    } catch (setErr) {
+      console.warn("[cache] set failed:", setErr?.message || setErr);
+    }
+    return data;
+  } catch (err) {
+    console.warn("[cache] bypass:", err?.message || err);
+    return fetchFn();
+  }
 }
 
 export async function invalidate(...keys) {

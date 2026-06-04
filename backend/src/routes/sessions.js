@@ -132,60 +132,64 @@ router.get("/", auth, async (req, res) => {
     });
 
     const cached = await withCache(cacheKey, CACHE.TTL.sessionsList, async () => {
-      const { data, count, db_warning } = await querySessionsList((query) => {
-      let q = query.range(from, to);
+      const { data, count, db_warning } = await querySessionsList((query, orderColumn, opts = {}) => {
+        let q = query.range(from, to);
 
-      if (req.user.role === "teacher") {
-        q = q.eq("teacher_id", req.user.id);
-      }
+        if (req.user.role === "teacher") {
+          q = q.eq("teacher_id", req.user.id);
+        }
 
-      if (status && status !== "all") {
-        q = q.eq("status", status);
-      }
+        if (status && status !== "all") {
+          q = q.eq("status", status);
+        }
 
-      q = q.order("scheduled_at", { ascending });
+        q = q.order(orderColumn, { ascending });
 
-      if (grade) q = q.eq("grade", grade);
-      if (search) {
-        const term = String(search).trim();
-        if (term) q = q.ilike("title", `%${term}%`);
-      }
+        if (grade) q = q.eq("grade", grade);
+        if (search) {
+          const term = String(search).trim();
+          if (term) q = q.ilike("title", `%${term}%`);
+        }
 
-      // Filter by subject_id (UUID) or legacy subject slug
-      if (subject) {
-        const subjectValue = String(subject).trim();
-        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-          subjectValue
-        );
-        q = isUuid ? q.eq("subject_id", subjectValue) : q.eq("subject", subjectValue);
-      }
+        if (subject) {
+          const subjectValue = String(subject).trim();
+          const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+            subjectValue
+          );
+          if (!opts.skipSubjectId && isUuid) {
+            q = q.eq("subject_id", subjectValue);
+          } else {
+            q = q.eq("subject", subjectValue);
+          }
+        }
 
-      return q;
+        return q;
       });
 
-      return { data, count, db_warning };
+      return { data: data || [], count: count ?? 0, db_warning };
     });
 
-    const { data, count, db_warning } = cached;
+    const payload =
+      cached && typeof cached === "object" && "data" in cached
+        ? cached
+        : { data: [], count: 0, db_warning: null };
+    const { data = [], count = 0, db_warning } = payload;
+    const { page: pageNum, limit: limitNum } = paginate(page, limit);
 
     if (db_warning) {
       res.setHeader("X-Peak-Db-Warning", "schema");
     }
-    return paginated(res, data, paginationMeta(count, Number(page), Number(limit)), {
+    return paginated(res, data, paginationMeta(count, pageNum, limitNum), {
       ...(db_warning ? { warning: SQL_SETUP_HINT } : {})
     });
   } catch (err) {
-    if (isSchemaError(err)) {
-      const pageNum = Number(req.query.page) || 1;
-      const limitNum = Number(req.query.limit) || 20;
-      if (process.env.NODE_ENV !== "production") {
-        console.error("GET /sessions schema", err);
-      }
-      return paginated(res, [], paginationMeta(0, pageNum, limitNum), {
-        warning: SQL_SETUP_HINT
-      });
-    }
-    return handleRouteError(res, err, "Failed to fetch sessions");
+    console.error("GET /sessions", err?.message || err);
+    const { page: pageNum, limit: limitNum } = paginate(req.query.page, req.query.limit);
+    const warning = isSchemaError(err)
+      ? SQL_SETUP_HINT
+      : mapDbError(err).message || SQL_SETUP_HINT;
+    res.setHeader("X-Peak-Db-Warning", "schema");
+    return paginated(res, [], paginationMeta(0, pageNum, limitNum), { warning });
   }
 });
 

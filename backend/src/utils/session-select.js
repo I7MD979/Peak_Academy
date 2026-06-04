@@ -1,6 +1,21 @@
 import { supabase } from "../lib/supabase.js";
 import { SQL_SETUP_HINT } from "./db-errors.js";
-import { isSchemaV2, SCHEMA } from "../lib/schema.js";
+import { isSchemaV2, SCHEMA, sessionStartTime } from "../lib/schema.js";
+
+function isRetryableSessionsQueryError(err) {
+  if (!err) return false;
+  const msg = String(err.message || "");
+  return (
+    err.code === "42703" ||
+    err.code === "PGRST204" ||
+    /scheduled_at|start_time|column|does not exist/i.test(msg)
+  );
+}
+
+export function sessionsOrderColumns() {
+  const primary = isSchemaV2() ? "start_time" : "scheduled_at";
+  return [...new Set([primary, "scheduled_at", "start_time", "created_at"])];
+}
 
 /** @deprecated */
 export const SESSION_LIST_SELECT = "*";
@@ -22,8 +37,12 @@ export function normalizeSessionRow(row, { teacherMap = {}, enrollmentCounts = {
   const subjectName =
     subjectFromJoin?.name_ar || (typeof row.subject === "string" ? row.subject : null) || "مادة";
 
+  const startAt = sessionStartTime(row);
+
   return {
     ...row,
+    scheduled_at: row.scheduled_at ?? startAt ?? null,
+    start_time: row.start_time ?? startAt ?? null,
     teacher,
     enrollment_count: enrollmentCount,
     enrollments: [{ count: enrollmentCount }],
@@ -94,30 +113,49 @@ export async function enrichSessions(rows) {
 
 /**
  * List sessions — never throws; returns empty list if DB/schema is not ready.
+ * @param {(query: import("@supabase/supabase-js").PostgrestFilterBuilder, orderColumn: string, opts?: { skipSubjectId?: boolean }) => unknown} applyFilters
  */
 export async function querySessionsList(applyFilters) {
-  try {
-    let query = supabase.from("sessions").select("*", { count: "exact" });
-    query = applyFilters(query);
+  let lastError = null;
 
-    const result = await query;
-    if (result.error) {
-      return {
-        data: [],
-        count: 0,
-        db_warning: result.error.message || SQL_SETUP_HINT
-      };
+  for (const skipSubjectId of [false, true]) {
+    for (const orderColumn of sessionsOrderColumns()) {
+      try {
+        let query = supabase.from("sessions").select("*", { count: "exact" });
+        query = applyFilters(query, orderColumn, { skipSubjectId });
+
+        const result = await query;
+        if (!result.error) {
+          const data = await enrichSessions(result.data || []);
+          return { data, count: result.count ?? 0, db_warning: null };
+        }
+
+        lastError = result.error;
+        if (!isRetryableSessionsQueryError(result.error)) {
+          return {
+            data: [],
+            count: 0,
+            db_warning: lastError?.message || SQL_SETUP_HINT
+          };
+        }
+      } catch (err) {
+        lastError = err;
+        if (!isRetryableSessionsQueryError(err)) {
+          return {
+            data: [],
+            count: 0,
+            db_warning: lastError?.message || SQL_SETUP_HINT
+          };
+        }
+      }
     }
-
-    const data = await enrichSessions(result.data || []);
-    return { data, count: result.count ?? 0, db_warning: null };
-  } catch (err) {
-    return {
-      data: [],
-      count: 0,
-      db_warning: err?.message || SQL_SETUP_HINT
-    };
   }
+
+  return {
+    data: [],
+    count: 0,
+    db_warning: lastError?.message || SQL_SETUP_HINT
+  };
 }
 
 export async function querySessionById(sessionId, applyFilters = (q) => q) {
