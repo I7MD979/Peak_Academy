@@ -133,6 +133,7 @@ export const authApi = {
 
 export const sessionsApi = {
   list: (query = "") => apiRequest(withQuery("/sessions", query)),
+  closeOpen: () => apiRequest("/sessions/close-open", { method: "POST" }),
   cancel: (sessionId) => apiRequest(`/sessions/${sessionId}/cancel`, { method: "PATCH" }),
   start: (sessionId) => apiRequest(`/sessions/${sessionId}/start`, { method: "POST" }),
   end: (sessionId) => apiRequest(`/sessions/${sessionId}/end`, { method: "POST" }),

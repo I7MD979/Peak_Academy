@@ -5,6 +5,7 @@ import { checkRole } from "../middleware/checkRole.js";
 import { supabase } from "../lib/supabase.js";
 import {
   createDailyRoomOptional,
+  deleteDailyRoom,
   ensureDailyMeetingAccess,
   getRoomUrl,
   mapDailyError,
@@ -425,6 +426,86 @@ router.post("/", auth, checkRole("teacher"), async (req, res) => {
   }
 });
 
+router.post("/close-open", auth, checkRole("teacher", "admin"), async (req, res) => {
+  try {
+    let query = supabase
+      .from("sessions")
+      .select("id, status, teacher_id, daily_room_name, daily_room_url, room_url")
+      .in("status", ["live", "scheduled"]);
+
+    if (req.user.role === "teacher") {
+      query = query.eq("teacher_id", req.user.id);
+    }
+
+    const { data: openSessions, error: listError } = await query;
+    if (listError) throw listError;
+
+    const rows = openSessions || [];
+    if (rows.length === 0) {
+      return success(res, { ended: 0, cancelled: 0, total: 0 }, "لا توجد جلسات مفتوحة");
+    }
+
+    let ended = 0;
+    let cancelled = 0;
+    const failures = [];
+
+    for (const session of rows) {
+      try {
+        if (session.status === "live") {
+          const teacherProfile = await getTeacherProfileForUser(session.teacher_id);
+          await supabase
+            .from("sessions")
+            .update({ status: "completed", ended_at: new Date().toISOString() })
+            .eq("id", session.id);
+
+          await supabase
+            .from("session_enrollments")
+            .update({ status: "attended", left_at: new Date().toISOString() })
+            .eq("session_id", session.id)
+            .eq("status", "enrolled");
+
+          if (teacherProfile) {
+            await incrementAttendeeStreaks(session.id);
+            await recordSessionEarnings(
+              session.id,
+              teacherProfile.id,
+              teacherProfile.commission_rate
+            );
+          }
+          ended += 1;
+        } else {
+          const { error: updateError } = await supabase
+            .from("sessions")
+            .update({ status: "cancelled", ended_at: new Date().toISOString() })
+            .eq("id", session.id);
+          if (updateError) throw updateError;
+          await refundAllSessionEnrollments(session.id);
+          cancelled += 1;
+        }
+
+        const roomName = resolveRoomName(session);
+        if (roomName) await deleteDailyRoom(roomName);
+        await safeInvalidateSessionCaches(session.id);
+      } catch (err) {
+        failures.push({ id: session.id, message: err?.message || "فشل الإغلاق" });
+      }
+    }
+
+    const message =
+      failures.length > 0
+        ? `تم إغلاق ${ended + cancelled} جلسة مع ${failures.length} أخطاء`
+        : "تم إغلاق كل الجلسات المفتوحة";
+
+    return success(
+      res,
+      { ended, cancelled, total: rows.length, failures },
+      message
+    );
+  } catch (err) {
+    return handleRouteError(res, err, "تعذر إغلاق الجلسات المفتوحة");
+  }
+});
+
 router.post("/:id/enroll", auth, checkRole("student"), async (req, res) => {
   try {
     const { payment_id, payment_type, promo_code } = req.body;
@@ -648,6 +729,12 @@ router.post("/:id/end", auth, checkRole("teacher"), async (req, res) => {
     if (!teacher) return error(res, "Teacher profile not found", 404);
     if (!(await assertTeacherOwnsSession(req.params.id, req.user.id, res))) return;
 
+    const { data: sessionRow } = await supabase
+      .from("sessions")
+      .select("daily_room_name, daily_room_url, room_url")
+      .eq("id", req.params.id)
+      .maybeSingle();
+
     await supabase
       .from("sessions")
       .update({ status: "completed", ended_at: new Date().toISOString() })
@@ -661,6 +748,9 @@ router.post("/:id/end", auth, checkRole("teacher"), async (req, res) => {
 
     await incrementAttendeeStreaks(req.params.id);
     const earning = await recordSessionEarnings(req.params.id, teacher.id, teacher.commission_rate);
+
+    const roomName = resolveRoomName(sessionRow);
+    if (roomName) await deleteDailyRoom(roomName);
 
     await safeInvalidateSessionCaches(req.params.id);
     return success(res, { teacher_id: teacher.id, earning }, "Session ended");
@@ -691,9 +781,45 @@ router.patch("/:id/cancel", auth, checkRole("teacher", "admin"), async (req, res
       return error(res, "لا يمكن إلغاء جلسة منتهية أو ملغاة", 400);
     }
 
+    if (isOwner && session.status === "live") {
+      const teacher = await getTeacherProfileForUser(req.user.id);
+      if (!teacher) return error(res, "ملف المدرّس غير موجود", 404);
+
+      const { data: sessionRow } = await supabase
+        .from("sessions")
+        .select("daily_room_name, daily_room_url, room_url")
+        .eq("id", req.params.id)
+        .maybeSingle();
+
+      await supabase
+        .from("sessions")
+        .update({ status: "completed", ended_at: new Date().toISOString() })
+        .eq("id", req.params.id);
+
+      await supabase
+        .from("session_enrollments")
+        .update({ status: "attended", left_at: new Date().toISOString() })
+        .eq("session_id", req.params.id)
+        .eq("status", "enrolled");
+
+      await incrementAttendeeStreaks(req.params.id);
+      await recordSessionEarnings(req.params.id, teacher.id, teacher.commission_rate);
+
+      const roomName = resolveRoomName(sessionRow);
+      if (roomName) await deleteDailyRoom(roomName);
+      await safeInvalidateSessionCaches(req.params.id);
+      return success(res, {}, "تم إنهاء الجلسة المباشرة");
+    }
+
     if (isOwner && session.status !== "scheduled") {
       return error(res, "يمكن إلغاء الجلسات المجدولة فقط", 400);
     }
+
+    const { data: sessionRow } = await supabase
+      .from("sessions")
+      .select("daily_room_name, daily_room_url, room_url")
+      .eq("id", req.params.id)
+      .maybeSingle();
 
     const { error: updateError } = await supabase
       .from("sessions")
@@ -701,6 +827,9 @@ router.patch("/:id/cancel", auth, checkRole("teacher", "admin"), async (req, res
       .eq("id", req.params.id);
 
     if (updateError) throw updateError;
+
+    const roomName = resolveRoomName(sessionRow);
+    if (roomName) await deleteDailyRoom(roomName);
 
     const refundResult = await refundAllSessionEnrollments(req.params.id);
     await safeInvalidateSessionCaches(req.params.id);

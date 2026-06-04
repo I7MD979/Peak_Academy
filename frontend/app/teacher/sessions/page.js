@@ -145,7 +145,10 @@ export default function TeacherSessionsPage() {
   const [countsLoading, setCountsLoading] = useState(true);
   const [error, setError] = useState("");
   const [actionId, setActionId] = useState("");
+  const [closingAll, setClosingAll] = useState(false);
   const [selectedSession, setSelectedSession] = useState(null);
+
+  const openSessionsCount = (tabCounts.live ?? 0) + (tabCounts.scheduled ?? 0);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -281,6 +284,39 @@ export default function TeacherSessionsPage() {
     }
   };
 
+  const handleCloseAllOpen = async () => {
+    if (openSessionsCount <= 0) {
+      toast.info("لا توجد جلسات مفتوحة (مباشرة أو مجدولة)");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `سيتم إنهاء ${tabCounts.live ?? 0} جلسة مباشرة وإلغاء ${tabCounts.scheduled ?? 0} جلسة مجدولة، وحذف غرف الفيديو المرتبطة. هل تريد المتابعة؟`
+    );
+    if (!confirmed) return;
+
+    try {
+      setClosingAll(true);
+      setError("");
+      const res = await sessionsApi.closeOpen();
+      const data = res?.data || {};
+      const ended = data.ended ?? 0;
+      const cancelled = data.cancelled ?? 0;
+      if (data.failures?.length) {
+        toast.warning(
+          `تم إغلاق ${ended + cancelled} جلسة مع ${data.failures.length} أخطاء جزئية`
+        );
+      } else {
+        toast.success(`تم الإغلاق: ${ended} مباشرة، ${cancelled} مجدولة`);
+      }
+      await refreshAll();
+    } catch (err) {
+      toast.error(err.message || "تعذر إغلاق الجلسات المفتوحة");
+    } finally {
+      setClosingAll(false);
+    }
+  };
+
   const columns = [
       {
         key: "title",
@@ -402,6 +438,19 @@ export default function TeacherSessionsPage() {
           >
             تحديث القائمة
           </Button>
+          {openSessionsCount > 0 ? (
+            <Button
+              type="button"
+              variant="destructive"
+              className="rounded-xl"
+              disabled={closingAll || countsLoading}
+              onClick={handleCloseAllOpen}
+            >
+              {closingAll
+                ? "جارٍ الإغلاق..."
+                : `إغلاق كل الجلسات المفتوحة (${openSessionsCount})`}
+            </Button>
+          ) : null}
         </div>
       </section>
 
