@@ -1,4 +1,4 @@
-import { normalizeApiBaseUrl } from "@/lib/api-base";
+import { getApiBaseUrl } from "@/lib/api-base";
 
 export const ROLE_HOME = {
   student: "/student/dashboard",
@@ -23,7 +23,7 @@ export function isProfileComplete(user) {
 
 /** Client-side post-login redirect (uses API, same rules as middleware). */
 export async function resolvePostAuthPathClient(accessToken) {
-  const API_URL = normalizeApiBaseUrl(process.env.NEXT_PUBLIC_API_URL);
+  const API_URL = getApiBaseUrl();
   if (!accessToken) return "/auth/login";
 
   try {

@@ -4,9 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useAuthStore } from "@/store/authStore";
 import { notificationsApi } from "@/lib/api";
-import { normalizeApiBaseUrl } from "@/lib/api-base";
-
-const API_BASE = normalizeApiBaseUrl(process.env.NEXT_PUBLIC_API_URL).replace(/\/api$/, "");
+import { getApiBaseUrl } from "@/lib/api-base";
 
 function parseSseBlocks(buffer) {
   const events = [];
@@ -80,7 +78,7 @@ export function useNotifications() {
 
     async function connectStream() {
       try {
-        const res = await fetch(`${API_BASE}/api/notifications/stream`, {
+        const res = await fetch(`${getApiBaseUrl()}/notifications/stream`, {
           headers: { Authorization: `Bearer ${token}` },
           signal: controller.signal
         });

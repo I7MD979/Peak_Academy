@@ -3,9 +3,7 @@
 import { createClient } from "./supabase/client";
 import { useAuthStore } from "@/store/authStore";
 import { cachedApiRequest, clearApiCache, fetchAuthMe } from "@/lib/api-cache";
-import { normalizeApiBaseUrl } from "@/lib/api-base";
-
-const API_URL = normalizeApiBaseUrl(process.env.NEXT_PUBLIC_API_URL);
+import { getApiBaseUrl } from "@/lib/api-base";
 
 async function getAuthToken() {
   if (typeof window === "undefined") return null;
@@ -32,7 +30,7 @@ async function performApiFetch(path, options = {}, tokenOverride = null) {
     ...(options.headers || {})
   };
 
-  const res = await fetch(`${API_URL}${path}`, { ...options, headers, cache: "no-store" });
+  const res = await fetch(`${getApiBaseUrl()}${path}`, { ...options, headers, cache: "no-store" });
   let payload = null;
   try {
     payload = await res.json();
@@ -278,7 +276,7 @@ export const parentApi = {
   report: (studentId) => apiRequest(`/parent/report/${studentId}`),
   downloadReport: async (studentId, token) => {
     const authToken = token ?? (await getAuthToken());
-    const res = await fetch(`${API_URL}/parent/report/${studentId}/pdf`, {
+    const res = await fetch(`${getApiBaseUrl()}/parent/report/${studentId}/pdf`, {
       headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
       cache: "no-store"
     });

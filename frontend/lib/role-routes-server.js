@@ -1,9 +1,9 @@
 import { ROLE_HOME, isProfileComplete } from "./role-routes.js";
-import { normalizeApiBaseUrl } from "@/lib/api-base";
+import { getApiBaseUrl } from "@/lib/api-base";
 
 export { ROLE_HOME, isProfileComplete };
 
-const API_URL = normalizeApiBaseUrl(process.env.NEXT_PUBLIC_API_URL);
+const API_URL = getApiBaseUrl();
 
 export async function fetchAuthProfile(accessToken) {
   if (!accessToken) return null;

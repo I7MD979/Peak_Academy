@@ -3,7 +3,7 @@
  * Do not import server-only modules here — Vercel Edge bundles this file.
  */
 
-import { normalizeApiBaseUrl } from "@/lib/api-base";
+import { getApiBaseUrl, normalizeApiBaseUrl } from "@/lib/api-base";
 
 export const ROLE_HOME = {
   student: "/student/dashboard",
@@ -27,12 +27,16 @@ export function isProfileComplete(user) {
 }
 
 function getApiUrl() {
-  const configured = process.env.NEXT_PUBLIC_API_URL?.trim();
-  if (!configured) {
-    if (process.env.VERCEL) return null;
-    return "http://localhost:4000/api";
+  if (process.env.NEXT_PUBLIC_API_URL?.trim()) {
+    return normalizeApiBaseUrl(process.env.NEXT_PUBLIC_API_URL);
   }
-  return normalizeApiBaseUrl(configured);
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}/peak-api`;
+  }
+  const site = process.env.NEXT_PUBLIC_SITE_URL || process.env.FRONTEND_URL;
+  if (site) return `${site.replace(/\/$/, "")}/peak-api`;
+  if (process.env.VERCEL) return null;
+  return "http://localhost:4000/api";
 }
 
 export async function fetchAuthProfile(accessToken) {
