@@ -4,7 +4,8 @@ export function getSessionStartAvailability(session) {
     return { canStart: false, reason: "يمكن بدء الجلسات المجدولة فقط" };
   }
 
-  const scheduledAt = new Date(session.scheduled_at).getTime();
+  const when = session.scheduled_at || session.start_time;
+  const scheduledAt = new Date(when).getTime();
   if (Number.isNaN(scheduledAt)) {
     return { canStart: false, reason: "موعد الجلسة غير صالح" };
   }

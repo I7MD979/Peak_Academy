@@ -4,9 +4,9 @@ import { auth } from "../middleware/auth.js";
 import { checkRole } from "../middleware/checkRole.js";
 import { supabase } from "../lib/supabase.js";
 import {
-  createDailyRoom,
+  createDailyRoomOptional,
   createMeetingToken,
-  getRoomUrl,
+  mapDailyError,
   resolveRoomName
 } from "../services/daily.service.js";
 import { getSessionJoinWindow } from "../utils/session-join.js";
@@ -100,11 +100,72 @@ async function assertTeacherOwnsSession(sessionId, userId, res) {
 }
 
 function handleRouteError(res, err, fallbackMessage) {
-  const mapped = mapDbError(err);
+  const mapped = err?.dailyError || err?.dailyInfo ? mapDailyError(err) : mapDbError(err);
   if (process.env.NODE_ENV !== "production") {
     console.error(fallbackMessage, err);
   }
   return error(res, mapped.message || fallbackMessage, mapped.status);
+}
+
+function isMissingColumnError(err) {
+  const msg = String(err?.message || "");
+  return err?.code === "42703" || err?.code === "PGRST204" || /column|does not exist/i.test(msg);
+}
+
+async function insertSessionRow(payload) {
+  const variants = [
+    payload,
+    (({ daily_room_name, description, subject_id, daily_room_url, room_url, ended_at, ...rest }) => rest)(
+      payload
+    ),
+    (({
+      start_time,
+      price,
+      duration_minutes,
+      daily_room_name,
+      description,
+      subject_id,
+      daily_room_url,
+      room_url,
+      ended_at,
+      ...rest
+    }) => rest)(payload)
+  ];
+
+  let lastError = null;
+  for (const row of variants) {
+    const { data, error: dbError } = await supabase.from("sessions").insert(row).select().single();
+    if (!dbError) return data;
+    lastError = dbError;
+    if (!isMissingColumnError(dbError)) break;
+  }
+  throw lastError;
+}
+
+async function attachDailyRoomToSession(sessionId, title, maxStudents) {
+  const room = await createDailyRoomOptional(title, {
+    maxParticipants: maxStudents,
+    expiryHours: 24 * 7
+  });
+  if (!room) return null;
+
+  const patch = {
+    daily_room_url: room.url,
+    daily_room_name: room.name,
+    room_url: room.url
+  };
+  const { data, error: dbError } = await supabase
+    .from("sessions")
+    .update(patch)
+    .eq("id", sessionId)
+    .select("daily_room_url, room_url, daily_room_name")
+    .maybeSingle();
+
+  if (dbError) {
+    console.warn("[sessions] attach room:", dbError.message);
+    return room;
+  }
+  return data || room;
 }
 
 router.get("/", auth, async (req, res) => {
@@ -274,7 +335,7 @@ router.post("/", auth, checkRole("teacher"), async (req, res) => {
 
     const body = parsed.data;
     const teacher = await getTeacherProfileForUser(req.user.id);
-    if (!teacher) return error(res, "Teacher profile not found", 404);
+    if (!teacher) return error(res, "ملف المدرّس غير موجود. أكمل ملفك من الإعدادات.", 404);
 
     const scheduledAt = new Date(body.scheduled_at);
     if (Number.isNaN(scheduledAt.getTime())) {
@@ -285,10 +346,22 @@ router.post("/", auth, checkRole("teacher"), async (req, res) => {
     }
 
     const maxStudents = body.max_students || 10;
-    const room = await createDailyRoom(body.title, {
-      maxParticipants: maxStudents,
-      expiryHours: 24 * 7
-    });
+    let room = null;
+    let roomWarning = null;
+
+    if (process.env.DAILY_API_KEY) {
+      room = await createDailyRoomOptional(body.title, {
+        maxParticipants: maxStudents,
+        expiryHours: 24 * 7
+      });
+      if (!room) {
+        roomWarning =
+          "تم حفظ الجلسة بدون غرفة فيديو. سيُنشأ الرابط عند بدء الجلسة أو بعد ضبط DAILY_API_KEY.";
+      }
+    } else {
+      roomWarning = "غرفة الفيديو غير مفعّلة (DAILY_API_KEY غير موجود على الخادم).";
+    }
+
     const insertPayload = {
       id: `s-${Date.now()}`,
       teacher_id: req.user.id,
@@ -301,9 +374,9 @@ router.post("/", auth, checkRole("teacher"), async (req, res) => {
       price_per_student: body.price_per_student,
       subject_id: body.subject_id || null,
       description: body.description || null,
-      daily_room_url: room.url,
-      daily_room_name: room.name,
-      room_url: room.url,
+      daily_room_url: room?.url || null,
+      daily_room_name: room?.name || null,
+      room_url: room?.url || null,
       status: "scheduled"
     };
     if (isSchemaV2()) {
@@ -311,16 +384,26 @@ router.post("/", auth, checkRole("teacher"), async (req, res) => {
       insertPayload.price = body.price_per_student;
       insertPayload.duration_minutes = body.duration_min || 60;
     }
-    const { data: session, error: dbError } = await supabase
-      .from("sessions")
-      .insert(insertPayload)
-      .select()
-      .single();
-    if (dbError) throw dbError;
+
+    const session = await insertSessionRow(insertPayload);
     await invalidateSessionCaches(session.id);
-    return success(res, session, "Session created", 201);
+
+    const message = roomWarning
+      ? "تم إنشاء الجلسة مع تنبيه بخصوص غرفة الفيديو"
+      : "تم إنشاء الجلسة بنجاح";
+
+    return success(
+      res,
+      { ...session, ...(roomWarning ? { room_warning: roomWarning } : {}) },
+      message,
+      201
+    );
   } catch (err) {
-    return handleRouteError(res, err, "Failed to create session");
+    if (err?.dailyError) {
+      const mapped = mapDailyError(err);
+      return error(res, mapped.message, mapped.status);
+    }
+    return handleRouteError(res, err, "تعذر إنشاء الجلسة");
   }
 });
 
@@ -505,7 +588,7 @@ router.post("/:id/start", auth, checkRole("teacher"), async (req, res) => {
 
     const { data: scheduledSession, error: loadError } = await supabase
       .from("sessions")
-      .select("status, scheduled_at")
+      .select("id, title, status, scheduled_at, start_time, max_students, daily_room_url, room_url, daily_room_name")
       .eq("id", req.params.id)
       .maybeSingle();
 
@@ -517,6 +600,24 @@ router.post("/:id/start", auth, checkRole("teacher"), async (req, res) => {
       return error(res, startInfo.reason || "لا يمكن بدء الجلسة الآن", 400);
     }
 
+    let roomUrl = scheduledSession.daily_room_url || scheduledSession.room_url;
+    if (!roomUrl && process.env.DAILY_API_KEY) {
+      const attached = await attachDailyRoomToSession(
+        req.params.id,
+        scheduledSession.title,
+        scheduledSession.max_students || 10
+      );
+      roomUrl = attached?.daily_room_url || attached?.room_url || attached?.url || null;
+    }
+
+    if (!roomUrl && process.env.DAILY_API_KEY) {
+      return error(
+        res,
+        "تعذر إنشاء غرفة الفيديو. راجع DAILY_API_KEY في Railway أو عطّل التسجيل السحابي في Daily.",
+        502
+      );
+    }
+
     const { data: session, error: dbError } = await supabase
       .from("sessions")
       .update({ status: "live" })
@@ -526,9 +627,9 @@ router.post("/:id/start", auth, checkRole("teacher"), async (req, res) => {
     if (dbError) throw dbError;
 
     await invalidateSessionCaches(req.params.id);
-    return success(res, { room_url: session.daily_room_url || session.room_url });
+    return success(res, { room_url: session.daily_room_url || session.room_url || roomUrl });
   } catch (err) {
-    return handleRouteError(res, err, "Failed to start session");
+    return handleRouteError(res, err, "تعذر بدء الجلسة");
   }
 });
 

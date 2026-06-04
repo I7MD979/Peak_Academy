@@ -20,46 +20,165 @@ function roomNameFromUrl(url) {
   }
 }
 
-export const createDailyRoom = async (title, { maxParticipants = 10, expiryHours = 168 } = {}) => {
-  if (!process.env.DAILY_API_KEY) {
-    throw new Error("DAILY_API_KEY is not configured");
-  }
-
-  const slug = (title || "session")
+function buildRoomSlug(title) {
+  let slug = String(title || "session")
     .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
     .slice(0, 24);
 
+  if (!slug) {
+    slug = `r${Date.now().toString(36)}`;
+  }
+  return slug;
+}
+
+function recordingProperty() {
+  const mode = String(process.env.DAILY_ENABLE_RECORDING || "").trim().toLowerCase();
+  if (["cloud", "cloud-audio-only", "local", "raw-tracks"].includes(mode)) {
+    return mode;
+  }
+  return null;
+}
+
+async function postDailyRoom(body) {
   const response = await fetch(`${DAILY_API}/rooms`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${process.env.DAILY_API_KEY}`
     },
-    body: JSON.stringify({
-      name: `session-${slug}-${Date.now()}`,
-      privacy: "private",
-      properties: {
-        exp: Math.floor(Date.now() / 1000) + expiryHours * 3600,
-        max_participants: maxParticipants + 1,
-        enable_screenshare: true,
-        enable_chat: true,
-        enable_knocking: true,
-        enable_recording: "cloud",
-        start_video_off: false,
-        start_audio_off: false
-      }
-    })
+    body: JSON.stringify(body)
   });
 
-  const room = await response.json();
-  if (!response.ok) throw new Error(room?.error || "Failed to create Daily room");
+  let room = {};
+  try {
+    room = await response.json();
+  } catch {
+    room = {};
+  }
+
+  if (!response.ok) {
+    const err = new Error(
+      typeof room?.error === "string" ? room.error : room?.info || "Failed to create Daily room"
+    );
+    err.dailyError = room?.error;
+    err.dailyInfo = room?.info;
+    err.status = response.status;
+    throw err;
+  }
+
+  return room;
+}
+
+export function mapDailyError(err) {
+  if (!err) {
+    return { status: 502, message: "تعذر إنشاء غرفة الفيديو" };
+  }
+
+  const code = err.dailyError || err.message || "";
+  const info = err.dailyInfo ? String(err.dailyInfo) : "";
+
+  if (/DAILY_API_KEY is not configured/i.test(err.message)) {
+    return {
+      status: 503,
+      message: "غرفة الفيديو غير مفعّلة على الخادم. أضف DAILY_API_KEY في Railway."
+    };
+  }
+
+  if (code === "authentication-error") {
+    return {
+      status: 503,
+      message: "مفتاح Daily.co غير صالح. راجع DAILY_API_KEY في Railway."
+    };
+  }
+
+  if (code === "invalid-request-error") {
+    return {
+      status: 502,
+      message:
+        info ||
+        "إعدادات غرفة Daily غير مدعومة (غالبًا التسجيل السحابي). الجلسة يمكن حفظها بدون بث مباشر حتى يُضبط الحساب."
+    };
+  }
 
   return {
-    url: room.url || getRoomUrl(room.name),
-    name: room.name
+    status: 502,
+    message: info || err.message || "تعذر إنشاء غرفة الفيديو"
   };
+}
+
+/**
+ * Create a Daily room. Retries with minimal properties if the API rejects optional flags.
+ */
+export const createDailyRoom = async (title, { maxParticipants = 10, expiryHours = 168 } = {}) => {
+  if (!process.env.DAILY_API_KEY) {
+    throw new Error("DAILY_API_KEY is not configured");
+  }
+
+  const name = `session-${buildRoomSlug(title)}-${Date.now().toString(36).slice(-6)}`;
+  const exp = Math.floor(Date.now() / 1000) + expiryHours * 3600;
+  const max_participants = maxParticipants + 1;
+
+  const fullProperties = {
+    exp,
+    max_participants,
+    enable_screenshare: true,
+    enable_chat: true,
+    enable_knocking: true,
+    start_video_off: false,
+    start_audio_off: false
+  };
+
+  const recording = recordingProperty();
+  if (recording) {
+    fullProperties.enable_recording = recording;
+  }
+
+  const payloads = [
+    { name, privacy: "private", properties: fullProperties },
+    {
+      name,
+      privacy: "private",
+      properties: { exp, max_participants, enable_chat: true, enable_knocking: true }
+    },
+    { name, privacy: "private", properties: { exp, max_participants } }
+  ];
+
+  let lastErr = null;
+  for (const body of payloads) {
+    try {
+      const room = await postDailyRoom(body);
+      return {
+        url: room.url || getRoomUrl(room.name),
+        name: room.name
+      };
+    } catch (err) {
+      lastErr = err;
+      if (err.dailyError !== "invalid-request-error") {
+        throw err;
+      }
+    }
+  }
+
+  throw lastErr || new Error("Failed to create Daily room");
 };
+
+/** Returns null instead of throwing — used when the session should still be saved. */
+export async function createDailyRoomOptional(title, options) {
+  try {
+    return await createDailyRoom(title, options);
+  } catch (err) {
+    console.warn(
+      "[daily] create room skipped:",
+      err.dailyError || err.message,
+      err.dailyInfo || ""
+    );
+    return null;
+  }
+}
 
 export const createMeetingToken = async (roomName, userId, { isOwner = false, userName = "" } = {}) => {
   if (!process.env.DAILY_API_KEY) {

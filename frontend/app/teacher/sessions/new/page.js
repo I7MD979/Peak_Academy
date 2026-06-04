@@ -80,7 +80,7 @@ export default function NewSessionPage() {
 
     try {
       setLoading(true);
-      await sessionsApi.create({
+      const res = await sessionsApi.create({
         title: form.title.trim(),
         subject: form.subject.trim(),
         price_per_student: Number(form.price),
@@ -90,7 +90,11 @@ export default function NewSessionPage() {
         description: form.description.trim() || null,
         scheduled_at: new Date(form.scheduled_at).toISOString()
       });
-      toast.success("تم إنشاء الجلسة بنجاح");
+      if (res?.data?.room_warning) {
+        toast.warning(res.data.room_warning);
+      } else {
+        toast.success(res?.message || "تم إنشاء الجلسة بنجاح");
+      }
       router.push("/teacher/sessions");
     } catch (err) {
       toast.error(err.message || "تعذر إنشاء الجلسة");
