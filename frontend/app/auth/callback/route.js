@@ -55,6 +55,8 @@ export async function GET(request) {
     return NextResponse.redirect(new URL("/auth/login", origin));
   }
 
+  await supabase.auth.getSession();
+
   const {
     data: { user },
     error: userError
