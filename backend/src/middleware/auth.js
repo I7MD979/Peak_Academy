@@ -1,6 +1,10 @@
 import { supabase } from "../lib/supabase.js";
 import { verifySupabaseAccessToken } from "../lib/verify-supabase-jwt.js";
-import { ensureUserProfile, normalizeRole } from "../utils/ensure-user-profile.js";
+import {
+  ensureUserProfile,
+  isRoleProfileComplete,
+  normalizeRole
+} from "../utils/ensure-user-profile.js";
 
 const INCOMPLETE_PROFILE_PATHS = [
   "/auth/setup-profile",
@@ -15,6 +19,37 @@ function allowsIncompleteProfile(path) {
 
 function metaFullName(meta) {
   return String(meta.full_name || meta.name || meta.display_name || "").trim();
+}
+
+/** Admin/parent need no student/teacher profile; student/teacher need role-specific rows. */
+async function computeProfileReady(supabase, reqUser, profile) {
+  const fullName = String(reqUser.full_name || "").trim();
+  if (fullName.length < 2) return false;
+
+  const role = reqUser.role;
+  if (role === "admin" || role === "parent") return true;
+
+  if (!profile?.id) return false;
+
+  if (role === "student") {
+    const { data } = await supabase
+      .from("student_profiles")
+      .select("id, grade")
+      .eq("user_id", reqUser.id)
+      .maybeSingle();
+    return isRoleProfileComplete("student", { student_profile: data });
+  }
+
+  if (role === "teacher") {
+    const { data } = await supabase
+      .from("teacher_profiles")
+      .select("id")
+      .eq("user_id", reqUser.id)
+      .maybeSingle();
+    return isRoleProfileComplete("teacher", { teacher_profile: data });
+  }
+
+  return true;
 }
 
 function buildReqUser(authUser, profile) {
@@ -59,13 +94,13 @@ export async function resolveAuthUserFromToken(token) {
       .eq("id", authUser.id)
       .maybeSingle();
 
-    if ((!profile || profileError) && meta.role && name.length >= 2) {
+    if ((!profile || profileError) && name.length >= 2) {
       try {
         await ensureUserProfile(supabase, {
           id: authUser.id,
           email: authUser.email,
           full_name: name,
-          role: meta.role,
+          role: meta.role || "student",
           phone: meta.phone || null,
           grade: meta.grade || null
         });
@@ -86,18 +121,13 @@ export async function resolveAuthUserFromToken(token) {
 
     const reqUser = buildReqUser(authUser, profile);
 
-    if (profile && !profileError) {
-      if (profile.is_active === false) return null;
-      return {
-        user: reqUser,
-        profileReady: true,
-        authUser
-      };
-    }
+    if (profile?.is_active === false) return null;
+
+    const profileReady = await computeProfileReady(supabase, reqUser, profile);
 
     return {
       user: reqUser,
-      profileReady: false,
+      profileReady,
       authUser
     };
   } catch (err) {
