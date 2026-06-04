@@ -7,8 +7,6 @@ import {
 } from "./lib/role-routes-edge.js";
 import { updateSupabaseSession } from "./lib/supabase/middleware.js";
 
-const PROD_DOMAIN = "peak-academy.net";
-
 const ROLE_PREFIXES = {
   "/admin": "admin",
   "/teacher": "teacher",
@@ -19,7 +17,7 @@ const ROLE_PREFIXES = {
 const PROTECTED_PREFIXES = ["/student", "/teacher", "/parent", "/admin", "/onboarding"];
 
 function isProdHost(host) {
-  return host === PROD_DOMAIN || host === `www.${PROD_DOMAIN}`;
+  return host === "peak-academy.net" || host === "www.peak-academy.net";
 }
 
 function isProtectedPath(pathname) {
@@ -133,7 +131,7 @@ export async function middleware(request) {
   const path = request.nextUrl.pathname;
   const isProdDomain = isProdHost(host);
 
-  if (isProdDomain && path !== "/") {
+  if (isProdDomain && path !== "/" && !path.startsWith("/auth/")) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
