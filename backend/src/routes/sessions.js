@@ -4,14 +4,14 @@ import { auth } from "../middleware/auth.js";
 import { checkRole } from "../middleware/checkRole.js";
 import { supabase } from "../lib/supabase.js";
 import {
-  createDailyRoomOptional,
   deleteDailyRoom,
   purgeSessionDailyRooms,
-  dailyRoomExists,
+  ensureSessionDailyRoomOptional,
   ensureDailyMeetingAccess,
   getRoomUrl,
   mapDailyError,
-  resolveRoomName
+  resolveRoomName,
+  sessionDailyRoomName
 } from "../services/daily.service.js";
 import { getSessionJoinWindow } from "../utils/session-join.js";
 import { isSchemaV2, SCHEMA, sessionStartTime } from "../lib/schema.js";
@@ -31,6 +31,11 @@ import {
   isMissingColumnError,
   markSessionLive
 } from "../utils/session-db.js";
+import {
+  isStudentWaitingConnected,
+  pruneWaitingPresence,
+  recordWaitingHeartbeat
+} from "../utils/session-waiting-presence.js";
 import {
   getSessionForEnroll,
   getStudentProfileId,
@@ -170,18 +175,22 @@ async function clearSessionDailyRoomFields(sessionId) {
   }
 }
 
-async function detachDailyRoomFromSession(sessionId, sessionRow) {
-  const roomName = resolveRoomName(sessionRow);
+async function deleteSessionDailyRoom(sessionRow) {
+  const roomName = resolveRoomName(sessionRow) || sessionDailyRoomName(sessionRow?.id);
   if (roomName) await deleteDailyRoom(roomName);
+}
+
+async function detachDailyRoomFromSession(sessionId, sessionRow) {
+  await deleteSessionDailyRoom(sessionRow);
   await clearSessionDailyRoomFields(sessionId);
 }
 
-async function attachDailyRoomToSession(sessionId, title, maxStudents, existingRoom = null) {
+async function attachDailyRoomToSession(sessionId, maxStudents, existingRoom = null) {
   const room =
     existingRoom ||
-    (await createDailyRoomOptional(title, {
-      maxParticipants: maxStudents,
-      expiryHours: 24 * 7
+    (await ensureSessionDailyRoomOptional(sessionId, {
+      maxStudents,
+      expiryHours: 3
     }));
   if (!room) return null;
 
@@ -290,6 +299,72 @@ router.get("/", auth, async (req, res) => {
       : mapDbError(err).message || SQL_SETUP_HINT;
     res.setHeader("X-Peak-Db-Warning", "schema");
     return paginated(res, [], paginationMeta(0, pageNum, limitNum), { warning });
+  }
+});
+
+router.get("/:id/waiting-students", auth, checkRole("teacher", "admin"), async (req, res) => {
+  try {
+    const { data: session } = await supabase
+      .from("sessions")
+      .select("id, teacher_id, title, status")
+      .eq("id", req.params.id)
+      .single();
+
+    if (!session) return error(res, "الجلسة غير موجودة", 404);
+
+    const isAdmin = req.user.role === "admin";
+    const isOwner = req.user.role === "teacher" && session.teacher_id === req.user.id;
+    if (!isAdmin && !isOwner) {
+      return error(res, "غير مصرح لك بعرض طلاب هذه الجلسة", 403);
+    }
+
+    pruneWaitingPresence();
+
+    const { data, error: dbError } = await supabase
+      .from("session_enrollments")
+      .select(
+        "id, status, student:student_profiles(id, user:users(id, full_name, avatar_url))"
+      )
+      .eq("session_id", req.params.id)
+      .in("status", ["enrolled", "attended"]);
+
+    if (dbError) throw dbError;
+
+    const students = (data || [])
+      .map((row) => {
+        const userId = row.student?.user?.id;
+        return {
+          studentId: userId || row.student?.id,
+          name: row.student?.user?.full_name || "طالب",
+          avatar: row.student?.user?.avatar_url || null,
+          isConnected: userId ? isStudentWaitingConnected(req.params.id, userId) : false
+        };
+      })
+      .filter((row) => row.studentId);
+
+    return success(res, { students, connected_count: students.filter((s) => s.isConnected).length });
+  } catch (err) {
+    return handleRouteError(res, err, "تعذر تحميل قائمة الانتظار");
+  }
+});
+
+router.post("/:id/waiting-heartbeat", auth, checkRole("student"), async (req, res) => {
+  try {
+    const { data: session } = await supabase
+      .from("sessions")
+      .select("id, status")
+      .eq("id", req.params.id)
+      .maybeSingle();
+
+    if (!session) return error(res, "الجلسة غير موجودة", 404);
+    if (session.status === "completed" || session.status === "cancelled") {
+      return error(res, "الجلسة غير متاحة", 400);
+    }
+
+    recordWaitingHeartbeat(req.params.id, req.user.id);
+    return success(res, { ok: true });
+  } catch (err) {
+    return handleRouteError(res, err, "تعذر تسجيل الحضور في غرفة الانتظار");
   }
 });
 
@@ -786,14 +861,12 @@ router.post("/:id/start", auth, checkRole("teacher"), async (req, res) => {
 
     if (process.env.DAILY_API_KEY) {
       const existingName = resolveRoomName(scheduledSession);
-      const needsRoom =
-        !roomUrl || !existingName || !(await dailyRoomExists(existingName));
-
-      if (needsRoom) {
-        if (existingName) await deleteDailyRoom(existingName);
+      if (existingName && roomUrl) {
+        // Idempotency: room already linked — reuse without creating a new Daily room.
+        roomUrl = roomUrl || getRoomUrl(existingName);
+      } else {
         const attached = await attachDailyRoomToSession(
           req.params.id,
-          scheduledSession.title,
           scheduledSession.max_students || 10
         );
         roomUrl = attached?.daily_room_url || attached?.room_url || attached?.url || roomUrl;
@@ -852,25 +925,34 @@ router.post("/:id/end", auth, checkRole("teacher"), async (req, res) => {
 
     const { data: sessionRow } = await supabase
       .from("sessions")
-      .select("daily_room_name, daily_room_url, room_url")
+      .select("id, daily_room_name, daily_room_url, room_url")
       .eq("id", req.params.id)
       .maybeSingle();
 
+    const endedAt = new Date().toISOString();
+
+    // Delete Daily room before clearing DB fields.
+    await deleteSessionDailyRoom(sessionRow || { id: req.params.id });
+
     await supabase
       .from("sessions")
-      .update({ status: "completed", ended_at: new Date().toISOString() })
+      .update({
+        status: "completed",
+        ended_at: endedAt,
+        daily_room_name: null,
+        daily_room_url: null,
+        room_url: null
+      })
       .eq("id", req.params.id);
 
     await supabase
       .from("session_enrollments")
-      .update({ status: "attended", left_at: new Date().toISOString() })
+      .update({ status: "attended", left_at: endedAt })
       .eq("session_id", req.params.id)
       .eq("status", "enrolled");
 
     await incrementAttendeeStreaks(req.params.id);
     const earning = await recordSessionEarnings(req.params.id, teacher.id, teacher.commission_rate);
-
-    await detachDailyRoomFromSession(req.params.id, sessionRow);
 
     await safeInvalidateSessionCaches(req.params.id);
     return success(res, { teacher_id: teacher.id, earning }, "Session ended");
@@ -907,25 +989,32 @@ router.patch("/:id/cancel", auth, checkRole("teacher", "admin"), async (req, res
 
       const { data: sessionRow } = await supabase
         .from("sessions")
-        .select("daily_room_name, daily_room_url, room_url")
+        .select("id, daily_room_name, daily_room_url, room_url")
         .eq("id", req.params.id)
         .maybeSingle();
 
+      const endedAt = new Date().toISOString();
+      await deleteSessionDailyRoom(sessionRow || { id: req.params.id });
+
       await supabase
         .from("sessions")
-        .update({ status: "completed", ended_at: new Date().toISOString() })
+        .update({
+          status: "completed",
+          ended_at: endedAt,
+          daily_room_name: null,
+          daily_room_url: null,
+          room_url: null
+        })
         .eq("id", req.params.id);
 
       await supabase
         .from("session_enrollments")
-        .update({ status: "attended", left_at: new Date().toISOString() })
+        .update({ status: "attended", left_at: endedAt })
         .eq("session_id", req.params.id)
         .eq("status", "enrolled");
 
       await incrementAttendeeStreaks(req.params.id);
       await recordSessionEarnings(req.params.id, teacher.id, teacher.commission_rate);
-
-      await detachDailyRoomFromSession(req.params.id, sessionRow);
       await safeInvalidateSessionCaches(req.params.id);
       return success(res, {}, "تم إنهاء الجلسة المباشرة");
     }
@@ -971,24 +1060,9 @@ function canEnterLiveSession(session) {
   return { ok: true };
 }
 
-async function resolveRoomForSession(session, sessionId) {
-  let roomName = resolveRoomName(session);
-  let roomUrl = roomName ? getRoomUrl(roomName) : session.daily_room_url || session.room_url || null;
-
-  if (!roomName && !roomUrl && process.env.DAILY_API_KEY) {
-    const attached = await attachDailyRoomToSession(
-      sessionId,
-      session.title,
-      session.max_students || 10
-    );
-    roomName = resolveRoomName(attached) || attached?.daily_room_name || null;
-    roomUrl =
-      attached?.daily_room_url ||
-      attached?.room_url ||
-      attached?.url ||
-      (roomName ? getRoomUrl(roomName) : null);
-  }
-
+function resolveRoomForSession(session) {
+  const roomName = resolveRoomName(session) || sessionDailyRoomName(session?.id);
+  const roomUrl = session.daily_room_url || session.room_url || (roomName ? getRoomUrl(roomName) : null);
   return { roomName, roomUrl };
 }
 
@@ -1008,10 +1082,10 @@ function dailyTokenFailureResponse(res, lastError) {
 }
 
 async function buildMeetingPayload(session, sessionId, reqUser, isTeacher) {
-  const { roomName, roomUrl } = await resolveRoomForSession(session, sessionId);
+  const { roomName, roomUrl } = resolveRoomForSession(session);
 
   const access = await ensureDailyMeetingAccess({
-    title: session.title,
+    sessionId,
     maxStudents: session.max_students || 10,
     roomName,
     roomUrl,
@@ -1021,12 +1095,10 @@ async function buildMeetingPayload(session, sessionId, reqUser, isTeacher) {
   });
 
   if (access.recreated) {
-    await attachDailyRoomToSession(
-      sessionId,
-      session.title,
-      session.max_students || 10,
-      { url: access.roomUrl, name: access.roomName }
-    );
+    await attachDailyRoomToSession(sessionId, session.max_students || 10, {
+      url: access.roomUrl,
+      name: access.roomName
+    });
   }
 
   return access;

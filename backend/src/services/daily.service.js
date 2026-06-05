@@ -20,19 +20,14 @@ function roomNameFromUrl(url) {
   }
 }
 
-function buildRoomSlug(title) {
-  let slug = String(title || "session")
+/** Deterministic Daily room name — one room per session, safe for idempotent start. */
+export function sessionDailyRoomName(sessionId) {
+  const slug = String(sessionId || "")
     .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 24);
-
-  if (!slug) {
-    slug = `r${Date.now().toString(36)}`;
-  }
-  return slug;
+    .replace(/[^a-z0-9-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return `session-${slug || "unknown"}`;
 }
 
 function recordingProperty() {
@@ -110,17 +105,37 @@ export function mapDailyError(err) {
   };
 }
 
+export async function getDailyRoom(roomName) {
+  if (!process.env.DAILY_API_KEY || !roomName) return null;
+  try {
+    const response = await fetch(`${DAILY_API}/rooms/${encodeURIComponent(roomName)}`, {
+      headers: { Authorization: `Bearer ${process.env.DAILY_API_KEY}` }
+    });
+    if (!response.ok) return null;
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
 /**
- * Create a Daily room. Retries with minimal properties if the API rejects optional flags.
+ * Idempotent: returns existing Daily room for session or creates session-{id}.
+ * Handles 409 race when two start requests run concurrently.
  */
-export const createDailyRoom = async (title, { maxParticipants = 10, expiryHours = 168 } = {}) => {
-  if (!process.env.DAILY_API_KEY) {
-    throw new Error("DAILY_API_KEY is not configured");
+export async function ensureSessionDailyRoom(sessionId, { maxStudents = 10, expiryHours = 3 } = {}) {
+  if (!process.env.DAILY_API_KEY) return null;
+
+  const roomName = sessionDailyRoomName(sessionId);
+  const existing = await getDailyRoom(roomName);
+  if (existing?.name) {
+    return {
+      name: existing.name,
+      url: existing.url || getRoomUrl(existing.name)
+    };
   }
 
-  const name = `session-${buildRoomSlug(title)}-${Date.now().toString(36).slice(-6)}`;
+  const max_participants = Math.max(2, Number(maxStudents) + 1);
   const exp = Math.floor(Date.now() / 1000) + expiryHours * 3600;
-  const max_participants = maxParticipants + 1;
 
   const fullProperties = {
     exp,
@@ -129,7 +144,7 @@ export const createDailyRoom = async (title, { maxParticipants = 10, expiryHours
     enable_chat: true,
     enable_knocking: true,
     start_video_off: false,
-    start_audio_off: false
+    start_audio_off: true
   };
 
   const recording = recordingProperty();
@@ -138,13 +153,13 @@ export const createDailyRoom = async (title, { maxParticipants = 10, expiryHours
   }
 
   const payloads = [
-    { name, privacy: "private", properties: fullProperties },
+    { name: roomName, privacy: "private", properties: fullProperties },
     {
-      name,
+      name: roomName,
       privacy: "private",
       properties: { exp, max_participants, enable_chat: true, enable_knocking: true }
     },
-    { name, privacy: "private", properties: { exp, max_participants } }
+    { name: roomName, privacy: "private", properties: { exp, max_participants } }
   ];
 
   let lastErr = null;
@@ -152,11 +167,20 @@ export const createDailyRoom = async (title, { maxParticipants = 10, expiryHours
     try {
       const room = await postDailyRoom(body);
       return {
-        url: room.url || getRoomUrl(room.name),
-        name: room.name
+        name: room.name || roomName,
+        url: room.url || getRoomUrl(room.name || roomName)
       };
     } catch (err) {
       lastErr = err;
+      if (err.status === 409) {
+        const raced = await getDailyRoom(roomName);
+        if (raced?.name) {
+          return {
+            name: raced.name,
+            url: raced.url || getRoomUrl(raced.name)
+          };
+        }
+      }
       if (err.dailyError !== "invalid-request-error") {
         throw err;
       }
@@ -164,15 +188,16 @@ export const createDailyRoom = async (title, { maxParticipants = 10, expiryHours
   }
 
   throw lastErr || new Error("Failed to create Daily room");
-};
+}
 
-/** Returns null instead of throwing — used when the session should still be saved. */
-export async function createDailyRoomOptional(title, options) {
+/** Returns null instead of throwing — used when the session should still proceed without video. */
+export async function ensureSessionDailyRoomOptional(sessionId, options) {
   try {
-    return await createDailyRoom(title, options);
+    return await ensureSessionDailyRoom(sessionId, options);
   } catch (err) {
     console.warn(
-      "[daily] create room skipped:",
+      "[daily] ensure session room skipped:",
+      sessionId,
       err.dailyError || err.message,
       err.dailyInfo || ""
     );
@@ -312,6 +337,57 @@ export async function listDailyRooms({ limit = 100, startingAfter = null } = {})
   };
 }
 
+/**
+ * Delete Daily rooms not tied to a live session in DB (orphan cleanup).
+ */
+export async function cleanupOrphanedDailyRooms(supabase, { prefix = "session-" } = {}) {
+  if (!process.env.DAILY_API_KEY) {
+    return { deleted: [], failed: [], skipped: true };
+  }
+
+  const { data: activeSessions, error: dbError } = await supabase
+    .from("sessions")
+    .select("daily_room_name")
+    .eq("status", "live")
+    .not("daily_room_name", "is", null);
+
+  if (dbError) throw dbError;
+
+  const activeRoomNames = new Set(
+    (activeSessions || []).map((row) => row.daily_room_name).filter(Boolean)
+  );
+
+  const deleted = [];
+  const failed = [];
+  let startingAfter = null;
+  let pages = 0;
+
+  while (pages < 20) {
+    const { rooms } = await listDailyRooms({ limit: 100, startingAfter });
+    if (!rooms.length) break;
+
+    for (const room of rooms) {
+      const name = room?.name;
+      if (!name || !name.startsWith(prefix)) continue;
+      if (activeRoomNames.has(name)) continue;
+
+      const ok = await deleteDailyRoom(name);
+      if (ok) {
+        deleted.push(name);
+        console.log(`[daily] deleted orphaned room: ${name}`);
+      } else {
+        failed.push(name);
+      }
+    }
+
+    if (rooms.length < 100) break;
+    startingAfter = rooms[rooms.length - 1]?.name;
+    pages += 1;
+  }
+
+  return { deleted, failed, skipped: false };
+}
+
 /** Delete all Peak session rooms (name prefix session-) including orphans not stored in DB. */
 export async function purgeSessionDailyRooms({ prefix = "session-" } = {}) {
   if (!process.env.DAILY_API_KEY) {
@@ -350,28 +426,21 @@ export function resolveRoomName(session) {
 
 export async function dailyRoomExists(roomName) {
   if (!process.env.DAILY_API_KEY || !roomName) return false;
-  try {
-    const response = await fetch(`${DAILY_API}/rooms/${encodeURIComponent(roomName)}`, {
-      headers: { Authorization: `Bearer ${process.env.DAILY_API_KEY}` }
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
+  const room = await getDailyRoom(roomName);
+  return Boolean(room?.name);
 }
 
 /**
- * Resolve room name, create room if missing, recreate if stale, issue meeting token.
+ * Resolve room name/url and issue meeting token. Does not create orphan rooms on join.
  */
 export async function ensureDailyMeetingAccess({
-  title,
+  sessionId = null,
   maxStudents = 10,
   roomName: initialName,
   roomUrl: initialUrl,
   userId,
   isOwner = false,
-  userName = "",
-  recreateIfTokenFails = true
+  userName = ""
 }) {
   let roomName = initialName || roomNameFromUrl(initialUrl);
   let roomUrl = initialUrl || (roomName ? getRoomUrl(roomName) : null);
@@ -381,13 +450,16 @@ export async function ensureDailyMeetingAccess({
     return { roomName, roomUrl, token: null, lastError: new Error("DAILY_API_KEY is not configured") };
   }
 
-  if (!roomName) {
-    const created = await createDailyRoomOptional(title, { maxParticipants: maxStudents });
-    if (!created) {
-      return { roomName: null, roomUrl: null, token: null, lastError };
+  if (!roomName && sessionId) {
+    const ensured = await ensureSessionDailyRoomOptional(sessionId, { maxStudents });
+    if (ensured) {
+      roomName = ensured.name;
+      roomUrl = ensured.url;
     }
-    roomName = created.name;
-    roomUrl = created.url;
+  }
+
+  if (!roomName) {
+    return { roomName: null, roomUrl: null, token: null, lastError: new Error("Daily room not configured") };
   }
 
   const issueToken = async (name) => {
@@ -410,8 +482,8 @@ export async function ensureDailyMeetingAccess({
   }
 
   const roomMissing = !(await dailyRoomExists(roomName));
-  if (recreateIfTokenFails && (roomMissing || tokenErr)) {
-    const fresh = await createDailyRoomOptional(title, { maxParticipants: maxStudents });
+  if (roomMissing && sessionId) {
+    const fresh = await ensureSessionDailyRoomOptional(sessionId, { maxStudents });
     if (fresh) {
       roomName = fresh.name;
       roomUrl = fresh.url;

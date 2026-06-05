@@ -6,6 +6,7 @@ import { paginate, paginationMeta } from "../utils/paginate.js";
 import { success, error, paginated } from "../utils/response.js";
 import { CACHE, withCache } from "../lib/cache.js";
 import { enqueueJob } from "../lib/queue.js";
+import { cleanupOrphanedDailyRooms } from "../services/daily.service.js";
 
 const router = Router();
 
@@ -550,6 +551,27 @@ router.get("/reports", auth, checkRole("admin"), async (req, res) => {
     });
   } catch (_err) {
     return error(res, "تعذر تحميل التقارير", 500);
+  }
+});
+
+/** One-time / periodic cleanup: delete Daily rooms not tied to live sessions. */
+router.get("/cleanup-daily-rooms", auth, checkRole("admin"), async (_req, res) => {
+  try {
+    if (!process.env.DAILY_API_KEY) {
+      return error(res, "DAILY_API_KEY غير مضبوط على الخادم", 503);
+    }
+    const result = await cleanupOrphanedDailyRooms(supabase);
+    return success(
+      res,
+      {
+        deleted: result.deleted?.length || 0,
+        failed: result.failed?.length || 0,
+        room_names: result.deleted || []
+      },
+      `تم حذف ${result.deleted?.length || 0} غرفة يتيمة من Daily`
+    );
+  } catch (err) {
+    return error(res, err?.message || "تعذر تنظيف غرف Daily", 500);
   }
 });
 

@@ -15,7 +15,8 @@
     "test": "node --test tests/integration.test.js tests/schema-v2.test.js",
     "lint": "node -e \"console.log('No linter configured yet')\"",
     "seed:auth": "node scripts/seed-auth-users.mjs",
-    "migrate:payments": "node scripts/apply-payments-migration.mjs"
+    "migrate:payments": "node scripts/apply-payments-migration.mjs",
+    "cleanup:daily": "node scripts/cleanup-daily.js"
   },
   "keywords": [],
   "author": "",

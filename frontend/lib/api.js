@@ -174,7 +174,10 @@ export const sessionsApi = {
   getRoom: (sessionId) => apiRequest(`/sessions/${sessionId}/room`),
   join: (sessionId) =>
     apiRequest(`/sessions/${sessionId}/join`, { method: "POST" }),
-  getEnrollments: (sessionId) => apiRequest(`/sessions/${sessionId}/enrollments`)
+  getEnrollments: (sessionId) => apiRequest(`/sessions/${sessionId}/enrollments`),
+  waitingStudents: (sessionId) => apiRequest(`/sessions/${sessionId}/waiting-students`),
+  waitingHeartbeat: (sessionId) =>
+    apiRequest(`/sessions/${sessionId}/waiting-heartbeat`, { method: "POST" })
 };
 
 export const paymentsApi = {
