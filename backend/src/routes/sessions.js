@@ -531,7 +531,11 @@ async function closeOneOpenSessionRow(session) {
     } catch (earnErr) {
       console.warn("[sessions] close-open earnings skipped:", session.id, earnErr?.message || earnErr);
     }
-
+    try {
+      await detachLiveKitRoomFromSession(session.id, session);
+    } catch (roomErr) {
+      console.warn("[sessions] livekit room cleanup skipped:", session.id, roomErr?.message);
+    }
     return "ended";
   }
 
