@@ -53,6 +53,9 @@ export const createPaymobOrder = async (amountCents, user, { returnUrl } = {}) =
   const { token: paymentToken } = await keyRes.json();
   if (!paymentToken) throw new Error("Paymob payment token missing");
 
-  const checkoutUrl = `https://accept.paymob.com/api/acceptance/iframes/${process.env.PAYMOB_IFRAME_ID}?payment_token=${paymentToken}`;
+  const iframeId = process.env.PAYMOB_IFRAME_ID;
+  const checkoutUrl = iframeId && iframeId !== "0"
+    ? `https://accept.paymob.com/api/acceptance/iframes/${iframeId}?payment_token=${paymentToken}`
+    : `https://accept.paymob.com/api/acceptance/pay?payment_token=${paymentToken}`;
   return { checkoutUrl, orderId: String(order.id) };
 };
