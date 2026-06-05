@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import StatsCard from "@/components/admin/StatsCard";
 import SessionCard from "@/components/shared/SessionCard";
@@ -36,8 +37,36 @@ export default function StudentDashboardPage() {
   }, []);
 
   useEffect(() => {
-    loadDashboard();
-  }, [loadDashboard]);
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const res = await studentApi.dashboard();
+        if (!cancelled) setData(res?.data || null);
+      } catch (err) {
+        if (!cancelled) {
+          setData(null);
+          setError(err.message || "تعذر تحميل الصفحة الرئيسية");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const copyLinkCode = async () => {
+    if (!profile?.link_code) return;
+    try {
+      await navigator.clipboard.writeText(profile.link_code);
+      toast.success("تم النسخ");
+    } catch {
+      toast.error("تعذر النسخ — انسخ الكود يدوياً");
+    }
+  };
 
   const profile = data?.profile;
   const stats = data?.stats;
@@ -197,14 +226,22 @@ export default function StudentDashboardPage() {
           </section>
 
           {profile?.link_code ? (
-            <section className="rounded-2xl border border-dashed border-border bg-card p-4 text-sm text-text-muted">
-              <p className="font-bold text-text">كود ربط ولي الأمر</p>
-              <p className="mt-1">
-                شارك هذا الكود مع ولي أمرك:{" "}
-                <span className="font-mono font-bold text-primary" dir="ltr">
+            <section className="glass-card flex items-center justify-between gap-3 p-4">
+              <div>
+                <p className="text-sm font-bold text-text">كود ربط ولي الأمر</p>
+                <p className="font-mono text-lg font-black text-accent" dir="ltr">
                   {profile.link_code}
-                </span>
-              </p>
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="rounded-xl shrink-0"
+                onClick={copyLinkCode}
+              >
+                نسخ
+              </Button>
             </section>
           ) : null}
         </>

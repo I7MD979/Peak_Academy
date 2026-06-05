@@ -9,7 +9,7 @@ import QuestionCard from "@/components/student/QuestionCard";
 import EmptyState from "@/components/shared/EmptyState";
 import { SectionLoader } from "@/components/shared/LoadingSkeleton";
 import Icon from "@/components/shared/Icon";
-import { questionsApi } from "@/lib/api";
+import { studentApi } from "@/lib/api";
 import { initiateQuestionPayment, pollQuestionPayment } from "@/lib/paymob";
 import { formatCurrencyEgp } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -53,7 +53,7 @@ export default function StudentAskPage() {
 
   const loadOverview = useCallback(async () => {
     try {
-      const res = await questionsApi.overview();
+      const res = await studentApi.questionsOverview();
       const payload = res?.data || null;
       setOverview(payload);
       if (payload?.subjects?.length) {
@@ -74,7 +74,7 @@ export default function StudentAskPage() {
     setListLoading(true);
     try {
       const params = new URLSearchParams({ tab, page: String(page), limit: "8" });
-      const res = await questionsApi.list(params.toString());
+      const res = await studentApi.questions(params.toString());
       setQuestions(res?.data?.questions || []);
       setPagination(res?.data?.pagination || null);
     } catch (err) {
@@ -86,12 +86,33 @@ export default function StudentAskPage() {
   }, [tab, page]);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       setLoading(true);
-      await loadOverview();
-      setLoading(false);
+      try {
+        const res = await studentApi.questionsOverview();
+        if (cancelled) return;
+        const payload = res?.data || null;
+        setOverview(payload);
+        if (payload?.subjects?.length) {
+          setSelectedSubject((current) =>
+            payload.subjects.some((s) => s.key === current) ? current : payload.subjects[0].key
+          );
+        }
+        setError("");
+      } catch (err) {
+        if (!cancelled) {
+          setOverview(null);
+          setError(err.message || "تعذر تحميل الصفحة");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     })();
-  }, [loadOverview]);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!loading && overview) loadQuestions();
@@ -169,7 +190,7 @@ export default function StudentAskPage() {
 
     setSubmitting(true);
     try {
-      const res = await questionsApi.submit({
+      const res = await studentApi.askQuestion({
         subject: selectedSubject,
         content: content.trim()
       });

@@ -9,7 +9,7 @@ import StudyRoomCard from "@/components/student/StudyRoomCard";
 import EmptyState from "@/components/shared/EmptyState";
 import { SectionLoader } from "@/components/shared/LoadingSkeleton";
 import Icon from "@/components/shared/Icon";
-import { studyRoomsApi } from "@/lib/api";
+import { studentApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 export default function StudentStudyRoomsPage() {
@@ -24,7 +24,7 @@ export default function StudentStudyRoomsPage() {
     setLoading(true);
     setError("");
     try {
-      const res = await studyRoomsApi.overview();
+      const res = await studentApi.studyRooms();
       const payload = res?.data || null;
       setData(payload);
       if (payload?.subjects?.length) {
@@ -41,8 +41,33 @@ export default function StudentStudyRoomsPage() {
   }, []);
 
   useEffect(() => {
-    loadOverview();
-  }, [loadOverview]);
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const res = await studentApi.studyRooms();
+        if (cancelled) return;
+        const payload = res?.data || null;
+        setData(payload);
+        if (payload?.subjects?.length) {
+          setSelectedSubject((current) =>
+            payload.subjects.some((s) => s.key === current) ? current : payload.subjects[0].key
+          );
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setData(null);
+          setError(err.message || "تعذر تحميل غرف المذاكرة");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleJoinRandom = async () => {
     if (!selectedSubject) {
@@ -51,7 +76,7 @@ export default function StudentStudyRoomsPage() {
     }
     setJoiningId("random");
     try {
-      const res = await studyRoomsApi.joinRandom({ subject: selectedSubject });
+      const res = await studentApi.joinRandomStudyRoom({ subject: selectedSubject });
       toast.success(res?.message || "تم الانضمام للغرفة");
       await loadOverview();
     } catch (err) {
@@ -65,7 +90,7 @@ export default function StudentStudyRoomsPage() {
     if (!room?.id) return;
     setJoiningId(room.id);
     try {
-      const res = await studyRoomsApi.join(room.id);
+      const res = await studentApi.joinStudyRoom(room.id);
       toast.success(res?.message || "تم الانضمام للغرفة");
       await loadOverview();
     } catch (err) {
@@ -80,7 +105,7 @@ export default function StudentStudyRoomsPage() {
     if (!roomId) return;
     setLeaving(true);
     try {
-      const res = await studyRoomsApi.leave(roomId);
+      const res = await studentApi.leaveStudyRoom(roomId);
       toast.success(res?.message || "تم مغادرة الغرفة");
       await loadOverview();
     } catch (err) {

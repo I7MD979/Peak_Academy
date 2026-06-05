@@ -233,11 +233,38 @@ export const teacherApi = {
 export const studentApi = {
   dashboard: () => apiRequest("/student/dashboard"),
   profile: () => apiRequest("/student/profile"),
-  updateProfile: (body) => authApi.updateProfile(body),
+  updateProfile: (body) =>
+    apiRequest("/student/profile", {
+      method: "PUT",
+      body: JSON.stringify(body)
+    }),
   sessions: (query = "") => apiRequest(withQuery("/student/sessions", query)),
   session: (id) => apiRequest(`/student/sessions/${id}`),
   enrollmentOptions: (sessionId) =>
-    apiRequest(`/student/enrollment-options?session_id=${encodeURIComponent(sessionId)}`)
+    apiRequest(`/student/enrollment-options?session_id=${encodeURIComponent(sessionId)}`),
+  questions: (query = "") => apiRequest(withQuery("/questions", query)),
+  questionsOverview: () => apiRequest("/questions/overview"),
+  askQuestion: (body) =>
+    apiRequest("/questions", {
+      method: "POST",
+      body: JSON.stringify(body)
+    }),
+  studyRooms: () => apiRequest("/study-rooms"),
+  joinStudyRoom: (roomId) =>
+    apiRequest(`/study-rooms/${roomId}/join`, {
+      method: "POST",
+      body: JSON.stringify({})
+    }),
+  joinRandomStudyRoom: (body) =>
+    apiRequest("/study-rooms/join-random", {
+      method: "POST",
+      body: JSON.stringify(body)
+    }),
+  leaveStudyRoom: (roomId) =>
+    apiRequest(`/study-rooms/${roomId}/leave`, {
+      method: "POST",
+      body: JSON.stringify({})
+    })
 };
 
 export const subscriptionsApi = {

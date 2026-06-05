@@ -9,11 +9,11 @@ import {
   normalizeSessionRow,
   querySessionById
 } from "../utils/session-select.js";
-import { ensureUserProfile, isRoleProfileComplete } from "../utils/ensure-user-profile.js";
+import { buildLinkCode, ensureUserProfile, isRoleProfileComplete } from "../utils/ensure-user-profile.js";
 import { getEnrollmentOptionsForSession, getSessionForEnroll } from "../services/enrollmentService.js";
 import { countPaidSessionEnrollments } from "../services/subscriptionService.js";
 import { getActiveSubscription } from "../services/enrollmentService.js";
-import { CACHE, withCache } from "../lib/cache.js";
+import { CACHE, invalidateStudentCaches, withCache } from "../lib/cache.js";
 import { isSchemaV2, SCHEMA } from "../lib/schema.js";
 import { getSessionJoinWindow } from "../utils/session-join.js";
 
@@ -45,6 +45,43 @@ function mapSessionRow(session, { isEnrolled = false, enrollmentStatus = null } 
     grade_label: GRADE_LABELS[session.grade] || session.grade,
     enrollment_count: enrolled,
     is_full: max > 0 && enrolled >= max
+  };
+}
+
+const DEFAULT_STUDENT_STATS = {
+  streak_days: 0,
+  completed_sessions: 0,
+  enrolled_upcoming: 0,
+  questions_total: 0,
+  questions_answered: 0
+};
+
+async function fetchStudentStats(userId, studentRow = null) {
+  try {
+    const { data, error: rpcError } = await supabase.rpc("get_student_stats", { p_user_id: userId });
+    if (!rpcError && data) {
+      const parsed = typeof data === "string" ? JSON.parse(data) : data;
+      return { ...DEFAULT_STUDENT_STATS, ...parsed };
+    }
+  } catch {
+    /* fall through */
+  }
+
+  const streak = studentRow?.streak_days || 0;
+  const [{ count: questionsTotal }, { count: questionsAnswered }] = await Promise.all([
+    supabase.from("questions").select("id", { count: "exact", head: true }).eq("student_id", userId),
+    supabase
+      .from("questions")
+      .select("id", { count: "exact", head: true })
+      .eq("student_id", userId)
+      .eq("status", "answered")
+  ]);
+
+  return {
+    ...DEFAULT_STUDENT_STATS,
+    streak_days: streak,
+    questions_total: questionsTotal || 0,
+    questions_answered: questionsAnswered || 0
   };
 }
 
@@ -218,7 +255,13 @@ async function fetchAvailableSessionsPage(ctx, queryParams, userId) {
 
 router.get("/profile", auth, checkRole("student"), async (req, res) => {
   try {
-    const ctx = await getStudentContext(req.user.id);
+    const userId = req.user.id;
+    const ctx = await getStudentContext(userId);
+    const [stats, subRes] = await Promise.all([
+      fetchStudentStats(userId, ctx?.student),
+      getActiveSubscription(userId).catch(() => null)
+    ]);
+
     if (!ctx) {
       return success(res, {
         full_name: "",
@@ -231,45 +274,12 @@ router.get("/profile", auth, checkRole("student"), async (req, res) => {
         streak_days: 0,
         link_code: null,
         profile_complete: false,
-        stats: {
-          streak_days: 0,
-          enrolled_upcoming: 0,
-          completed_sessions: 0,
-          questions_total: 0,
-          questions_answered: 0
-        }
+        subscription: subRes,
+        stats
       });
     }
 
     const { student, user, enrolledIds } = ctx;
-
-    const enrollTable = SCHEMA.enrollmentsTable();
-    const studentKey = isSchemaV2() ? req.user.id : student.id;
-    const { data: enrollmentDetails } = await supabase
-      .from(enrollTable)
-      .select("id, status, session:sessions(status, scheduled_at, start_time)")
-      .eq("student_id", studentKey);
-
-    const now = Date.now();
-    const enrollments = enrollmentDetails || [];
-    const upcomingCount = enrollments.filter(
-      (row) =>
-        row.session?.status === "scheduled" &&
-        new Date(row.session.scheduled_at).getTime() >= now
-    ).length;
-    const completedCount = enrollments.filter((row) => row.session?.status === "completed").length;
-
-    const [{ count: questionsTotal }, { count: questionsAnswered }] = await Promise.all([
-      supabase
-        .from("questions")
-        .select("id", { count: "exact", head: true })
-        .eq("student_id", req.user.id),
-      supabase
-        .from("questions")
-        .select("id", { count: "exact", head: true })
-        .eq("student_id", req.user.id)
-        .eq("status", "answered")
-    ]);
 
     return success(res, {
       full_name: user?.full_name || "",
@@ -285,17 +295,96 @@ router.get("/profile", auth, checkRole("student"), async (req, res) => {
         student_profile: student,
         teacher_profile: null
       }),
+      subscription: subRes,
       stats: {
-        streak_days: student.streak_days || 0,
-        enrolled_upcoming: upcomingCount,
-        completed_sessions: completedCount,
-        questions_total: questionsTotal || 0,
-        questions_answered: questionsAnswered || 0,
+        ...stats,
         enrolled_sessions: enrolledIds.length
       }
     });
   } catch (_err) {
     return error(res, "تعذر تحميل الملف الشخصي", 500);
+  }
+});
+
+router.put("/profile", auth, checkRole("student"), async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { full_name, phone, avatar_url, grade, section } = req.body || {};
+    const userUpdates = {};
+
+    if (full_name !== undefined) {
+      const name = String(full_name || "").trim();
+      if (name.length < 2) return error(res, "الاسم قصير جدًا", 400);
+      userUpdates.full_name = name;
+    }
+    if (phone !== undefined) {
+      userUpdates.phone = String(phone || "").trim() || null;
+    }
+    if (avatar_url !== undefined) {
+      userUpdates.avatar_url = String(avatar_url || "").trim() || null;
+    }
+
+    if (Object.keys(userUpdates).length > 0) {
+      const { error: userError } = await supabase.from("users").update(userUpdates).eq("id", userId);
+      if (userError) throw userError;
+    }
+
+    const studentUpdates = {};
+    if (grade !== undefined && grade !== null && grade !== "") {
+      if (!["first", "second", "third"].includes(grade)) {
+        return error(res, "الصف الدراسي غير صالح", 400);
+      }
+      studentUpdates.grade = grade;
+    }
+    if (section !== undefined) {
+      const sectionValue = String(section || "").trim();
+      if (sectionValue.length > 50) return error(res, "اسم الشعبة طويل جدًا", 400);
+      studentUpdates.section = sectionValue || null;
+    }
+
+    if (Object.keys(studentUpdates).length > 0) {
+      const { data: existingStudent } = await supabase
+        .from("student_profiles")
+        .select("id, link_code")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      const { error: studentError } = await supabase.from("student_profiles").upsert(
+        {
+          user_id: userId,
+          link_code: existingStudent?.link_code || buildLinkCode(userId),
+          ...studentUpdates
+        },
+        { onConflict: "user_id" }
+      );
+      if (studentError) throw studentError;
+    }
+
+    await invalidateStudentCaches(userId);
+
+    const ctx = await getStudentContext(userId);
+    const stats = await fetchStudentStats(userId, ctx?.student);
+
+    return success(
+      res,
+      {
+        full_name: ctx?.user?.full_name || userUpdates.full_name || "",
+        email: ctx?.user?.email || req.user.email || "",
+        phone: ctx?.user?.phone ?? userUpdates.phone ?? null,
+        avatar_url: ctx?.user?.avatar_url ?? userUpdates.avatar_url ?? null,
+        grade: ctx?.student?.grade ?? studentUpdates.grade ?? null,
+        grade_label: GRADE_LABELS[ctx?.student?.grade || studentUpdates.grade] || null,
+        section: ctx?.student?.section ?? studentUpdates.section ?? null,
+        link_code: ctx?.student?.link_code || null,
+        stats
+      },
+      "تم حفظ التغييرات"
+    );
+  } catch (err) {
+    if (process.env.NODE_ENV !== "production") {
+      console.error("PUT /student/profile", err);
+    }
+    return error(res, "تعذر تحديث الملف", 500);
   }
 });
 
@@ -305,69 +394,73 @@ router.get("/dashboard", auth, checkRole("student"), async (req, res) => {
       CACHE.studentDashboard(req.user.id),
       CACHE.TTL.studentDashboard,
       async () => {
-    const ctx = await getStudentContext(req.user.id);
-    if (!ctx) return null;
+        const userId = req.user.id;
+        const ctx = await getStudentContext(userId);
+        if (!ctx) return null;
 
-    const { student, user, enrollmentMap, enrolledIds } = ctx;
-    const enrollTable = SCHEMA.enrollmentsTable();
-    const studentKey = isSchemaV2() ? req.user.id : student.id;
+        const { student, user, enrolledIds } = ctx;
+        const enrollTable = SCHEMA.enrollmentsTable();
+        const studentKey = isSchemaV2() ? userId : student.id;
 
-    const { data: enrollmentDetails } = await supabase
-      .from(enrollTable)
-      .select(`id, status, session:sessions(${SESSION_SELECT})`)
-      .eq("student_id", studentKey);
+        let recommendedQuery = supabase
+          .from("sessions")
+          .select(SESSION_SELECT)
+          .eq("status", "scheduled")
+          .gte("scheduled_at", new Date().toISOString())
+          .order("scheduled_at", { ascending: true })
+          .limit(8);
 
-    const enrolledSessions = (enrollmentDetails || [])
-      .map((row) => mapSessionRow(row.session, { isEnrolled: true, enrollmentStatus: row.status }))
-      .filter(Boolean);
+        if (student.grade) recommendedQuery = recommendedQuery.eq("grade", student.grade);
+        if (enrolledIds.length > 0) recommendedQuery = excludeEnrolledIds(recommendedQuery, enrolledIds);
 
-    const now = Date.now();
-    const liveSessions = enrolledSessions.filter((s) => s.status === "live");
-    const upcomingSessions = enrolledSessions
-      .filter((s) => s.status === "scheduled" && new Date(s.scheduled_at).getTime() >= now)
-      .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime());
+        const [{ data: enrollmentDetails }, { data: recommendedRaw }, stats] = await Promise.all([
+          supabase
+            .from(enrollTable)
+            .select(`id, status, session:sessions(${SESSION_SELECT})`)
+            .eq("student_id", studentKey),
+          recommendedQuery,
+          fetchStudentStats(userId, student)
+        ]);
 
-    const completedCount = enrolledSessions.filter((s) => s.status === "completed").length;
+        const enrolledSessions = (enrollmentDetails || [])
+          .map((row) => mapSessionRow(row.session, { isEnrolled: true, enrollmentStatus: row.status }))
+          .filter(Boolean);
 
-    let recommendedQuery = supabase
-      .from("sessions")
-      .select(SESSION_SELECT)
-      .eq("status", "scheduled")
-      .gte("scheduled_at", new Date().toISOString())
-      .order("scheduled_at", { ascending: true })
-      .limit(8);
+        const now = Date.now();
+        const liveSessions = enrolledSessions.filter((s) => s.status === "live");
+        const upcomingSessions = enrolledSessions
+          .filter((s) => s.status === "scheduled" && new Date(s.scheduled_at).getTime() >= now)
+          .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime());
 
-    if (student.grade) recommendedQuery = recommendedQuery.eq("grade", student.grade);
-    if (enrolledIds.length > 0) recommendedQuery = excludeEnrolledIds(recommendedQuery, enrolledIds);
+        const recommendedEnriched = await enrichSessions(recommendedRaw || []);
+        const recommendedSessions = recommendedEnriched
+          .map((session) => mapSessionRow(session, { isEnrolled: false }))
+          .filter((session) => session && !session.is_full)
+          .slice(0, 4);
 
-    const { data: recommendedRaw } = await recommendedQuery;
-    const recommendedEnriched = await enrichSessions(recommendedRaw || []);
-    const recommendedSessions = recommendedEnriched
-      .map((session) => mapSessionRow(session, { isEnrolled: false }))
-      .filter((session) => session && !session.is_full)
-      .slice(0, 4);
-
-    return {
-      profile: {
-        full_name: user?.full_name || "",
-        avatar_url: user?.avatar_url || null,
-        grade: student.grade,
-        grade_label: GRADE_LABELS[student.grade] || student.grade,
-        section: student.section,
-        streak_days: student.streak_days || 0,
-        link_code: student.link_code
-      },
-      stats: {
-        streak_days: student.streak_days || 0,
-        enrolled_upcoming: upcomingSessions.length,
-        live_now: liveSessions.length,
-        completed_sessions: completedCount,
-        recommended_count: recommendedSessions.length
-      },
-      live_sessions: liveSessions,
-      upcoming_sessions: upcomingSessions.slice(0, 4),
-      recommended_sessions: recommendedSessions
-    };
+        return {
+          profile: {
+            full_name: user?.full_name || "",
+            avatar_url: user?.avatar_url || null,
+            grade: student.grade,
+            grade_label: GRADE_LABELS[student.grade] || student.grade,
+            section: student.section,
+            streak_days: stats.streak_days ?? student.streak_days ?? 0,
+            link_code: student.link_code
+          },
+          stats: {
+            streak_days: stats.streak_days ?? student.streak_days ?? 0,
+            enrolled_upcoming: stats.enrolled_upcoming ?? upcomingSessions.length,
+            live_now: liveSessions.length,
+            completed_sessions: stats.completed_sessions ?? 0,
+            questions_total: stats.questions_total ?? 0,
+            questions_answered: stats.questions_answered ?? 0,
+            recommended_count: recommendedSessions.length
+          },
+          live_sessions: liveSessions,
+          upcoming_sessions: upcomingSessions.slice(0, 4),
+          recommended_sessions: recommendedSessions
+        };
       }
     );
 

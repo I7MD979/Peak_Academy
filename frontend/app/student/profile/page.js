@@ -7,12 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import StatsCard from "@/components/admin/StatsCard";
-import { SectionLoader } from "@/components/shared/LoadingSkeleton";
+import AvatarUpload from "@/components/profile/AvatarUpload";
+import { SectionLoader, StatCardSkeleton } from "@/components/shared/LoadingSkeleton";
 import Icon from "@/components/shared/Icon";
 import PersonalInfoFields from "@/components/profile/PersonalInfoFields";
 import ProfileErrorState from "@/components/profile/ProfileErrorState";
 import ProfileHero from "@/components/profile/ProfileHero";
-import { studentApi, subscriptionsApi } from "@/lib/api";
+import { studentApi } from "@/lib/api";
 import { GRADE_OPTIONS, validateBaseProfile } from "@/lib/profile-form";
 import { cn } from "@/lib/utils";
 
@@ -38,12 +39,7 @@ export default function StudentProfilePage() {
       const res = await studentApi.profile();
       const data = res?.data || null;
       setProfile(data);
-      try {
-        const subRes = await subscriptionsApi.me();
-        setSubscriptionInfo(subRes?.data || null);
-      } catch {
-        setSubscriptionInfo(null);
-      }
+      setSubscriptionInfo(data?.subscription || null);
       setForm({
         full_name: data?.full_name || "",
         phone: data?.phone || "",
@@ -60,8 +56,36 @@ export default function StudentProfilePage() {
   }, []);
 
   useEffect(() => {
-    loadProfile();
-  }, [loadProfile]);
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const res = await studentApi.profile();
+        if (cancelled) return;
+        const data = res?.data || null;
+        setProfile(data);
+        setSubscriptionInfo(data?.subscription || null);
+        setForm({
+          full_name: data?.full_name || "",
+          phone: data?.phone || "",
+          avatar_url: data?.avatar_url || "",
+          grade: data?.grade || "",
+          section: data?.section || ""
+        });
+      } catch (err) {
+        if (!cancelled) {
+          setProfile(null);
+          setError(err.message || "تعذر تحميل الملف الشخصي");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleChange = (key) => (event) => {
     const value = event.target.value;
@@ -85,18 +109,37 @@ export default function StudentProfilePage() {
       return;
     }
 
+    const previousProfile = profile;
+    const payload = {
+      full_name: form.full_name.trim(),
+      phone: form.phone.trim() || "",
+      avatar_url: form.avatar_url.trim() || undefined,
+      grade: form.grade,
+      section: form.section.trim()
+    };
+
     setSaving(true);
+    setProfile((prev) =>
+      prev
+        ? {
+            ...prev,
+            ...payload,
+            grade_label: prev.grade_label,
+            stats: prev.stats
+          }
+        : prev
+    );
+
     try {
-      const res = await studentApi.updateProfile({
-        full_name: form.full_name.trim(),
-        phone: form.phone.trim() || "",
-        avatar_url: form.avatar_url.trim() || undefined,
-        grade: form.grade,
-        section: form.section.trim()
-      });
+      const res = await studentApi.updateProfile(payload);
+      const saved = res?.data;
+      if (saved) {
+        setProfile((prev) => (prev ? { ...prev, ...saved, stats: saved.stats || prev.stats } : prev));
+      }
       toast.success(res?.message || "تم حفظ التغييرات");
-      await loadProfile();
     } catch (err) {
+      setProfile(previousProfile);
+      await loadProfile();
       toast.error(err.message || "تعذر حفظ الملف الشخصي");
     } finally {
       setSaving(false);
@@ -132,6 +175,14 @@ export default function StudentProfilePage() {
       />
 
       {error ? <ProfileErrorState message={error} onRetry={loadProfile} /> : null}
+
+      {loading ? (
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => (
+            <StatCardSkeleton key={i} />
+          ))}
+        </section>
+      ) : null}
 
       {loading ? (
         <div className="glass-card p-4">
@@ -221,13 +272,27 @@ export default function StudentProfilePage() {
                 <h2 className="text-lg font-black text-text">البيانات الشخصية</h2>
                 <p className="mt-1 text-sm text-text-muted">الاسم ورقم الهاتف والصورة الظاهرة في المنصة.</p>
               </div>
-              <PersonalInfoFields
-                form={form}
-                fieldErrors={fieldErrors}
-                email={profile.email}
-                onChange={handleChange}
-                disabled={saving}
-              />
+              <div className="flex flex-col gap-4 md:flex-row md:items-start">
+                <AvatarUpload
+                  name={form.full_name || profile.full_name}
+                  avatarUrl={form.avatar_url || profile.avatar_url}
+                  disabled={saving}
+                  onUploaded={(url) => {
+                    setForm((prev) => ({ ...prev, avatar_url: url }));
+                    setProfile((prev) => (prev ? { ...prev, avatar_url: url } : prev));
+                  }}
+                />
+                <div className="flex-1">
+                  <PersonalInfoFields
+                    form={form}
+                    fieldErrors={fieldErrors}
+                    email={profile.email}
+                    onChange={handleChange}
+                    disabled={saving}
+                    showAvatarUrl={false}
+                  />
+                </div>
+              </div>
             </section>
 
             <section className="glass-card space-y-4 p-5">

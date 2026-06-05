@@ -105,8 +105,45 @@ function StudentSessionsContent() {
   }, [tab, page, debouncedSearch, onlyMyGrade, subjectFilter, maxPrice]);
 
   useEffect(() => {
-    loadSessions();
-  }, [loadSessions]);
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const params = new URLSearchParams({
+          tab,
+          page: String(page),
+          limit: "12",
+          only_my_grade: onlyMyGrade ? "true" : "false"
+        });
+        if (debouncedSearch) params.set("search", debouncedSearch);
+        if (subjectFilter) params.set("subject", subjectFilter);
+        if (maxPrice) params.set("max_price", maxPrice);
+
+        const res = await studentApi.sessions(params.toString());
+        if (cancelled) return;
+        const payload = res?.data || {};
+        const mapped = (payload.sessions || []).map((session) =>
+          mapSessionForCard(session, { isEnrolled: session.is_enrolled })
+        );
+
+        setSessions(mapped);
+        setTabCounts(payload.tab_counts || {});
+        setGradeLabel(payload.grade_label || "");
+        setPagination(payload.pagination || null);
+      } catch (err) {
+        if (!cancelled) {
+          setSessions([]);
+          setError(err.message || "تعذر تحميل الجلسات");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [tab, page, debouncedSearch, onlyMyGrade, subjectFilter, maxPrice]);
 
   const empty = EMPTY_COPY[tab] || EMPTY_COPY.available;
   const totalPages = pagination?.totalPages || 1;
