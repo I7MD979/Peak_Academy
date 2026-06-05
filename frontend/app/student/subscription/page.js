@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { PageLoader } from "@/components/shared/LoadingSkeleton";
 import Icon from "@/components/shared/Icon";
 import { subscriptionsApi } from "@/lib/api";
+import { pollTransactionFulfillment } from "@/lib/paymob";
 import { formatCurrencyEgp } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -36,10 +37,26 @@ export default function StudentSubscriptionPage() {
   }, [load]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
-    if (params.get("paid") === "1") {
+    if (params.get("paid") !== "1") return;
+
+    const txId = sessionStorage.getItem("peak-sub-tx");
+    if (!txId) {
       load();
+      return;
     }
+
+    let active = true;
+    (async () => {
+      await pollTransactionFulfillment(txId, { kind: "subscription" });
+      sessionStorage.removeItem("peak-sub-tx");
+      if (active) await load();
+    })();
+
+    return () => {
+      active = false;
+    };
   }, [load]);
 
   const handlePurchase = useCallback(async (planId) => {

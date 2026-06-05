@@ -18,16 +18,6 @@ export async function resolveTransactionFulfillment(transaction, userId) {
     };
   }
 
-  if (transaction.type === "subscription_payment" && transaction.status === "completed") {
-    const { data: sub } = await supabase
-      .from("student_subscriptions")
-      .select("id")
-      .eq("student_id", userId)
-      .eq("status", "active")
-      .maybeSingle();
-    return { enrolled: false, question_created: false, subscription_activated: Boolean(sub) };
-  }
-
   if (transaction.type === "session_payment") {
     const sessionId = transaction.metadata?.session_id;
     if (!sessionId) return { enrolled: false, question_created: false };

@@ -25,23 +25,12 @@ export const pollTransactionFulfillment = async (
     const tx = payload?.data?.transaction;
 
     if (tx?.status === "completed") {
-      if (kind === "question" && payload?.data?.question_created) {
-        return true;
-      }
-      if (kind === "session" && payload?.data?.enrolled) {
-        return true;
-      }
+      if (kind === "question" && payload?.data?.question_created) return true;
+      if (kind === "session" && payload?.data?.enrolled) return true;
+      if (kind === "subscription" && payload?.data?.subscription_activated) return true;
     }
 
-    if (tx?.status === "failed") {
-      return false;
-    }
-
-    if (tx?.status === "completed") {
-      // Webhook received; enrollment/question creation may lag one poll cycle.
-      await new Promise((resolve) => setTimeout(resolve, intervalMs));
-      continue;
-    }
+    if (tx?.status === "failed") return false;
 
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
   }

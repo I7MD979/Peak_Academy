@@ -1,6 +1,7 @@
 import { supabase } from "../lib/supabase.js";
 import { createPaymobOrder } from "./paymob.service.js";
 import { validatePromoCode, applyPromoToPrice } from "../utils/promoValidator.js";
+import { invalidateSubscriptionCaches } from "../lib/cache.js";
 
 export async function listActivePlans() {
   const { data, error } = await supabase
@@ -60,6 +61,7 @@ export async function activateSubscriptionFromTransaction(transaction) {
         current_period_end: periodEnd.toISOString()
       })
       .eq("id", existing.id);
+    await invalidateSubscriptionCaches(transaction.user_id);
     return { activated: true, subscription_id: existing.id };
   }
 
@@ -78,6 +80,7 @@ export async function activateSubscriptionFromTransaction(transaction) {
     .single();
 
   if (error) throw error;
+  await invalidateSubscriptionCaches(transaction.user_id);
   return { activated: true, subscription: created };
 }
 
