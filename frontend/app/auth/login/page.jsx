@@ -1,10 +1,13 @@
 import Link from "next/link";
 import AuthLogoHeader from "@/components/auth/AuthLogoHeader";
 import LoginForm from "@/components/auth/LoginForm";
+import { buildPlanCheckoutPath } from "@/lib/checkout-redirect";
 import { sanitizeRedirectPath } from "@/lib/safe-redirect";
 
 export default function LoginPage({ searchParams }) {
-  const redirectTo = sanitizeRedirectPath(searchParams?.redirect);
+  const redirectTo =
+    buildPlanCheckoutPath(searchParams?.redirect, searchParams?.plan) ||
+    sanitizeRedirectPath(searchParams?.redirect);
   return (
     <div
       className="flex min-h-screen items-center justify-center bg-gradient-to-b from-bg via-bg to-white p-4 font-cairo"

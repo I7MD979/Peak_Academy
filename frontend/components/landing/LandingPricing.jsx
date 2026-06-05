@@ -1,12 +1,28 @@
+"use client";
+
 import Icon from "@/components/shared/Icon";
 import { Button } from "@/components/ui/button";
 import LandingReveal from "@/components/landing/LandingReveal";
 import LandingSectionHeader from "@/components/landing/LandingSectionHeader";
 import StatValue from "@/components/landing/StatValue";
+import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
+
+function getPlanHref(plan, isLoggedIn) {
+  if (plan.priceIsText) return "/auth/register";
+  const planId = encodeURIComponent(plan.id);
+  if (isLoggedIn) {
+    return `/student/subscription?plan=${planId}&autostart=1`;
+  }
+  const redirect = encodeURIComponent("/student/subscription");
+  return `/auth/register?plan=${planId}&redirect=${redirect}`;
+}
 
 export default function LandingPricing({ plans }) {
   const items = plans || [];
+  const { user } = useAuth();
+  const isLoggedIn = Boolean(user);
+
   return (
     <section
       id="pricing"
@@ -66,7 +82,7 @@ export default function LandingPricing({ plans }) {
               </ul>
 
               <Button
-                href={plan.href}
+                href={getPlanHref(plan, isLoggedIn)}
                 variant={plan.variant === "primary" ? "accent" : "outline"}
                 className="mt-6 w-full"
               >

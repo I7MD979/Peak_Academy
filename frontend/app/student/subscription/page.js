@@ -1,17 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { PageLoader } from "@/components/shared/LoadingSkeleton";
 import Icon from "@/components/shared/Icon";
 import { subscriptionsApi } from "@/lib/api";
 import { formatCurrencyEgp } from "@/lib/format";
-
-const PLAN_COPY = {
-  silver: { label: "Silver", sessions: 4 },
-  gold: { label: "Gold", sessions: 10 }
-};
+import { cn } from "@/lib/utils";
 
 export default function StudentSubscriptionPage() {
   const [plans, setPlans] = useState([]);
@@ -20,6 +16,7 @@ export default function StudentSubscriptionPage() {
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState(null);
   const [error, setError] = useState("");
+  const autoStartedRef = useRef(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -45,7 +42,7 @@ export default function StudentSubscriptionPage() {
     }
   }, [load]);
 
-  const handlePurchase = async (planId) => {
+  const handlePurchase = useCallback(async (planId) => {
     try {
       setPurchasing(planId);
       setError("");
@@ -62,7 +59,28 @@ export default function StudentSubscriptionPage() {
     } finally {
       setPurchasing(null);
     }
-  };
+  }, [promoCode]);
+
+  useEffect(() => {
+    if (loading || autoStartedRef.current || !plans.length) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const planParam = params.get("plan");
+    const autostart = params.get("autostart") === "1";
+
+    if (!planParam || !autostart || me?.subscription) return;
+
+    const targetPlan = plans.find(
+      (p) => p.id === planParam || p.name?.toLowerCase() === planParam.toLowerCase()
+    );
+    if (!targetPlan) return;
+
+    autoStartedRef.current = true;
+    const timer = setTimeout(() => {
+      handlePurchase(targetPlan.id);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [plans, loading, me, handlePurchase]);
 
   if (loading) {
     return <PageLoader />;
@@ -110,19 +128,49 @@ export default function StudentSubscriptionPage() {
 
       <div className="grid gap-4 md:grid-cols-2">
         {plans.map((plan) => {
-          const copy = PLAN_COPY[plan.name] || { label: plan.name, sessions: plan.sessions_per_month };
+          const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+          const highlighted =
+            params?.get("plan") === plan.id ||
+            params?.get("plan")?.toLowerCase() === plan.name?.toLowerCase();
+
           return (
-            <article key={plan.id} className="rounded-2xl border border-border bg-card p-5">
-              <h2 className="text-xl font-black text-accent">{copy.label}</h2>
+            <article
+              key={plan.id}
+              className={cn(
+                "rounded-2xl border bg-card p-5",
+                plan.is_featured || highlighted ? "border-accent/40 ring-2 ring-accent/15" : "border-border"
+              )}
+            >
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl font-black text-accent">{plan.name}</h2>
+                {plan.featured_label || plan.is_featured ? (
+                  <span className="rounded-full bg-accent/10 px-2 py-0.5 text-xs font-bold text-accent">
+                    {plan.featured_label || "مميز"}
+                  </span>
+                ) : null}
+              </div>
               <p className="mt-1 text-3xl font-black text-text">{formatCurrencyEgp(plan.price)}</p>
-              <p className="mt-2 text-sm text-text-muted">{copy.sessions} حصص / شهر</p>
+              <p className="mt-2 text-sm text-text-muted">{plan.sessions_per_month} حصص / شهر</p>
+              {plan.description ? (
+                <p className="mt-2 text-sm text-text-muted">{plan.description}</p>
+              ) : null}
+              {plan.features?.length > 0 ? (
+                <ul className="mt-3 space-y-1.5 text-sm text-text">
+                  {plan.features.map((feature) => (
+                    <li key={feature} className="flex items-start gap-2">
+                      <Icon name="check" size={14} className="mt-0.5 shrink-0 text-success" />
+                      <span>{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
               <Button
                 className="mt-4 w-full rounded-xl"
                 variant="accent"
-                disabled={Boolean(purchasing)}
+                disabled={Boolean(purchasing) || Boolean(sub)}
                 onClick={() => handlePurchase(plan.id)}
               >
-                {purchasing === plan.id ? "جارٍ التحويل..." : "اشترك الآن"}
+                {purchasing === plan.id ? "جارٍ التحويل..." : sub ? "لديك اشتراك نشط" : "اشترك الآن"}
               </Button>
             </article>
           );

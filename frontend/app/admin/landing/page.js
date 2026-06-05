@@ -85,12 +85,12 @@ export default function AdminLandingPage() {
       <div className="rounded-2xl border border-border bg-card p-5">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-bold text-primary">خطط الاشتراك</h2>
-          <Link href="/admin/promotions" className="text-sm text-accent hover:underline">
-            إدارة العروض ←
+          <Link href="/admin/subscriptions" className="text-sm text-accent hover:underline">
+            إدارة الخطط ←
           </Link>
         </div>
         <p className="text-sm text-text-muted">
-          الخطط تُدار من جدول subscription_plans في قاعدة البيانات وتظهر تلقائياً على صفحة الهبوط.
+          الخطط تُدار من صفحة الاشتراكات وتظهر تلقائياً على صفحة الهبوط.
         </p>
       </div>
 

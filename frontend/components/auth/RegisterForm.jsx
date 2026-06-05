@@ -21,6 +21,7 @@ import {
   registerStep1Schema,
   registerStep2Schema
 } from "@/lib/register-form";
+import { buildPlanCheckoutPath } from "@/lib/checkout-redirect";
 import { cn } from "@/lib/utils";
 
 const STEPS = [
@@ -108,13 +109,23 @@ export default function RegisterForm() {
       });
 
       const createdUser = res?.data;
-      let nextPath =
-        createdUser && isProfileComplete(createdUser)
-          ? ROLE_HOME[createdUser.role] || "/onboarding"
-          : await resolvePostAuthPathClient(session?.access_token);
+      const checkoutParams =
+        typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+      const planCheckout = buildPlanCheckoutPath(
+        checkoutParams?.get("redirect"),
+        checkoutParams?.get("plan")
+      );
 
-      if (nextPath === "/onboarding" && res?.success && ROLE_HOME[profileValues.role]) {
-        nextPath = ROLE_HOME[profileValues.role];
+      let nextPath = planCheckout;
+      if (!nextPath) {
+        nextPath =
+          createdUser && isProfileComplete(createdUser)
+            ? ROLE_HOME[createdUser.role] || "/onboarding"
+            : await resolvePostAuthPathClient(session?.access_token);
+
+        if (nextPath === "/onboarding" && res?.success && ROLE_HOME[profileValues.role]) {
+          nextPath = ROLE_HOME[profileValues.role];
+        }
       }
 
       router.replace(nextPath);

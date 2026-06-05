@@ -554,6 +554,126 @@ router.get("/reports", auth, checkRole("admin"), async (req, res) => {
   }
 });
 
+router.get("/plans", auth, checkRole("admin"), async (_req, res) => {
+  try {
+    const { data, error: dbError } = await supabase
+      .from("subscription_plans")
+      .select("*")
+      .order("sort_order", { ascending: true });
+    if (dbError) throw dbError;
+    return success(res, data || []);
+  } catch (_err) {
+    return error(res, "تعذر تحميل الخطط", 500);
+  }
+});
+
+router.post("/plans", auth, checkRole("admin"), async (req, res) => {
+  try {
+    const {
+      name,
+      price,
+      sessions_per_month,
+      features,
+      is_active,
+      is_featured,
+      featured_label,
+      sort_order,
+      description
+    } = req.body || {};
+
+    if (!name || price === undefined || !sessions_per_month) {
+      return error(res, "الاسم والسعر وعدد الحصص مطلوبة", 400);
+    }
+
+    const { data, error: dbError } = await supabase
+      .from("subscription_plans")
+      .insert({
+        name,
+        price: Number(price),
+        sessions_per_month: Number(sessions_per_month),
+        features: features || [],
+        is_active: is_active ?? true,
+        is_featured: is_featured ?? false,
+        featured_label: featured_label || null,
+        sort_order: sort_order ?? 0,
+        description: description || null
+      })
+      .select("*")
+      .single();
+
+    if (dbError) throw dbError;
+    await Promise.all([invalidate("public:landing"), invalidate(CACHE.subscriptionPlans())]);
+    return success(res, data, "تم إنشاء الخطة");
+  } catch (_err) {
+    return error(res, "تعذر إنشاء الخطة", 500);
+  }
+});
+
+router.put("/plans/:id", auth, checkRole("admin"), async (req, res) => {
+  try {
+    const updates = {};
+    const fields = [
+      "name",
+      "price",
+      "sessions_per_month",
+      "features",
+      "is_active",
+      "is_featured",
+      "featured_label",
+      "sort_order",
+      "description"
+    ];
+    for (const field of fields) {
+      if (req.body[field] !== undefined) updates[field] = req.body[field];
+    }
+    if (updates.price !== undefined) updates.price = Number(updates.price);
+    if (updates.sessions_per_month !== undefined) {
+      updates.sessions_per_month = Number(updates.sessions_per_month);
+    }
+    if (updates.sort_order !== undefined) updates.sort_order = Number(updates.sort_order);
+    updates.updated_at = new Date().toISOString();
+
+    const { data, error: dbError } = await supabase
+      .from("subscription_plans")
+      .update(updates)
+      .eq("id", req.params.id)
+      .select("*")
+      .single();
+
+    if (dbError) throw dbError;
+    await Promise.all([invalidate("public:landing"), invalidate(CACHE.subscriptionPlans())]);
+    return success(res, data, "تم تحديث الخطة");
+  } catch (_err) {
+    return error(res, "تعذر تحديث الخطة", 500);
+  }
+});
+
+router.delete("/plans/:id", auth, checkRole("admin"), async (req, res) => {
+  try {
+    const { count, error: countError } = await supabase
+      .from("student_subscriptions")
+      .select("id", { count: "exact", head: true })
+      .eq("plan_id", req.params.id)
+      .eq("status", "active");
+
+    if (countError) throw countError;
+    if ((count || 0) > 0) {
+      return error(res, `لا يمكن حذف الخطة — ${count} اشتراك نشط`, 409);
+    }
+
+    const { error: dbError } = await supabase
+      .from("subscription_plans")
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq("id", req.params.id);
+
+    if (dbError) throw dbError;
+    await Promise.all([invalidate("public:landing"), invalidate(CACHE.subscriptionPlans())]);
+    return success(res, null, "تم إيقاف الخطة");
+  } catch (_err) {
+    return error(res, "تعذر حذف الخطة", 500);
+  }
+});
+
 router.get("/landing-stats", auth, checkRole("admin"), async (_req, res) => {
   try {
     const { data, error: dbError } = await supabase

@@ -5,6 +5,7 @@ export const ADMIN_NAV_MAIN = [
   { href: "/admin/sessions", label: "الجلسات", icon: "video" },
   { href: "/admin/withdrawals", label: "طلبات السحب", icon: "creditCard" },
   { href: "/admin/reports", label: "التقارير", icon: "barChart" },
+  { href: "/admin/subscriptions", label: "خطط الاشتراك", icon: "wallet" },
   { href: "/admin/promotions", label: "العروض والخصومات", icon: "tag" },
   { href: "/admin/landing", label: "صفحة الهبوط", icon: "globe" }
 ];

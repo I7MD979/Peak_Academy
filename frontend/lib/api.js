@@ -342,7 +342,19 @@ export const adminApi = {
     apiRequest(`/admin/landing-stats/${id}`, {
       method: "PUT",
       body: JSON.stringify(data)
-    })
+    }),
+  getPlans: () => apiRequest("/admin/plans"),
+  createPlan: (body) =>
+    apiRequest("/admin/plans", {
+      method: "POST",
+      body: JSON.stringify(body)
+    }),
+  updatePlan: (id, body) =>
+    apiRequest(`/admin/plans/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body)
+    }),
+  deletePlan: (id) => apiRequest(`/admin/plans/${id}`, { method: "DELETE" })
 };
 
 export const dashboardApi = {
