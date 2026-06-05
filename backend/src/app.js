@@ -19,6 +19,7 @@ import teacherRoutes from "./routes/teacher.js";
 import studyRoomsRoutes from "./routes/studyRooms.js";
 import enrollmentRoutes from "./routes/enrollments.js";
 import promotionRoutes from "./routes/promotions.js";
+import publicRoutes from "./routes/public.js";
 import { captureException, setupExpressSentry } from "./lib/sentry.js";
 
 const app = express();
@@ -144,6 +145,7 @@ app.use("/api/promotions", promotionRoutes);
 app.use("/api/earnings", earningRoutes);
 app.use("/api/questions", questionRoutes);
 app.use("/api/parent", parentRoutes);
+app.use("/api/public", publicRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/admin", adminPromotionsRoutes);
 app.use("/api/subscriptions", subscriptionRoutes);

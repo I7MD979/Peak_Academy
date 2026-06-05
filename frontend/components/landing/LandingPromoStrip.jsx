@@ -4,10 +4,9 @@ import { useState } from "react";
 import { toast } from "sonner";
 import Icon from "@/components/shared/Icon";
 import LandingReveal from "@/components/landing/LandingReveal";
-import { demoPromoCodes } from "@/lib/landing-content";
-
-export default function LandingPromoStrip() {
+export default function LandingPromoStrip({ promoCodes = {} }) {
   const [code, setCode] = useState("");
+  const codesList = Object.keys(promoCodes);
 
   function applyPromo(e) {
     e.preventDefault();
@@ -16,7 +15,7 @@ export default function LandingPromoStrip() {
       toast.error("أدخل كود الخصم أولاً");
       return;
     }
-    const message = demoPromoCodes[key];
+    const message = promoCodes[key];
     if (message) {
       toast.success(message);
       setCode("");
@@ -37,18 +36,21 @@ export default function LandingPromoStrip() {
               <div>
                 <p className="font-bold text-primary">جرّب كود خصم</p>
                 <p className="mt-0.5 text-sm text-text-muted">
-                  أكواد تجريبية:{" "}
-                  <span dir="ltr" lang="en" className="font-semibold text-accent">
-                    PEAK20
-                  </span>
-                  ،{" "}
-                  <span dir="ltr" lang="en" className="font-semibold text-accent">
-                    WELCOME
-                  </span>
-                  ،{" "}
-                  <span dir="ltr" lang="en" className="font-semibold text-accent">
-                    EARLYBIRD
-                  </span>
+                  {codesList.length ? (
+                    <>
+                      أكواد نشطة:{" "}
+                      {codesList.map((promoCode, index) => (
+                        <span key={promoCode}>
+                          {index > 0 ? "، " : null}
+                          <span dir="ltr" lang="en" className="font-semibold text-accent">
+                            {promoCode}
+                          </span>
+                        </span>
+                      ))}
+                    </>
+                  ) : (
+                    "سجّل حسابك لتفعيل أكواد الخصم داخل المنصة"
+                  )}
                 </p>
               </div>
             </div>

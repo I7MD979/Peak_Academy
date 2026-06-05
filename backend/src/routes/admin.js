@@ -4,7 +4,7 @@ import { checkRole } from "../middleware/checkRole.js";
 import { supabase } from "../lib/supabase.js";
 import { paginate, paginationMeta } from "../utils/paginate.js";
 import { success, error, paginated } from "../utils/response.js";
-import { CACHE, withCache } from "../lib/cache.js";
+import { CACHE, invalidate, withCache } from "../lib/cache.js";
 import { enqueueJob } from "../lib/queue.js";
 import { cleanupOrphanedLiveKitRooms, isLiveKitConfigured } from "../services/livekit.service.js";
 
@@ -551,6 +551,43 @@ router.get("/reports", auth, checkRole("admin"), async (req, res) => {
     });
   } catch (_err) {
     return error(res, "تعذر تحميل التقارير", 500);
+  }
+});
+
+router.get("/landing-stats", auth, checkRole("admin"), async (_req, res) => {
+  try {
+    const { data, error: dbError } = await supabase
+      .from("platform_stats")
+      .select("*")
+      .order("sort_order", { ascending: true });
+    if (dbError) throw dbError;
+    return success(res, data || []);
+  } catch (_err) {
+    return error(res, "تعذر تحميل الإحصائيات", 500);
+  }
+});
+
+router.put("/landing-stats/:id", auth, checkRole("admin"), async (req, res) => {
+  try {
+    const { value, label, hint, is_visible } = req.body || {};
+    const updates = { updated_at: new Date().toISOString() };
+    if (value !== undefined) updates.value = value;
+    if (label !== undefined) updates.label = label;
+    if (hint !== undefined) updates.hint = hint;
+    if (is_visible !== undefined) updates.is_visible = is_visible;
+
+    const { data, error: dbError } = await supabase
+      .from("platform_stats")
+      .update(updates)
+      .eq("id", req.params.id)
+      .select("*")
+      .single();
+    if (dbError) throw dbError;
+
+    await invalidate("public:landing");
+    return success(res, data);
+  } catch (_err) {
+    return error(res, "تعذر التحديث", 500);
   }
 });
 

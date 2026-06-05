@@ -29,6 +29,7 @@ import {
   CircleDollarSign,
   ChevronDown,
   Gift,
+  Globe,
   PenLine,
   Tag
 } from "lucide-react";
@@ -67,7 +68,8 @@ export const iconMap = {
   arrowRight: ArrowRight,
   gift: Gift,
   edit: PenLine,
-  tag: Tag
+  tag: Tag,
+  globe: Globe
 };
 
 export function resolveIcon(name) {

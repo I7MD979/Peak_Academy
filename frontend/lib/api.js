@@ -309,6 +309,15 @@ export const studyRoomsApi = {
     })
 };
 
+export const adminApi = {
+  getLandingStats: () => apiRequest("/admin/landing-stats"),
+  updateLandingStat: (id, data) =>
+    apiRequest(`/admin/landing-stats/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data)
+    })
+};
+
 export const dashboardApi = {
   adminStats: () => apiRequest("/admin/stats"),
   adminUsers: (query = "") => apiRequest(withQuery("/admin/users", query)),

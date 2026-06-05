@@ -3,10 +3,10 @@ import { Button } from "@/components/ui/button";
 import LandingReveal from "@/components/landing/LandingReveal";
 import LandingSectionHeader from "@/components/landing/LandingSectionHeader";
 import StatValue from "@/components/landing/StatValue";
-import { landingPricingPlans } from "@/lib/landing-content";
 import { cn } from "@/lib/utils";
 
-export default function LandingPricing() {
+export default function LandingPricing({ plans }) {
+  const items = plans || [];
   return (
     <section
       id="pricing"
@@ -22,7 +22,7 @@ export default function LandingPricing() {
       />
 
       <div className="mx-auto grid max-w-6xl gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {landingPricingPlans.map((plan, index) => (
+        {items.map((plan, index) => (
           <LandingReveal key={plan.id} delay={index * 70} className="h-full">
             <article
               className={cn(
