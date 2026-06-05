@@ -19,10 +19,9 @@ where au.email = 'teacher@peak.com'
    or au.id = '1af0ab42-cad0-4091-ba9a-3d4756b4b9d1';
 
 -- === 1) Confirm email (fixes login 400 "email not confirmed") ===
+-- Note: confirmed_at is a generated column in Supabase — do not update it directly.
 update auth.users
-set
-  email_confirmed_at = coalesce(email_confirmed_at, now()),
-  confirmed_at = coalesce(confirmed_at, now())
+set email_confirmed_at = coalesce(email_confirmed_at, now())
 where id = '1af0ab42-cad0-4091-ba9a-3d4756b4b9d1';
 
 -- === 2) public.users — MUST be role = teacher ===
