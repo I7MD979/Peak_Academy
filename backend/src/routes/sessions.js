@@ -62,7 +62,17 @@ import { refundAllSessionEnrollments } from "../services/refundService.js";
 const createSessionSchema = z.object({
   title: z.string().min(3, "عنوان الجلسة قصير جداً").max(200),
   subject: z.string().min(1).optional(),
-  grade: z.enum(["first", "second", "third"]).optional(),
+  grade: z
+    .enum([
+      "prep_first",
+      "prep_second",
+      "prep_third",
+      "sec_first",
+      "sec_second",
+      "sec_third"
+    ])
+    .optional(),
+  school_level: z.enum(["preparatory", "secondary"]).optional(),
   scheduled_at: z.string().min(1, "موعد الجلسة مطلوب"),
   duration_min: z.coerce.number().int().min(15).max(240).optional(),
   max_students: z.coerce.number().int().min(1).max(100).optional(),
@@ -456,7 +466,8 @@ router.post("/", auth, checkRole("teacher"), async (req, res) => {
       teacher_id: req.user.id,
       title: body.title,
       subject: body.subject || "general",
-      grade: body.grade || "third",
+      grade: body.grade || "sec_third",
+      school_level: body.school_level || "secondary",
       scheduled_at: scheduledAt.toISOString(),
       duration_min: clampSessionDuration(body.duration_min),
       max_students: maxStudents,

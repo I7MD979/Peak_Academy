@@ -21,6 +21,12 @@ const TABS = [
   { key: "completed", label: "منتهية", icon: "check" }
 ];
 
+const SCHOOL_LEVEL_FILTERS = [
+  { key: "", label: "الكل" },
+  { key: "preparatory", label: "إعدادي" },
+  { key: "secondary", label: "ثانوي" }
+];
+
 const EMPTY_COPY = {
   available: {
     title: "لا توجد جلسات متاحة حالياً",
@@ -46,6 +52,7 @@ function StudentSessionsContent() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [onlyMyGrade, setOnlyMyGrade] = useState(true);
+  const [schoolLevelFilter, setSchoolLevelFilter] = useState("");
   const [subjectFilter, setSubjectFilter] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
   const [page, setPage] = useState(1);
@@ -70,7 +77,7 @@ function StudentSessionsContent() {
 
   useEffect(() => {
     setPage(1);
-  }, [tab, debouncedSearch, onlyMyGrade, subjectFilter, maxPrice]);
+  }, [tab, debouncedSearch, onlyMyGrade, subjectFilter, maxPrice, schoolLevelFilter]);
 
   const loadSessions = useCallback(async () => {
     setLoading(true);
@@ -85,6 +92,7 @@ function StudentSessionsContent() {
       if (debouncedSearch) params.set("search", debouncedSearch);
       if (subjectFilter) params.set("subject", subjectFilter);
       if (maxPrice) params.set("max_price", maxPrice);
+      if (schoolLevelFilter) params.set("school_level", schoolLevelFilter);
 
       const res = await studentApi.sessions(params.toString());
       const payload = res?.data || {};
@@ -102,7 +110,7 @@ function StudentSessionsContent() {
     } finally {
       setLoading(false);
     }
-  }, [tab, page, debouncedSearch, onlyMyGrade, subjectFilter, maxPrice]);
+  }, [tab, page, debouncedSearch, onlyMyGrade, subjectFilter, maxPrice, schoolLevelFilter]);
 
   useEffect(() => {
     let cancelled = false;
@@ -119,6 +127,7 @@ function StudentSessionsContent() {
         if (debouncedSearch) params.set("search", debouncedSearch);
         if (subjectFilter) params.set("subject", subjectFilter);
         if (maxPrice) params.set("max_price", maxPrice);
+        if (schoolLevelFilter) params.set("school_level", schoolLevelFilter);
 
         const res = await studentApi.sessions(params.toString());
         if (cancelled) return;
@@ -143,7 +152,7 @@ function StudentSessionsContent() {
     return () => {
       cancelled = true;
     };
-  }, [tab, page, debouncedSearch, onlyMyGrade, subjectFilter, maxPrice]);
+  }, [tab, page, debouncedSearch, onlyMyGrade, subjectFilter, maxPrice, schoolLevelFilter]);
 
   const empty = EMPTY_COPY[tab] || EMPTY_COPY.available;
   const totalPages = pagination?.totalPages || 1;
@@ -234,6 +243,27 @@ function StudentSessionsContent() {
               جلسات صفي فقط
             </label>
           ) : null}
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {SCHOOL_LEVEL_FILTERS.map((item) => {
+            const active = schoolLevelFilter === item.key;
+            return (
+              <button
+                key={item.key || "all"}
+                type="button"
+                onClick={() => setSchoolLevelFilter(item.key)}
+                className={cn(
+                  "inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-bold transition-colors",
+                  active
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border bg-card text-text hover:border-primary/40"
+                )}
+              >
+                {item.label}
+              </button>
+            );
+          })}
         </div>
 
         <div className="flex flex-wrap gap-2">

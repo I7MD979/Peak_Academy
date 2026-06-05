@@ -11,16 +11,40 @@ import { Select } from "@/components/ui/Select";
 import { sessionsApi } from "@/lib/api";
 import { formatCurrencyEgp, formatDateTimeAr } from "@/lib/format";
 
+const SCHOOL_LEVELS = [
+  { value: "preparatory", label: "إعدادي" },
+  { value: "secondary", label: "ثانوي" }
+];
+
+const GRADE_BY_LEVEL = {
+  preparatory: [
+    { value: "prep_first", label: "الأول الإعدادي" },
+    { value: "prep_second", label: "الثاني الإعدادي" },
+    { value: "prep_third", label: "الثالث الإعدادي" }
+  ],
+  secondary: [
+    { value: "sec_first", label: "الأول الثانوي" },
+    { value: "sec_second", label: "الثاني الثانوي" },
+    { value: "sec_third", label: "الثالث الثانوي" }
+  ]
+};
+
 const initialForm = {
   title: "",
   subject: "",
-  grade: "third",
+  school_level: "secondary",
+  grade: "sec_third",
   duration_min: 60,
   price: "",
   max_students: 10,
   scheduled_at: "",
   description: ""
 };
+
+function gradeLabel(schoolLevel, grade) {
+  const options = GRADE_BY_LEVEL[schoolLevel] || [];
+  return options.find((item) => item.value === grade)?.label || grade;
+}
 
 function validateSessionForm(values) {
   const errors = {};
@@ -65,9 +89,21 @@ export default function NewSessionPage() {
     return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
   }, []);
 
+  const gradeOptions = GRADE_BY_LEVEL[form.school_level] || GRADE_BY_LEVEL.secondary;
+
   const handleChange = (key) => (event) => {
     const value = event.target.value;
-    setForm((prev) => ({ ...prev, [key]: value }));
+    setForm((prev) => {
+      if (key === "school_level") {
+        const nextGrades = GRADE_BY_LEVEL[value] || GRADE_BY_LEVEL.secondary;
+        return {
+          ...prev,
+          school_level: value,
+          grade: nextGrades[0]?.value || prev.grade
+        };
+      }
+      return { ...prev, [key]: value };
+    });
     setFieldErrors((prev) => ({ ...prev, [key]: "" }));
   };
 
@@ -87,6 +123,7 @@ export default function NewSessionPage() {
         subject: form.subject.trim(),
         price_per_student: Number(form.price),
         max_students: Number(form.max_students),
+        school_level: form.school_level,
         grade: form.grade,
         duration_min: Number(form.duration_min),
         description: form.description.trim() || null,
@@ -145,17 +182,35 @@ export default function NewSessionPage() {
 
           <div className="grid gap-3 md:grid-cols-2">
             <Select
+              id="school_level"
+              name="school_level"
+              label="المرحلة الدراسية"
+              value={form.school_level}
+              onChange={handleChange("school_level")}
+            >
+              {SCHOOL_LEVELS.map((level) => (
+                <option key={level.value} value={level.value}>
+                  {level.label}
+                </option>
+              ))}
+            </Select>
+
+            <Select
               id="grade"
               name="grade"
               label="الصف الدراسي"
               value={form.grade}
               onChange={handleChange("grade")}
             >
-              <option value="first">الأول الثانوي</option>
-              <option value="second">الثاني الثانوي</option>
-              <option value="third">الثالث الثانوي</option>
+              {gradeOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </Select>
+          </div>
 
+          <div className="grid gap-3 md:grid-cols-2">
             <div className="space-y-1">
               <Label htmlFor="duration_min">مدة الجلسة (دقيقة)</Label>
               <Input
@@ -249,7 +304,11 @@ export default function NewSessionPage() {
             <div className="rounded-xl bg-bg p-3">
               <p className="text-xs text-text-muted">المادة / الصف</p>
               <p className="font-bold text-text">
-                {(form.subject.trim() || "—") + " • " + (form.grade === "first" ? "الأول الثانوي" : form.grade === "second" ? "الثاني الثانوي" : "الثالث الثانوي")}
+                {(form.subject.trim() || "—") +
+                  " • " +
+                  (SCHOOL_LEVELS.find((level) => level.value === form.school_level)?.label || "—") +
+                  " • " +
+                  gradeLabel(form.school_level, form.grade)}
               </p>
             </div>
             <div className="rounded-xl bg-bg p-3">

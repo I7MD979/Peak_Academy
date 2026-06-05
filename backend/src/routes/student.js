@@ -24,7 +24,13 @@ const router = Router();
 const GRADE_LABELS = {
   first: "الأول الثانوي",
   second: "الثاني الثانوي",
-  third: "الثالث الثانوي"
+  third: "الثالث الثانوي",
+  prep_first: "الأول الإعدادي",
+  prep_second: "الثاني الإعدادي",
+  prep_third: "الثالث الإعدادي",
+  sec_first: "الأول الثانوي",
+  sec_second: "الثاني الثانوي",
+  sec_third: "الثالث الثانوي"
 };
 
 function mapSessionRow(session, { isEnrolled = false, enrollmentStatus = null } = {}) {
@@ -151,12 +157,16 @@ function excludeEnrolledIds(query, enrolledIds) {
   return query.not("id", "in", formatIdInList(enrolledIds));
 }
 
-function applyAvailableFilters(query, { student, enrolledIds, onlyMyGrade, subject, maxPrice }) {
+function applyAvailableFilters(query, { student, enrolledIds, onlyMyGrade, subject, maxPrice, schoolLevel }) {
   const now = new Date().toISOString();
   query = query.eq("status", "scheduled").gte("scheduled_at", now).order("scheduled_at", { ascending: true });
 
   if (onlyMyGrade !== "false" && student.grade) {
     query = query.eq("grade", student.grade);
+  }
+
+  if (schoolLevel) {
+    query = query.eq("school_level", schoolLevel);
   }
 
   if (subject) {
@@ -195,7 +205,8 @@ async function fetchAvailableSessionsPage(ctx, queryParams, userId) {
     search = "",
     only_my_grade = "true",
     subject = "",
-    max_price = ""
+    max_price = "",
+    school_level = ""
   } = queryParams;
   const maxPrice = max_price ? Number(max_price) : null;
   const pageNum = Math.max(1, Number(page));
@@ -212,7 +223,8 @@ async function fetchAvailableSessionsPage(ctx, queryParams, userId) {
       enrolledIds,
       onlyMyGrade: only_my_grade,
       subject: subject || null,
-      maxPrice: maxPrice && maxPrice > 0 ? maxPrice : null
+      maxPrice: maxPrice && maxPrice > 0 ? maxPrice : null,
+      schoolLevel: school_level || null
     });
 
     if (search) {
@@ -484,9 +496,12 @@ router.get("/sessions", auth, checkRole("student"), async (req, res) => {
       search = "",
       only_my_grade = "true",
       subject = "",
-      max_price = ""
+      max_price = "",
+      school_level = ""
     } = req.query;
     const maxPrice = max_price ? Number(max_price) : null;
+    const schoolLevel =
+      school_level === "preparatory" || school_level === "secondary" ? school_level : null;
     const { from, to } = paginate(page, limit);
 
     let query = supabase.from("sessions").select(SESSION_SELECT, { count: "exact" });
@@ -522,8 +537,13 @@ router.get("/sessions", auth, checkRole("student"), async (req, res) => {
         enrolledIds,
         onlyMyGrade: only_my_grade,
         subject: subject || null,
-        maxPrice: maxPrice && maxPrice > 0 ? maxPrice : null
+        maxPrice: maxPrice && maxPrice > 0 ? maxPrice : null,
+        schoolLevel
       });
+    }
+
+    if (tab !== "available" && schoolLevel) {
+      query = query.eq("school_level", schoolLevel);
     }
 
     if (tab !== "available" && subject) {

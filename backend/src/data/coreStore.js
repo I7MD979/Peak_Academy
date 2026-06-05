@@ -14,16 +14,23 @@ function toNumber(value) {
   return Number.isFinite(num) ? num : 0;
 }
 
-async function listSessions({ subject, grade, status }) {
+async function listSessions({ subject, grade, status, school_level }) {
   if (hasSupabaseAdmin()) {
     let query = supabaseAdmin.from("sessions").select("*").order("scheduled_at", { ascending: true });
     if (subject) query = query.eq("subject", subject);
     if (grade) query = query.eq("grade", grade);
+    if (school_level) query = query.eq("school_level", school_level);
     if (status) query = query.eq("status", status);
     const { data, error } = await query;
     if (!error) return data || [];
   }
-  return sessions.filter((s) => (!subject || s.subject === subject) && (!grade || s.grade === grade) && (!status || s.status === status));
+  return sessions.filter(
+    (s) =>
+      (!subject || s.subject === subject) &&
+      (!grade || s.grade === grade) &&
+      (!school_level || s.school_level === school_level) &&
+      (!status || s.status === status)
+  );
 }
 
 async function getSessionById(id) {
