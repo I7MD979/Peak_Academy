@@ -36,6 +36,7 @@ import {
   pruneWaitingPresence,
   recordWaitingHeartbeat
 } from "../utils/session-waiting-presence.js";
+import { querySessionEnrollmentsForTeacher } from "../utils/session-enrollments.js";
 import {
   getSessionForEnroll,
   getStudentProfileId,
@@ -320,23 +321,17 @@ router.get("/:id/waiting-students", auth, checkRole("teacher", "admin"), async (
 
     pruneWaitingPresence();
 
-    const { data, error: dbError } = await supabase
-      .from("session_enrollments")
-      .select(
-        "id, status, student:student_profiles(id, user:users(id, full_name, avatar_url))"
-      )
-      .eq("session_id", req.params.id)
-      .in("status", ["enrolled", "attended"]);
+    const enrollments = await querySessionEnrollmentsForTeacher(supabase, req.params.id, {
+      activeOnly: true
+    });
 
-    if (dbError) throw dbError;
-
-    const students = (data || [])
+    const students = enrollments
       .map((row) => {
-        const userId = row.student?.user?.id;
+        const userId = row.student_user_id;
         return {
-          studentId: userId || row.student?.id,
-          name: row.student?.user?.full_name || "طالب",
-          avatar: row.student?.user?.avatar_url || null,
+          studentId: userId,
+          name: row.student_name,
+          avatar: row.student_avatar_url,
           isConnected: userId ? isStudentWaitingConnected(req.params.id, userId) : false
         };
       })
@@ -384,35 +379,7 @@ router.get("/:id/enrollments", auth, checkRole("teacher", "admin"), async (req, 
       return error(res, "غير مصرح لك بعرض طلاب هذه الجلسة", 403);
     }
 
-    const { data, error: dbError } = await supabase
-      .from("session_enrollments")
-      .select(
-        "id, status, created_at, student:student_profiles(id, user:users(id, full_name, email, phone, avatar_url))"
-      )
-      .eq("session_id", req.params.id)
-      .order("created_at", { ascending: true });
-
-    if (dbError) throw dbError;
-
-    const enrollments = (data || []).map((row) => {
-      const enrollmentStatus = row.status;
-      const paymentStatus =
-        enrollmentStatus === "enrolled" || enrollmentStatus === "attended" ? "paid" : "pending";
-      const attendance =
-        enrollmentStatus === "attended" ? "attended" : enrollmentStatus === "enrolled" ? "enrolled" : enrollmentStatus;
-
-      return {
-        id: row.id,
-        status: enrollmentStatus,
-        created_at: row.created_at,
-        student_name: row.student?.user?.full_name || "طالب",
-        student_email: row.student?.user?.email || null,
-        student_phone: row.student?.user?.phone || null,
-        student_avatar_url: row.student?.user?.avatar_url || null,
-        payment_status: paymentStatus,
-        attendance
-      };
-    });
+    const enrollments = await querySessionEnrollmentsForTeacher(supabase, req.params.id);
 
     return success(res, { session, enrollments });
   } catch (err) {
