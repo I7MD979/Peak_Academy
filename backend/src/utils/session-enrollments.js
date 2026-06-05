@@ -111,8 +111,8 @@ async function queryV2Enrollments(supabase, sessionId, { activeOnly = false } = 
 async function queryLegacyEnrollments(supabase, sessionId, { activeOnly = false } = {}) {
   const statuses = activeOnly ? ["enrolled", "attended"] : null;
   const selectAttempts = [
-    "id, status, created_at, student:student_profiles(id, user:users(id, full_name, email, phone, avatar_url))",
-    "id, status, created_at, student:student_profiles(id, user:users(id, full_name, email, phone))",
+    "id, status, created_at, student:student_profiles(id, user:users!student_profiles_user_id_fkey(id, full_name, email, phone, avatar_url))",
+    "id, status, created_at, student:student_profiles(id, user:users!student_profiles_user_id_fkey(id, full_name, email, phone))",
     "id, status, created_at, student_id"
   ];
 
