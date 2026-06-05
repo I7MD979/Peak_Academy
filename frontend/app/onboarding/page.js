@@ -88,7 +88,11 @@ export default function OnboardingPage() {
       }
 
       if (nextPath === "/onboarding") {
-        throw new Error("تم حفظ البيانات لكن الملف لم يكتمل. حدّث الصفحة أو تواصل مع الدعم.");
+        if (res?.success && ROLE_HOME[values.role]) {
+          nextPath = ROLE_HOME[values.role];
+        } else {
+          throw new Error("تعذر إكمال الملف الشخصي. حدّث الصفحة أو تواصل مع الدعم.");
+        }
       }
 
       toast.success(res?.message || "تم إنشاء ملفك الشخصي بنجاح");

@@ -107,10 +107,15 @@ export default function RegisterForm() {
       });
 
       const createdUser = res?.data;
-      const nextPath =
+      let nextPath =
         createdUser && isProfileComplete(createdUser)
           ? ROLE_HOME[createdUser.role] || "/onboarding"
           : await resolvePostAuthPathClient(session?.access_token);
+
+      if (nextPath === "/onboarding" && res?.success && ROLE_HOME[profileValues.role]) {
+        nextPath = ROLE_HOME[profileValues.role];
+      }
+
       router.replace(nextPath);
     } catch (err) {
       const needsOnboarding =

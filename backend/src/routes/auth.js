@@ -51,18 +51,13 @@ router.get("/me", auth, async (req, res) => {
     }
 
     if (!user) {
-      try {
-        user = await ensureUserProfile(supabase, {
-          id: req.user.id,
-          email: req.user.email,
-          full_name: req.user.full_name,
-          role: req.user.role,
-          phone: req.user.phone
-        });
-      } catch (ensureErr) {
-        console.error("GET /auth/me ensureUserProfile:", ensureErr?.message || ensureErr);
-        user = profileFromReqUser(req.user);
-      }
+      // Do not auto-provision DB rows here — onboarding POST /auth/setup-profile owns profile creation.
+      user = {
+        ...profileFromReqUser(req.user),
+        student_profile: null,
+        teacher_profile: null,
+        profile_complete: false
+      };
     }
 
     if (!user) {
@@ -104,19 +99,6 @@ router.post("/setup-profile", auth, async (req, res) => {
     const phone = String(req.body.phone || "").trim();
     const grade = req.body.grade;
     const section = req.body.section;
-
-    const existingProfile = await fetchFullUserProfile(supabase, req.user.id);
-    const existingRole = existingProfile?.role ? normalizeRole(existingProfile.role) : null;
-    const profileAlreadyComplete =
-      existingProfile &&
-      isRoleProfileComplete(existingProfile.role, {
-        student_profile: existingProfile.student_profile,
-        teacher_profile: existingProfile.teacher_profile
-      });
-
-    if (profileAlreadyComplete && existingRole && existingRole !== role) {
-      return error(res, "لا يمكن تغيير نوع الحساب بعد إنشاء الملف", 400);
-    }
 
     if (fullName.length < 2) {
       return error(res, "الاسم يجب أن يكون حرفين على الأقل", 400);
@@ -171,12 +153,39 @@ router.post("/setup-profile", auth, async (req, res) => {
     }
 
     await syncAuthUserMetadata(req.user.id, {
-      role: user.role || role,
+      role: role,
       full_name: fullName,
       phone: phone || null
     });
 
-    return success(res, user, "تم إنشاء ملفك الشخصي بنجاح");
+    // Always return a fresh, normalized profile for onboarding redirect logic.
+    let fresh = await fetchFullUserProfile(supabase, req.user.id);
+    if (!fresh) {
+      fresh = user;
+    }
+    fresh.role = role;
+    fresh.full_name = fullName;
+    fresh.phone = phone || null;
+    fresh.profile_complete = isRoleProfileComplete(role, {
+      student_profile: role === "student" ? fresh.student_profile : null,
+      teacher_profile: role === "teacher" ? fresh.teacher_profile : null
+    });
+
+    if (!fresh.profile_complete) {
+      console.error("POST /auth/setup-profile incomplete:", {
+        userId: req.user.id,
+        role,
+        teacherProfileId: fresh.teacher_profile?.id,
+        studentGrade: fresh.student_profile?.grade
+      });
+      return error(
+        res,
+        "تعذر إكمال الملف الشخصي. تأكد من تشغيل migrations قاعدة البيانات أو تواصل مع الدعم.",
+        500
+      );
+    }
+
+    return success(res, fresh, "تم إنشاء ملفك الشخصي بنجاح");
   } catch (err) {
     console.error("POST /auth/setup-profile", err?.message || err);
     const mapped = mapDbError(err);

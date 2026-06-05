@@ -16,7 +16,7 @@ export function isProfileComplete(user) {
     );
   }
   if (user.role === "teacher") {
-    return user.profile_complete === true;
+    return user.profile_complete === true || Boolean(user.teacher_profile?.id);
   }
   return true;
 }
