@@ -21,6 +21,12 @@ export default function LandingFooter() {
           <Link href="/auth/login" className="transition hover:text-primary">
             تسجيل الدخول
           </Link>
+          <Link href="/sessions?level=prep" className="transition hover:text-primary">
+            طلاب الإعدادي
+          </Link>
+          <Link href="/sessions?level=sec" className="transition hover:text-primary">
+            طلاب الثانوي
+          </Link>
         </nav>
       </div>
       <p className="mx-auto mt-8 max-w-6xl text-center text-xs text-text-muted md:text-end">
