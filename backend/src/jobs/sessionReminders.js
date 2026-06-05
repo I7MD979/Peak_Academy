@@ -2,7 +2,7 @@ import { supabase } from "../lib/supabase.js";
 import { enqueueJob } from "../lib/queue.js";
 import { isSchemaV2, SCHEMA, sessionStartTime } from "../lib/schema.js";
 import { getCacheEntry, setCacheEntry } from "../lib/cache.js";
-import { getRoomUrl, resolveRoomName } from "../services/daily.service.js";
+import { getLiveKitServerUrl, resolveRoomName } from "../services/livekit.service.js";
 
 const REMINDER_TTL_SEC = 60 * 60 * 3;
 const INTERVAL_MS = 30 * 60 * 1000;
@@ -100,8 +100,7 @@ export async function scheduleReminders() {
 
     for (const session of sessions) {
       const enrollments = await loadPaidEnrollments(session.id);
-      const roomUrl =
-        session.daily_room_url || getRoomUrl(resolveRoomName(session));
+      const roomUrl = session.daily_room_url || session.room_url || getLiveKitServerUrl();
 
       for (const enrollment of enrollments) {
         if (!enrollment.email || !enrollment.studentKey) continue;

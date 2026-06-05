@@ -4,11 +4,13 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
+import { sessionsApi } from "@/lib/api";
 import QuickTestModal from "./QuickTestModal";
 
-export default function TeacherToolsPanel({ sessionId, call }) {
+export default function TeacherToolsPanel({ sessionId, room }) {
   const [quizOpen, setQuizOpen] = useState(false);
   const [raisedHands, setRaisedHands] = useState(0);
+  const [mutingAll, setMutingAll] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -25,12 +27,12 @@ export default function TeacherToolsPanel({ sessionId, call }) {
   }, [sessionId]);
 
   const handleScreenShare = async () => {
-    if (!call) {
+    if (!room?.localParticipant) {
       toast.error("انتظر حتى يكتمل الاتصال بغرفة البث");
       return;
     }
     try {
-      await call.startScreenShare();
+      await room.localParticipant.setScreenShareEnabled(true);
       toast.success("تم بدء مشاركة الشاشة (السبورة)");
     } catch (err) {
       toast.error(err?.message || "تعذر مشاركة الشاشة");
@@ -38,15 +40,15 @@ export default function TeacherToolsPanel({ sessionId, call }) {
   };
 
   const handleMuteAll = async () => {
-    if (!call) return;
     try {
-      const participants = call.participants?.() || {};
-      for (const [id, p] of Object.entries(participants)) {
-        if (!p.local) await call.updateParticipant(id, { setAudio: false });
-      }
-      toast.success("تم كتم الجميع");
+      setMutingAll(true);
+      const res = await sessionsApi.muteAll(sessionId);
+      const muted = res?.data?.muted ?? 0;
+      toast.success(muted > 0 ? `تم كتم ${muted} مسار صوتي` : "لا يوجد صوت نشط للكتم");
     } catch (err) {
       toast.error(err?.message || "تعذر كتم الصوت");
+    } finally {
+      setMutingAll(false);
     }
   };
 
@@ -59,16 +61,22 @@ export default function TeacherToolsPanel({ sessionId, call }) {
         <Button
           type="button"
           className="w-full bg-accent text-white"
-          disabled={!call}
+          disabled={!room}
           onClick={() => setQuizOpen(true)}
         >
           📝 اختبار سريع
         </Button>
-        <Button type="button" variant="outline" className="w-full" disabled={!call} onClick={handleScreenShare}>
+        <Button type="button" variant="outline" className="w-full" disabled={!room} onClick={handleScreenShare}>
           🖥 مشاركة سبورة
         </Button>
-        <Button type="button" variant="outline" className="w-full" disabled={!call} onClick={handleMuteAll}>
-          🔇 كتم الكل
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full"
+          disabled={!room || mutingAll}
+          onClick={handleMuteAll}
+        >
+          {mutingAll ? "جاري الكتم..." : "🔇 كتم الكل"}
         </Button>
         <Button type="button" variant="outline" className="w-full" onClick={handleClearHands}>
           ✋ رفع الأيدي ({raisedHands})

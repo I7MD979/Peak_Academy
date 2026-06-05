@@ -104,7 +104,7 @@ export function useLiveSession(sessionId) {
       const joinRes = await sessionsApi.join(sessionId);
       const meetingToken = joinRes?.data?.token || "";
       if (!url || !meetingToken) {
-        throw new Error("تم بدء الجلسة لكن رابط الغرفة غير متاح. راجع إعدادات Daily.co");
+        throw new Error("تم بدء الجلسة لكن رابط الغرفة غير متاح. راجع إعدادات LiveKit");
       }
       setRoomUrl(url);
       setToken(meetingToken);

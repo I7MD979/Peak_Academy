@@ -340,7 +340,7 @@ export default function TeacherSessionsPage() {
 
   const handlePurgeDailyOnly = async () => {
     const confirmed = window.confirm(
-      "سيتم حذف كل غرف الفيديو التي تبدأ بـ session- من حساب Daily (حتى اليتيمة). هل تريد المتابعة؟"
+      "سيتم حذف كل غرف الفيديو التي تبدأ بـ session- من LiveKit (حتى اليتيمة). هل تريد المتابعة؟"
     );
     if (!confirmed) return;
 
@@ -348,10 +348,10 @@ export default function TeacherSessionsPage() {
       setClosingAll(true);
       const res = await sessionsApi.purgeDailyRooms();
       const deleted = res?.data?.deleted ?? 0;
-      toast.success(`تم حذف ${deleted} غرفة من Daily`);
+      toast.success(`تم حذف ${deleted} غرفة من LiveKit`);
       await refreshAll();
     } catch (err) {
-      toast.error(err.message || "تعذر تنظيف غرف Daily");
+      toast.error(err.message || "تعذر تنظيف غرف LiveKit");
     } finally {
       setClosingAll(false);
     }
@@ -378,11 +378,11 @@ export default function TeacherSessionsPage() {
       const dailyDeleted = data.daily_rooms_deleted ?? 0;
       if (data.failures?.length) {
         toast.warning(
-          `تم إغلاق ${ended + cancelled} جلسة مع ${data.failures.length} أخطاء. حُذفت ${dailyDeleted} غرفة Daily.`
+          `تم إغلاق ${ended + cancelled} جلسة مع ${data.failures.length} أخطاء. حُذفت ${dailyDeleted} غرفة LiveKit.`
         );
       } else {
         toast.success(
-          `تم الإغلاق: ${ended} مباشرة، ${cancelled} مجدولة. حُذفت ${dailyDeleted} غرفة فيديو من Daily.`
+          `تم الإغلاق: ${ended} مباشرة، ${cancelled} مجدولة. حُذفت ${dailyDeleted} غرفة فيديو من LiveKit.`
         );
       }
       await refreshAll();
@@ -545,7 +545,7 @@ export default function TeacherSessionsPage() {
           <div className="rounded-xl border border-accent-blue/25 bg-accent-blue/5 px-4 py-3 text-sm text-text">
             <p className="font-bold">هل البث يعمل؟</p>
             <p className="mt-1 text-text-muted">
-              في Daily: <strong>Rooms</strong> = عناوين غرف محجوزة (قد تكون 3)، و{" "}
+              في LiveKit: <strong>Rooms</strong> = غرف الجلسات النشطة، و{" "}
               <strong>Live sessions / الدقائق = 0</strong> طبيعي إذا لم يدخل أحد غرفة الفيديو بعد.
               الجلسة «مباشرة» في التطبيق تعني أنك بدأتها — اضغط <strong>دخول البث</strong> وتأكد أن
               الكاميرا/المايك يعملان داخل الإطار.
@@ -554,7 +554,7 @@ export default function TeacherSessionsPage() {
 
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-bg px-4 py-3">
             <p className="text-sm text-text-muted">
-              غرف Daily القديمة (من جلسات منتهية) تبقى في اللوحة حتى تضغط تنظيف — لن تستهلك دقائق
+              غرف LiveKit القديمة (من جلسات منتهية) تبقى في اللوحة حتى تضغط تنظيف
               بدون دخول المكالمة.
             </p>
             <Button
@@ -564,7 +564,7 @@ export default function TeacherSessionsPage() {
               disabled={closingAll || countsLoading}
               onClick={handlePurgeDailyOnly}
             >
-              تنظيف غرف Daily
+              تنظيف غرف LiveKit
             </Button>
           </div>
         </div>

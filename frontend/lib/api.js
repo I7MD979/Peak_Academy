@@ -154,6 +154,7 @@ export const sessionsApi = {
     return apiRequest(`/sessions/${sessionId}/cancel`, { method: "PATCH" });
   },
   start: (sessionId) => apiRequest(`/sessions/${sessionId}/start`, { method: "POST" }),
+  muteAll: (sessionId) => apiRequest(`/sessions/${sessionId}/mute-all`, { method: "POST" }),
   end: async (sessionId) => {
     clearApiCache("/sessions");
     return apiRequest(`/sessions/${sessionId}/end`, { method: "POST" });

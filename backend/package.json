@@ -16,7 +16,7 @@
     "lint": "node -e \"console.log('No linter configured yet')\"",
     "seed:auth": "node scripts/seed-auth-users.mjs",
     "migrate:payments": "node scripts/apply-payments-migration.mjs",
-    "cleanup:daily": "node scripts/cleanup-daily.js"
+    "cleanup:livekit": "node scripts/cleanup-livekit.js"
   },
   "keywords": [],
   "author": "",
@@ -33,6 +33,7 @@
     "express-rate-limit": "^7.5.0",
     "helmet": "^8.2.0",
     "ioredis": "^5.6.1",
+    "livekit-server-sdk": "^2.15.4",
     "resend": "^3.5.0",
     "ws": "^8.21.0",
     "zod": "^4.4.3"

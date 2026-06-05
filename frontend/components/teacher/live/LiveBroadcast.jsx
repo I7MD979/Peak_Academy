@@ -4,7 +4,7 @@ import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import ConnectionBanner from "./ConnectionBanner";
 import LiveSessionHeader from "./LiveSessionHeader";
-import DailyVideoRoom from "./DailyVideoRoom";
+import LiveKitVideoRoom from "./LiveKitVideoRoom";
 import TeacherToolsPanel from "./TeacherToolsPanel";
 import AttendancePanel from "./AttendancePanel";
 import EndSessionDialog from "./EndSessionDialog";
@@ -47,7 +47,7 @@ export default function LiveBroadcast({
       />
       <div className="flex flex-1 flex-col overflow-hidden lg:flex-row">
         <div className="min-h-0 flex-[3] p-3 md:p-4">
-          <DailyVideoRoom
+          <LiveKitVideoRoom
             roomUrl={roomUrl}
             token={token}
             onCallReady={handleCallReady}
@@ -55,7 +55,7 @@ export default function LiveBroadcast({
           />
         </div>
         <aside className="flex w-full flex-col border-t border-border bg-card lg:w-80 lg:border-r lg:border-t-0">
-          <TeacherToolsPanel sessionId={sessionId} call={call} />
+          <TeacherToolsPanel sessionId={sessionId} room={call} />
           <AttendancePanel
             participants={participants}
             maxStudents={session?.maxStudents || 5}

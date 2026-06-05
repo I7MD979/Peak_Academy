@@ -6,7 +6,7 @@ import LoadingSkeleton from "@/components/shared/LoadingSkeleton";
 import EmptyState from "@/components/shared/EmptyState";
 import { sessionsApi } from "@/lib/api";
 
-const LiveRoom = dynamic(() => import("@/lib/daily"), {
+const LiveRoom = dynamic(() => import("@/lib/livekit"), {
   ssr: false,
   loading: () => <LoadingSkeleton />
 });
@@ -63,7 +63,7 @@ export default function LiveSessionRoom({ sessionId, isTeacher, sessionStart }) 
           }
           if (!meetingToken) {
             setError(
-              "لا يوجد رمز دخول للغرفة الخاصة. تأكد من ضبط DAILY_API_KEY على Railway ثم أعد نشر الخادم."
+              "لا يوجد رمز دخول للغرفة. تأكد من ضبط LIVEKIT_* على Railway ثم أعد نشر الخادم."
             );
             return;
           }

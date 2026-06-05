@@ -4,15 +4,18 @@ import { auth } from "../middleware/auth.js";
 import { checkRole } from "../middleware/checkRole.js";
 import { supabase } from "../lib/supabase.js";
 import {
-  deleteDailyRoom,
-  purgeSessionDailyRooms,
-  ensureSessionDailyRoomOptional,
-  ensureDailyMeetingAccess,
+  deleteLiveKitRoom,
+  purgeSessionLiveKitRooms,
+  ensureSessionLiveKitRoomOptional,
+  ensureLiveKitAccess,
+  getLiveKitServerUrl,
   getRoomUrl,
-  mapDailyError,
+  isLiveKitConfigured,
+  mapLiveKitError,
+  muteAllParticipantsInRoom,
   resolveRoomName,
-  sessionDailyRoomName
-} from "../services/daily.service.js";
+  sessionLiveKitRoomName
+} from "../services/livekit.service.js";
 import { getSessionJoinWindow } from "../utils/session-join.js";
 import { isSchemaV2, SCHEMA, sessionStartTime } from "../lib/schema.js";
 import { paginate, paginationMeta } from "../utils/paginate.js";
@@ -127,7 +130,7 @@ async function assertTeacherOwnsSession(sessionId, userId, res) {
 }
 
 function handleRouteError(res, err, fallbackMessage) {
-  const mapped = err?.dailyError || err?.dailyInfo ? mapDailyError(err) : mapDbError(err);
+  const mapped = err?.livekitError ? mapLiveKitError(err) : mapDbError(err);
   if (process.env.NODE_ENV !== "production") {
     console.error(fallbackMessage, err);
   }
@@ -164,7 +167,7 @@ async function insertSessionRow(payload) {
   throw lastError;
 }
 
-async function clearSessionDailyRoomFields(sessionId) {
+async function clearSessionLiveKitRoomFields(sessionId) {
   const patchVariants = [
     { daily_room_url: null, daily_room_name: null, room_url: null },
     { room_url: null }
@@ -176,28 +179,30 @@ async function clearSessionDailyRoomFields(sessionId) {
   }
 }
 
-async function deleteSessionDailyRoom(sessionRow) {
-  const roomName = resolveRoomName(sessionRow) || sessionDailyRoomName(sessionRow?.id);
-  if (roomName) await deleteDailyRoom(roomName);
+async function deleteSessionLiveKitRoom(sessionRow) {
+  const roomName = resolveRoomName(sessionRow) || sessionLiveKitRoomName(sessionRow?.id);
+  if (roomName) await deleteLiveKitRoom(roomName);
 }
 
-async function detachDailyRoomFromSession(sessionId, sessionRow) {
-  await deleteSessionDailyRoom(sessionRow);
-  await clearSessionDailyRoomFields(sessionId);
+async function detachLiveKitRoomFromSession(sessionId, sessionRow) {
+  await deleteSessionLiveKitRoom(sessionRow);
+  await clearSessionLiveKitRoomFields(sessionId);
 }
 
-async function attachDailyRoomToSession(sessionId, maxStudents, existingRoom = null) {
+async function attachLiveKitRoomToSession(sessionId, maxStudents, existingRoom = null) {
   const room =
     existingRoom ||
-    (await ensureSessionDailyRoomOptional(sessionId, {
+    (await ensureSessionLiveKitRoomOptional(sessionId, {
       maxStudents,
       expiryHours: 3
     }));
   if (!room) return null;
 
+  const serverUrl = getLiveKitServerUrl();
   const patchVariants = [
-    { daily_room_url: room.url, daily_room_name: room.name, room_url: room.url },
-    { room_url: room.url }
+    { daily_room_url: serverUrl, daily_room_name: room.name, room_url: serverUrl },
+    { daily_room_name: room.name, room_url: serverUrl },
+    { room_url: serverUrl }
   ];
 
   for (const patch of patchVariants) {
@@ -210,7 +215,7 @@ async function attachDailyRoomToSession(sessionId, maxStudents, existingRoom = n
 
     if (!dbError) return data || room;
     if (!isMissingColumnError(dbError)) {
-      console.warn("[sessions] attach room:", dbError.message);
+      console.warn("[sessions] attach livekit room:", dbError.message);
       break;
     }
   }
@@ -440,10 +445,10 @@ router.post("/", auth, checkRole("teacher"), async (req, res) => {
     const maxStudents = body.max_students || 10;
     let roomWarning = null;
 
-    if (process.env.DAILY_API_KEY) {
-      roomWarning = "سيتم إنشاء غرفة الفيديو عند بدء الجلسة (لتجنب غرف Daily فارغة).";
+    if (isLiveKitConfigured()) {
+      roomWarning = "سيتم إنشاء غرفة الفيديو عند بدء الجلسة.";
     } else {
-      roomWarning = "غرفة الفيديو غير مفعّلة (DAILY_API_KEY غير موجود على الخادم).";
+      roomWarning = "غرفة الفيديو غير مفعّلة (LIVEKIT_* غير مضبوط على الخادم).";
     }
 
     const insertPayload = {
@@ -483,10 +488,6 @@ router.post("/", auth, checkRole("teacher"), async (req, res) => {
       201
     );
   } catch (err) {
-    if (err?.dailyError) {
-      const mapped = mapDailyError(err);
-      return error(res, mapped.message, mapped.status);
-    }
     return handleRouteError(res, err, "تعذر إنشاء الجلسة");
   }
 });
@@ -574,26 +575,26 @@ router.post("/close-open", auth, checkRole("teacher", "admin"), async (req, res)
         if (result === "ended") ended += 1;
         else cancelled += 1;
 
-        await detachDailyRoomFromSession(session.id, session);
+        await detachLiveKitRoomFromSession(session.id, session);
         await safeInvalidateSessionCaches(session.id);
       } catch (err) {
         failures.push({ id: session.id, message: err?.message || "فشل الإغلاق" });
       }
     }
 
-    let dailyPurge = { deleted: [], failed: [], skipped: true };
+    let livekitPurge = { deleted: [], failed: [], skipped: true };
     try {
-      dailyPurge = await purgeSessionDailyRooms();
+      livekitPurge = await purgeSessionLiveKitRooms();
     } catch (purgeErr) {
-      console.warn("[sessions] daily purge:", purgeErr?.message || purgeErr);
-      dailyPurge = { deleted: [], failed: [], skipped: true, error: purgeErr?.message };
+      console.warn("[sessions] livekit purge:", purgeErr?.message || purgeErr);
+      livekitPurge = { deleted: [], failed: [], skipped: true, error: purgeErr?.message };
     }
 
     await invalidatePattern("sessions:list:");
 
     const closedCount = ended + cancelled;
     const message =
-      rows.length === 0 && (dailyPurge.deleted?.length || 0) === 0
+      rows.length === 0 && (livekitPurge.deleted?.length || 0) === 0
         ? "لا توجد جلسات مفتوحة"
         : failures.length > 0
           ? `تم إغلاق ${closedCount} جلسة مع ${failures.length} أخطاء`
@@ -606,8 +607,10 @@ router.post("/close-open", auth, checkRole("teacher", "admin"), async (req, res)
         cancelled,
         total: rows.length,
         failures,
-        daily_rooms_deleted: dailyPurge.deleted?.length || 0,
-        daily_rooms_failed: dailyPurge.failed?.length || 0
+        livekit_rooms_deleted: livekitPurge.deleted?.length || 0,
+        livekit_rooms_failed: livekitPurge.failed?.length || 0,
+        daily_rooms_deleted: livekitPurge.deleted?.length || 0,
+        daily_rooms_failed: livekitPurge.failed?.length || 0
       },
       message
     );
@@ -618,21 +621,33 @@ router.post("/close-open", auth, checkRole("teacher", "admin"), async (req, res)
 
 router.post("/purge-daily-rooms", auth, checkRole("teacher", "admin"), async (req, res) => {
   try {
-    if (!process.env.DAILY_API_KEY) {
-      return error(res, "DAILY_API_KEY غير مضبوط على الخادم", 503);
+    if (!isLiveKitConfigured()) {
+      return error(res, "LIVEKIT غير مضبوط على الخادم", 503);
     }
-    const dailyPurge = await purgeSessionDailyRooms();
+    const livekitPurge = await purgeSessionLiveKitRooms();
     return success(
       res,
       {
-        deleted: dailyPurge.deleted?.length || 0,
-        failed: dailyPurge.failed?.length || 0,
-        room_names: dailyPurge.deleted || []
+        deleted: livekitPurge.deleted?.length || 0,
+        failed: livekitPurge.failed?.length || 0,
+        room_names: livekitPurge.deleted || []
       },
-      `تم حذف ${dailyPurge.deleted?.length || 0} غرفة فيديو من Daily`
+      `تم حذف ${livekitPurge.deleted?.length || 0} غرفة فيديو من LiveKit`
     );
   } catch (err) {
-    return handleRouteError(res, err, "تعذر تنظيف غرف Daily");
+    return handleRouteError(res, err, "تعذر تنظيف غرف LiveKit");
+  }
+});
+
+router.post("/:id/mute-all", auth, checkRole("teacher"), async (req, res) => {
+  try {
+    if (!(await assertTeacherOwnsSession(req.params.id, req.user.id, res))) return;
+
+    const roomName = sessionLiveKitRoomName(req.params.id);
+    const result = await muteAllParticipantsInRoom(roomName);
+    return success(res, result, `تم كتم ${result.muted} مسار صوتي`);
+  } catch (err) {
+    return handleRouteError(res, err, "تعذر كتم المشاركين");
   }
 });
 
@@ -823,27 +838,21 @@ router.post("/:id/start", auth, checkRole("teacher"), async (req, res) => {
       return error(res, startInfo.reason || "لا يمكن بدء الجلسة الآن", 400);
     }
 
-    let roomUrl = scheduledSession.daily_room_url || scheduledSession.room_url || null;
+    let roomUrl = scheduledSession.daily_room_url || scheduledSession.room_url || getLiveKitServerUrl();
     let roomWarning = null;
 
-    if (process.env.DAILY_API_KEY) {
+    if (isLiveKitConfigured()) {
       const existingName = resolveRoomName(scheduledSession);
-      if (existingName && roomUrl) {
-        // Idempotency: room already linked — reuse without creating a new Daily room.
-        roomUrl = roomUrl || getRoomUrl(existingName);
-      } else {
-        const attached = await attachDailyRoomToSession(
-          req.params.id,
-          scheduledSession.max_students || 10
-        );
-        roomUrl = attached?.daily_room_url || attached?.room_url || attached?.url || roomUrl;
+      if (!existingName) {
+        await attachLiveKitRoomToSession(req.params.id, scheduledSession.max_students || 10);
       }
+      roomUrl = getLiveKitServerUrl();
     }
 
     if (!roomUrl) {
-      roomWarning = process.env.DAILY_API_KEY
-        ? "تم بدء الجلسة بدون رابط فيديو. راجع DAILY_API_KEY في Railway."
-        : "تم بدء الجلسة بدون بث مباشر (DAILY_API_KEY غير مضبوط).";
+      roomWarning = isLiveKitConfigured()
+        ? "تم بدء الجلسة بدون رابط فيديو. راجع LIVEKIT_* في Railway."
+        : "تم بدء الجلسة بدون بث مباشر (LiveKit غير مضبوط).";
     }
 
     const session = await markSessionLive(req.params.id);
@@ -898,8 +907,7 @@ router.post("/:id/end", auth, checkRole("teacher"), async (req, res) => {
 
     const endedAt = new Date().toISOString();
 
-    // Delete Daily room before clearing DB fields.
-    await deleteSessionDailyRoom(sessionRow || { id: req.params.id });
+    await deleteSessionLiveKitRoom(sessionRow || { id: req.params.id });
 
     await supabase
       .from("sessions")
@@ -961,7 +969,7 @@ router.patch("/:id/cancel", auth, checkRole("teacher", "admin"), async (req, res
         .maybeSingle();
 
       const endedAt = new Date().toISOString();
-      await deleteSessionDailyRoom(sessionRow || { id: req.params.id });
+      await deleteSessionLiveKitRoom(sessionRow || { id: req.params.id });
 
       await supabase
         .from("sessions")
@@ -1003,7 +1011,7 @@ router.patch("/:id/cancel", auth, checkRole("teacher", "admin"), async (req, res
 
     if (updateError) throw updateError;
 
-    await detachDailyRoomFromSession(req.params.id, sessionRow);
+    await detachLiveKitRoomFromSession(req.params.id, sessionRow);
 
     const refundResult = await refundAllSessionEnrollments(req.params.id);
     await safeInvalidateSessionCaches(req.params.id);
@@ -1027,48 +1035,40 @@ function canEnterLiveSession(session) {
   return { ok: true };
 }
 
-function resolveRoomForSession(session) {
-  const roomName = resolveRoomName(session) || sessionDailyRoomName(session?.id);
-  const roomUrl = session.daily_room_url || session.room_url || (roomName ? getRoomUrl(roomName) : null);
-  return { roomName, roomUrl };
-}
-
-function dailyTokenFailureResponse(res, lastError) {
-  if (lastError?.dailyError || lastError?.dailyInfo) {
-    const mapped = mapDailyError(lastError);
-    return error(res, mapped.message, mapped.status, {
-      daily_error: lastError.dailyError,
-      daily_info: lastError.dailyInfo
-    });
+function liveKitTokenFailureResponse(res, lastError) {
+  if (lastError) {
+    const mapped = mapLiveKitError(lastError);
+    return error(res, mapped.message, mapped.status);
   }
   return error(
     res,
-    "تعذر إنشاء رمز الدخول لغرفة الفيديو. تحقق من DAILY_API_KEY في Railway (مفتاح Daily.co صالح لنفس النطاق).",
+    "تعذر إنشاء رمز الدخول لغرفة الفيديو. تحقق من LIVEKIT_API_KEY و LIVEKIT_API_SECRET في Railway.",
     502
   );
 }
 
 async function buildMeetingPayload(session, sessionId, reqUser, isTeacher) {
-  const { roomName, roomUrl } = resolveRoomForSession(session);
-
-  const access = await ensureDailyMeetingAccess({
+  const access = await ensureLiveKitAccess({
     sessionId,
     maxStudents: session.max_students || 10,
-    roomName,
-    roomUrl,
     userId: reqUser.id,
-    isOwner: isTeacher,
+    isTeacher,
     userName: reqUser.full_name || reqUser.email || ""
   });
 
-  if (access.recreated) {
-    await attachDailyRoomToSession(sessionId, session.max_students || 10, {
-      url: access.roomUrl,
-      name: access.roomName
+  if (access.roomName) {
+    await attachLiveKitRoomToSession(sessionId, session.max_students || 10, {
+      name: access.roomName,
+      url: access.roomUrl
     });
   }
 
-  return access;
+  return {
+    roomUrl: access.roomUrl,
+    roomName: access.roomName,
+    token: access.token,
+    lastError: access.lastError
+  };
 }
 
 async function assertStudentEnrollmentForJoin(userId, sessionId) {
@@ -1125,15 +1125,15 @@ router.post("/:id/join", auth, async (req, res) => {
     if (!access.roomUrl && !access.roomName) {
       return error(
         res,
-        process.env.DAILY_API_KEY
-          ? "غرفة الفيديو غير متاحة. راجع DAILY_API_KEY في Railway."
-          : "غرفة الفيديو غير مفعّلة على الخادم (DAILY_API_KEY).",
+        isLiveKitConfigured()
+          ? "غرفة الفيديو غير متاحة. راجع LIVEKIT_* في Railway."
+          : "غرفة الفيديو غير مفعّلة على الخادم (LiveKit).",
         502
       );
     }
 
     if (!access.token) {
-      return dailyTokenFailureResponse(res, access.lastError);
+      return liveKitTokenFailureResponse(res, access.lastError);
     }
 
     return success(res, {
@@ -1143,10 +1143,6 @@ router.post("/:id/join", auth, async (req, res) => {
       session_start: sessionStartTime(session)
     });
   } catch (err) {
-    if (err?.dailyError) {
-      const mapped = mapDailyError(err);
-      return error(res, mapped.message, mapped.status);
-    }
     return handleRouteError(res, err, "تعذر الدخول إلى الحصة");
   }
 });
@@ -1174,15 +1170,13 @@ router.get("/:id/room", auth, async (req, res) => {
     if (!access.roomUrl && !access.roomName) {
       return error(
         res,
-        process.env.DAILY_API_KEY
-          ? "غرفة الفيديو غير متاحة"
-          : "غرفة الفيديو غير مفعّلة على الخادم",
+        isLiveKitConfigured() ? "غرفة الفيديو غير متاحة" : "غرفة الفيديو غير مفعّلة على الخادم",
         502
       );
     }
 
     if (!access.token) {
-      return dailyTokenFailureResponse(res, access.lastError);
+      return liveKitTokenFailureResponse(res, access.lastError);
     }
 
     return success(res, {
@@ -1191,10 +1185,6 @@ router.get("/:id/room", auth, async (req, res) => {
       is_teacher: isTeacher
     });
   } catch (err) {
-    if (err?.dailyError) {
-      const mapped = mapDailyError(err);
-      return error(res, mapped.message, mapped.status);
-    }
     return handleRouteError(res, err, "تعذر تحميل غرفة الفيديو");
   }
 });
