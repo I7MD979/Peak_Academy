@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/Select";
 import StatsCard from "@/components/admin/StatsCard";
 import DataTable from "@/components/admin/DataTable";
 import StatusBadge from "@/components/admin/StatusBadge";
@@ -374,46 +375,38 @@ export default function TeacherEarningsPage() {
               )}
             </div>
 
-            <div className="space-y-1">
-              <Label htmlFor="withdraw_method">طريقة السحب</Label>
-              <select
-                id="withdraw_method"
-                value={withdrawMethod}
-                onChange={(e) => {
-                  setWithdrawMethod(e.target.value);
-                  if (e.target.value !== "bank_transfer") setWithdrawBank("");
-                }}
-                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-              >
-                <option value="instapay">إنستاباي</option>
-                <option value="vodafone_cash">فودافون كاش</option>
-                <option value="bank_transfer">تحويل بنكي</option>
-              </select>
-            </div>
+            <Select
+              id="withdraw_method"
+              label="طريقة السحب"
+              value={withdrawMethod}
+              onChange={(e) => {
+                setWithdrawMethod(e.target.value);
+                if (e.target.value !== "bank_transfer") setWithdrawBank("");
+              }}
+            >
+              <option value="instapay">إنستاباي</option>
+              <option value="vodafone_cash">فودافون كاش</option>
+              <option value="bank_transfer">تحويل بنكي</option>
+            </Select>
 
             {withdrawMethod === "bank_transfer" ? (
-              <div className="space-y-1">
-                <Label htmlFor="withdraw_bank">اسم البنك</Label>
-                <select
-                  id="withdraw_bank"
-                  value={withdrawBank}
-                  onChange={(e) => {
-                    setWithdrawBank(e.target.value);
-                    setFieldErrors((prev) => ({ ...prev, bank: "" }));
-                  }}
-                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                >
-                  <option value="">اختر البنك</option>
-                  {EGYPTIAN_BANKS.map((bank) => (
-                    <option key={bank.value} value={bank.value}>
-                      {bank.label}
-                    </option>
-                  ))}
-                </select>
-                {fieldErrors.bank ? (
-                  <p className="text-xs font-semibold text-destructive">{fieldErrors.bank}</p>
-                ) : null}
-              </div>
+              <Select
+                id="withdraw_bank"
+                label="اسم البنك"
+                value={withdrawBank}
+                onChange={(e) => {
+                  setWithdrawBank(e.target.value);
+                  setFieldErrors((prev) => ({ ...prev, bank: "" }));
+                }}
+                error={fieldErrors.bank}
+              >
+                <option value="">اختر البنك</option>
+                {EGYPTIAN_BANKS.map((bank) => (
+                  <option key={bank.value} value={bank.value}>
+                    {bank.label}
+                  </option>
+                ))}
+              </Select>
             ) : null}
 
             <div className="space-y-1">

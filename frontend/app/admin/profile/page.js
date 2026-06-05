@@ -5,7 +5,7 @@ import Link from "next/link";
 import AdminSectionCard from "@/components/admin/AdminSectionCard";
 import StatsCard from "@/components/admin/StatsCard";
 import { Button } from "@/components/ui/button";
-import LoadingSkeleton from "@/components/shared/LoadingSkeleton";
+import { SectionLoader } from "@/components/shared/LoadingSkeleton";
 import Icon from "@/components/shared/Icon";
 import PersonalInfoFields from "@/components/profile/PersonalInfoFields";
 import ProfileAvatarPreview from "@/components/profile/ProfileAvatarPreview";
@@ -117,7 +117,7 @@ export default function AdminProfilePage() {
 
       {loading ? (
         <div className="glass-card rounded-2xl p-6">
-          <LoadingSkeleton />
+          <SectionLoader />
         </div>
       ) : null}
 

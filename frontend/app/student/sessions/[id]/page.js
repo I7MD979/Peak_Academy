@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import PaymentModal from "@/components/shared/PaymentModal";
-import LoadingSkeleton from "@/components/shared/LoadingSkeleton";
+import { PageLoader } from "@/components/shared/LoadingSkeleton";
 import EmptyState from "@/components/shared/EmptyState";
 import StatusBadge from "@/components/admin/StatusBadge";
 import SubjectBadge from "@/components/shared/SubjectBadge";
@@ -74,11 +74,7 @@ export default function StudentSessionDetailsPage({ params }) {
   }, [params.id, loadSession]);
 
   if (loading) {
-    return (
-      <main className="bg-bg p-4 md:p-6">
-        <LoadingSkeleton />
-      </main>
-    );
+    return <PageLoader />;
   }
 
   if (error || !session) {

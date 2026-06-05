@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/Select";
 import { useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
@@ -123,35 +124,25 @@ export default function OnboardingPage() {
               {errors.full_name && <p className="text-xs text-danger">{errors.full_name.message}</p>}
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="role">نوع الحساب</Label>
-              <select
-                id="role"
-                className="h-10 w-full rounded-lg border border-border bg-white px-3 text-sm"
-                {...register("role")}
-              >
-                <option value="student">طالب</option>
-                <option value="teacher">مدرس</option>
-                <option value="parent">ولي أمر</option>
-              </select>
-            </div>
+            <Select id="role" label="نوع الحساب" {...register("role")}>
+              <option value="student">طالب</option>
+              <option value="teacher">مدرس</option>
+              <option value="parent">ولي أمر</option>
+            </Select>
 
             {selectedRole === "student" ? (
-              <div className="space-y-2">
-                <Label htmlFor="grade">الصف الدراسي</Label>
-                <select
-                  id="grade"
-                  className="h-10 w-full rounded-lg border border-border bg-white px-3 text-sm"
-                  {...register("grade")}
-                >
-                  {GRADE_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-                {errors.grade && <p className="text-xs text-danger">{errors.grade.message}</p>}
-              </div>
+              <Select
+                id="grade"
+                label="الصف الدراسي"
+                error={errors.grade?.message}
+                {...register("grade")}
+              >
+                {GRADE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </Select>
             ) : null}
 
             <div className="space-y-1">

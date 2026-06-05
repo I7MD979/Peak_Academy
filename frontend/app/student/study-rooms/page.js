@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import StatsCard from "@/components/admin/StatsCard";
 import StudyRoomCard from "@/components/student/StudyRoomCard";
 import EmptyState from "@/components/shared/EmptyState";
-import LoadingSkeleton from "@/components/shared/LoadingSkeleton";
+import { SectionLoader } from "@/components/shared/LoadingSkeleton";
 import Icon from "@/components/shared/Icon";
 import { studyRoomsApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -137,7 +137,7 @@ export default function StudentStudyRoomsPage() {
 
       {loading ? (
         <div className="rounded-2xl border border-border bg-card p-4">
-          <LoadingSkeleton />
+          <SectionLoader />
         </div>
       ) : null}
 

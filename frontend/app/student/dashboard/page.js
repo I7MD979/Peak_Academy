@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import StatsCard from "@/components/admin/StatsCard";
 import SessionCard from "@/components/shared/SessionCard";
-import LoadingSkeleton from "@/components/shared/LoadingSkeleton";
+import { DashboardSkeleton } from "@/components/shared/LoadingSkeleton";
 import EmptyState from "@/components/shared/EmptyState";
 import Icon from "@/components/shared/Icon";
 import { studentApi } from "@/lib/api";
@@ -93,11 +93,7 @@ export default function StudentDashboardPage() {
         </div>
       ) : null}
 
-      {loading ? (
-        <div className="rounded-2xl border border-border bg-card p-4">
-          <LoadingSkeleton />
-        </div>
-      ) : null}
+      {loading ? <DashboardSkeleton /> : null}
 
       {!loading && data ? (
         <>

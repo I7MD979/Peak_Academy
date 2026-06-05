@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import LoadingSkeleton from "@/components/shared/LoadingSkeleton";
+import { PageLoader } from "@/components/shared/LoadingSkeleton";
 import EmptyState from "@/components/shared/EmptyState";
 import ErrorState from "@/components/shared/ErrorState";
 import WaitingRoom from "@/components/teacher/live/WaitingRoom";
@@ -23,11 +23,7 @@ export default function TeacherLivePage({ params }) {
   } = useLiveSession(params.id);
 
   if (phase === "loading") {
-    return (
-      <main className="p-4 md:p-6">
-        <LoadingSkeleton />
-      </main>
-    );
+    return <PageLoader />;
   }
 
   if (phase === "error") {
@@ -53,11 +49,7 @@ export default function TeacherLivePage({ params }) {
   }
 
   if (phase === "starting") {
-    return (
-      <main className="p-4 md:p-6">
-        <LoadingSkeleton />
-      </main>
-    );
+    return <PageLoader />;
   }
 
   if (phase === "live" || phase === "ending") {

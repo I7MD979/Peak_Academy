@@ -10,6 +10,7 @@ import {
   XAxis,
   YAxis
 } from "recharts";
+import { SectionLoader } from "@/components/shared/LoadingSkeleton";
 import { formatCurrencyEgp } from "@/lib/format";
 
 function ChartTooltip({ active, payload, label }) {
@@ -30,8 +31,8 @@ function ChartTooltip({ active, payload, label }) {
 export default function RevenueChart({ data = [], loading }) {
   if (loading) {
     return (
-      <div className="flex h-[320px] items-center justify-center rounded-2xl border border-dashed border-border bg-muted/30">
-        <p className="text-sm text-text-muted">جاري تحميل الرسم البياني...</p>
+      <div className="flex h-[320px] items-center justify-center rounded-2xl border border-dashed border-border bg-bg/50">
+        <SectionLoader message="جاري تحميل الرسم البياني..." />
       </div>
     );
   }

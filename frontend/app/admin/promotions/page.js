@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import LoadingSkeleton from "@/components/shared/LoadingSkeleton";
+import { PageLoader } from "@/components/shared/LoadingSkeleton";
+import { Select } from "@/components/ui/Select";
 import { adminPromotionsApi } from "@/lib/api";
 
 export default function AdminPromotionsPage() {
@@ -49,11 +50,7 @@ export default function AdminPromotionsPage() {
   };
 
   if (loading) {
-    return (
-      <main className="p-4 md:p-6">
-        <LoadingSkeleton />
-      </main>
-    );
+    return <PageLoader />;
   }
 
   return (
@@ -84,15 +81,14 @@ export default function AdminPromotionsPage() {
           onChange={(e) => setForm({ ...form, code: e.target.value })}
           required
         />
-        <select
-          className="rounded-xl border border-border bg-bg px-3 py-2 text-sm"
+        <Select
           value={form.discount_type}
           onChange={(e) => setForm({ ...form, discount_type: e.target.value })}
         >
           <option value="percent">نسبة مئوية</option>
           <option value="fixed">مبلغ ثابت</option>
           <option value="free_session">حصة مجانية</option>
-        </select>
+        </Select>
         <Input
           type="number"
           placeholder="قيمة الخصم"

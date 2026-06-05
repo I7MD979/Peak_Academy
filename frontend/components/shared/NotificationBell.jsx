@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Icon from "@/components/shared/Icon";
+import { SectionLoader } from "@/components/shared/LoadingSkeleton";
 import { useNotifications } from "@/hooks/useNotifications";
 import { cn } from "@/lib/utils";
 
@@ -87,7 +88,7 @@ export default function NotificationBell({ theme = "light" }) {
 
           <div className="max-h-80 overflow-y-auto">
             {loading ? (
-              <p className="p-4 text-center text-sm text-text-muted">جاري التحميل...</p>
+              <SectionLoader message="جاري التحميل..." />
             ) : error ? (
               <p className="p-4 text-center text-sm text-danger">{error}</p>
             ) : items.length === 0 ? (

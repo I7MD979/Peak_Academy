@@ -1,4 +1,4 @@
-import LoadingSkeleton from "@/components/shared/LoadingSkeleton";
+import { TableSkeleton } from "@/components/shared/LoadingSkeleton";
 import EmptyState from "@/components/shared/EmptyState";
 
 import { cn } from "@/lib/utils";
@@ -7,7 +7,7 @@ export default function DataTable({ columns, data, loading, emptyMessage, emptyD
   if (loading) {
     return (
       <div className="rounded-2xl border border-border bg-card p-4">
-        <LoadingSkeleton />
+        <TableSkeleton />
       </div>
     );
   }

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import StatsCard from "@/components/admin/StatsCard";
 import AvatarUpload from "@/components/profile/AvatarUpload";
-import LoadingSkeleton, { StatCardSkeleton } from "@/components/shared/LoadingSkeleton";
+import { DashboardSkeleton } from "@/components/shared/LoadingSkeleton";
 import Icon from "@/components/shared/Icon";
 import PersonalInfoFields from "@/components/profile/PersonalInfoFields";
 import ProfileErrorState from "@/components/profile/ProfileErrorState";
@@ -229,19 +229,7 @@ export default function TeacherProfilePage() {
 
       {error ? <ProfileErrorState message={error} onRetry={loadProfile} /> : null}
 
-      {loading ? (
-        <div className="space-y-3">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <StatCardSkeleton />
-            <StatCardSkeleton />
-            <StatCardSkeleton />
-            <StatCardSkeleton />
-          </div>
-          <div className="glass-card p-4">
-            <LoadingSkeleton />
-          </div>
-        </div>
-      ) : null}
+      {loading ? <DashboardSkeleton /> : null}
 
       {!loading && profile ? (
         <>

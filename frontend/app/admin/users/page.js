@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/Select";
 import DataTable from "@/components/admin/DataTable";
 import StatusBadge from "@/components/admin/StatusBadge";
 import { dashboardApi } from "@/lib/api";
@@ -238,35 +239,35 @@ export default function AdminUsersPage() {
             className="h-11 rounded-xl border border-border px-4 text-sm font-cairo focus:border-accent focus:outline-none"
           />
 
-          <select
+          <Select
             value={roleFilter}
             onChange={(e) => {
               setPage(1);
               setRoleFilter(e.target.value);
             }}
-            className="h-11 min-w-[170px] rounded-xl border border-border px-3 text-sm font-cairo focus:border-accent focus:outline-none"
+            className="h-11 min-w-[170px] rounded-xl font-cairo"
           >
             {roleTabs.map((tab) => (
               <option key={tab.key || "all"} value={tab.key}>
                 {tab.label}
               </option>
             ))}
-          </select>
+          </Select>
 
-          <select
+          <Select
             value={statusFilter}
             onChange={(e) => {
               setPage(1);
               setStatusFilter(e.target.value);
             }}
-            className="h-11 min-w-[170px] rounded-xl border border-border px-3 text-sm font-cairo focus:border-accent focus:outline-none"
+            className="h-11 min-w-[170px] rounded-xl font-cairo"
           >
             {statusTabs.map((tab) => (
               <option key={tab.key || "all"} value={tab.key}>
                 {tab.label}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
       </section>
 

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import StatsCard from "@/components/admin/StatsCard";
-import LoadingSkeleton from "@/components/shared/LoadingSkeleton";
+import { SectionLoader } from "@/components/shared/LoadingSkeleton";
 import Icon from "@/components/shared/Icon";
 import PersonalInfoFields from "@/components/profile/PersonalInfoFields";
 import ProfileErrorState from "@/components/profile/ProfileErrorState";
@@ -135,7 +135,7 @@ export default function StudentProfilePage() {
 
       {loading ? (
         <div className="glass-card p-4">
-          <LoadingSkeleton />
+          <SectionLoader />
         </div>
       ) : null}
 

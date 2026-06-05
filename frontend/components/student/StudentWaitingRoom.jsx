@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { studentApi } from "@/lib/api";
 import { useWaitingHeartbeat } from "@/hooks/useWaitingHeartbeat";
-import LoadingSkeleton from "@/components/shared/LoadingSkeleton";
+import { SectionLoader } from "@/components/shared/LoadingSkeleton";
 
 export default function StudentWaitingRoom({ sessionId }) {
   const [session, setSession] = useState(null);
@@ -37,7 +37,7 @@ export default function StudentWaitingRoom({ sessionId }) {
     };
   }, [sessionId]);
 
-  if (loading) return <LoadingSkeleton />;
+  if (loading) return <SectionLoader message="جاري التحميل..." />;
 
   return (
     <main className="flex min-h-[60vh] flex-col items-center justify-center gap-4 p-6 text-center">

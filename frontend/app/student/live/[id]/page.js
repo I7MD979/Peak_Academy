@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import LiveSessionRoom from "@/components/shared/LiveSessionRoom";
 import StudentWaitingRoom from "@/components/student/StudentWaitingRoom";
-import LoadingSkeleton from "@/components/shared/LoadingSkeleton";
+import { PageLoader } from "@/components/shared/LoadingSkeleton";
 import { studentApi } from "@/lib/api";
 
 export default function StudentLivePage({ params }) {
@@ -29,11 +29,7 @@ export default function StudentLivePage({ params }) {
   }, [params.id]);
 
   if (status === "loading") {
-    return (
-      <main className="p-4">
-        <LoadingSkeleton />
-      </main>
-    );
+    return <PageLoader />;
   }
 
   if (status === "waiting") {

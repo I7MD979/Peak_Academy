@@ -9,7 +9,7 @@ import DataTable from "@/components/admin/DataTable";
 import StatusBadge from "@/components/admin/StatusBadge";
 import TeacherSessionDetailsModal from "@/components/teacher/TeacherSessionDetailsModal";
 import ErrorState from "@/components/shared/ErrorState";
-import LoadingSkeleton from "@/components/shared/LoadingSkeleton";
+import { SessionsListSkeleton } from "@/components/shared/LoadingSkeleton";
 import { logApiError, sessionsApi, teacherApi } from "@/lib/api";
 import { formatCurrencyEgp, formatDateTimeAr } from "@/lib/format";
 import {
@@ -574,7 +574,7 @@ export default function TeacherSessionsPage() {
 
       {loading ? (
         <div className="rounded-2xl border border-border bg-card p-4">
-          <LoadingSkeleton />
+          <SessionsListSkeleton />
         </div>
       ) : sessions.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border bg-card p-10 text-center">

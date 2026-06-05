@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import SessionCard from "@/components/sessions/SessionCard";
 import EmptyState from "@/components/shared/EmptyState";
-import LoadingSkeleton from "@/components/shared/LoadingSkeleton";
+import { PageLoader, SessionsListSkeleton } from "@/components/shared/LoadingSkeleton";
+import { Select } from "@/components/ui/Select";
 import Icon from "@/components/shared/Icon";
 import { studentApi } from "@/lib/api";
 import { mapSessionForCard } from "@/lib/session-mapper";
@@ -161,10 +162,10 @@ function StudentSessionsContent() {
             />
           </div>
 
-          <select
+          <Select
             value={subjectFilter}
             onChange={(e) => setSubjectFilter(e.target.value)}
-            className="h-10 rounded-xl border border-border bg-card px-3 text-sm font-semibold text-text"
+            className="font-semibold"
             aria-label="فلتر المادة"
           >
             <option value="">كل المواد</option>
@@ -173,7 +174,7 @@ function StudentSessionsContent() {
                 {s.label}
               </option>
             ))}
-          </select>
+          </Select>
 
           <Input
             type="number"
@@ -234,7 +235,7 @@ function StudentSessionsContent() {
 
       {loading ? (
         <div className="rounded-2xl border border-border bg-card p-4">
-          <LoadingSkeleton />
+          <SessionsListSkeleton />
         </div>
       ) : null}
 
@@ -282,11 +283,7 @@ function StudentSessionsContent() {
 export default function StudentSessionsPage() {
   return (
     <Suspense
-      fallback={
-        <div className="p-4 md:p-6">
-          <LoadingSkeleton />
-        </div>
-      }
+      fallback={<PageLoader />}
     >
       <StudentSessionsContent />
     </Suspense>

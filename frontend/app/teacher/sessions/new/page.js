@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DateTimePicker } from "@/components/ui/DateTimePicker";
+import { Select } from "@/components/ui/Select";
 import { sessionsApi } from "@/lib/api";
 import { formatCurrencyEgp, formatDateTimeAr } from "@/lib/format";
 
@@ -142,20 +144,17 @@ export default function NewSessionPage() {
           </div>
 
           <div className="grid gap-3 md:grid-cols-2">
-            <div className="space-y-1">
-              <Label htmlFor="grade">الصف الدراسي</Label>
-              <select
-                id="grade"
-                name="grade"
-                value={form.grade}
-                onChange={handleChange("grade")}
-                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-              >
-                <option value="first">الأول الثانوي</option>
-                <option value="second">الثاني الثانوي</option>
-                <option value="third">الثالث الثانوي</option>
-              </select>
-            </div>
+            <Select
+              id="grade"
+              name="grade"
+              label="الصف الدراسي"
+              value={form.grade}
+              onChange={handleChange("grade")}
+            >
+              <option value="first">الأول الثانوي</option>
+              <option value="second">الثاني الثانوي</option>
+              <option value="third">الثالث الثانوي</option>
+            </Select>
 
             <div className="space-y-1">
               <Label htmlFor="duration_min">مدة الجلسة (دقيقة)</Label>
@@ -199,20 +198,18 @@ export default function NewSessionPage() {
           </div>
 
           <div className="space-y-1">
-            <Label htmlFor="scheduled_at">موعد الجلسة</Label>
-            <Input
+            <DateTimePicker
               id="scheduled_at"
               name="scheduled_at"
-              type="datetime-local"
+              label="موعد الجلسة"
               min={minDateTime}
               value={form.scheduled_at}
               onChange={handleChange("scheduled_at")}
+              error={fieldErrors.scheduled_at}
             />
-            {fieldErrors.scheduled_at ? (
-              <p className="text-xs font-semibold text-destructive">{fieldErrors.scheduled_at}</p>
-            ) : (
+            {!fieldErrors.scheduled_at ? (
               <p className="text-xs text-text-muted">الحد الأدنى للموعد: بعد 5 دقائق من الآن</p>
-            )}
+            ) : null}
           </div>
 
           <div className="space-y-1">

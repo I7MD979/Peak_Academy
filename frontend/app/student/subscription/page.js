@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import LoadingSkeleton from "@/components/shared/LoadingSkeleton";
+import { PageLoader } from "@/components/shared/LoadingSkeleton";
 import Icon from "@/components/shared/Icon";
 import { subscriptionsApi } from "@/lib/api";
 import { formatCurrencyEgp } from "@/lib/format";
@@ -65,11 +65,7 @@ export default function StudentSubscriptionPage() {
   };
 
   if (loading) {
-    return (
-      <main className="bg-bg p-4 md:p-6">
-        <LoadingSkeleton />
-      </main>
-    );
+    return <PageLoader />;
   }
 
   const sub = me?.subscription;

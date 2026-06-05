@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { SectionLoader } from "@/components/shared/LoadingSkeleton";
 import { getAuthErrorMessage } from "@/lib/auth-errors";
 
 export default function ResetPasswordForm() {
@@ -90,7 +91,7 @@ export default function ResetPasswordForm() {
   }
 
   if (!ready) {
-    return <p className="text-center text-sm text-text-muted">جاري التحقق من الرابط...</p>;
+    return <SectionLoader message="جاري التحقق من الرابط..." />;
   }
 
   return (

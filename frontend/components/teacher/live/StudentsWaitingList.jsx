@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SectionLoader } from "@/components/shared/LoadingSkeleton";
 import { sessionsApi } from "@/lib/api";
 
 function StudentAvatar({ name, url }) {
@@ -64,7 +65,7 @@ export default function StudentsWaitingList({ sessionId, onAllReady, onCount }) 
       </CardHeader>
       <CardContent className="flex flex-1 flex-col gap-3">
         {loading ? (
-          <p className="text-sm text-text-muted">جاري التحميل...</p>
+          <SectionLoader message="جاري التحميل..." />
         ) : students.length === 0 ? (
           <p className="text-sm text-text-muted">لا يوجد طلاب مسجلون بعد</p>
         ) : (

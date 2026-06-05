@@ -9,6 +9,7 @@ import Icon from "@/components/shared/Icon";
 import GoogleIcon from "@/components/auth/GoogleIcon";
 import AuthField, { authInputClass } from "@/components/auth/AuthField";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/Select";
 import { useAuth } from "@/hooks/useAuth";
 import { authApi } from "@/lib/api";
 import { getAuthErrorMessage } from "@/lib/auth-errors";
@@ -329,13 +330,13 @@ export default function RegisterForm() {
 
             {selectedRole === "student" ? (
               <AuthField id="grade" label="الصف الدراسي" error={step2Form.formState.errors.grade?.message}>
-                <select id="grade" className={authInputClass} {...step2Form.register("grade")}>
+                <Select id="grade" className={authInputClass} {...step2Form.register("grade")}>
                   {GRADE_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
                       {opt.label}
                     </option>
                   ))}
-                </select>
+                </Select>
               </AuthField>
             ) : null}
 

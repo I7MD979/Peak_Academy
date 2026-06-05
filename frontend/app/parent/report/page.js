@@ -9,7 +9,7 @@ import StatsCard from "@/components/admin/StatsCard";
 import StatusBadge from "@/components/admin/StatusBadge";
 import ProgressBar from "@/components/shared/ProgressBar";
 import EmptyState from "@/components/shared/EmptyState";
-import LoadingSkeleton from "@/components/shared/LoadingSkeleton";
+import { SectionLoader } from "@/components/shared/LoadingSkeleton";
 import Icon from "@/components/shared/Icon";
 import { parentApi } from "@/lib/api";
 import { formatDateTimeAr } from "@/lib/format";
@@ -193,7 +193,7 @@ export default function ParentReportPage() {
 
       {loading ? (
         <div className="rounded-2xl border border-border bg-card p-4">
-          <LoadingSkeleton />
+          <SectionLoader />
         </div>
       ) : null}
 
@@ -231,7 +231,7 @@ export default function ParentReportPage() {
           </section>
 
           {reportLoading ? (
-            <LoadingSkeleton />
+            <SectionLoader />
           ) : report && student ? (
             <>
               <section className="rounded-2xl border border-border bg-card p-4">

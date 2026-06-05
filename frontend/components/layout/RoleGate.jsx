@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { authApi } from "@/lib/api";
 import { isProfileComplete, ROLE_HOME } from "@/lib/role-routes";
+import { PageLoader } from "@/components/shared/LoadingSkeleton";
 import { useAuthStore } from "@/store/authStore";
 
 export default function RoleGate({ roles, children }) {
@@ -60,7 +61,7 @@ export default function RoleGate({ roles, children }) {
   }, [loadingSession, roles, router, session?.access_token]);
 
   if (loadingSession || checking || !profile) {
-    return <div className="p-6 text-sm text-text-muted">جاري التحقق من الصلاحيات...</div>;
+    return <PageLoader />;
   }
 
   return children;

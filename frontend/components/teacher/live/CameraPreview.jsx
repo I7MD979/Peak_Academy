@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select } from "@/components/ui/Select";
 
 export default function CameraPreview() {
   const videoRef = useRef(null);
@@ -79,8 +80,8 @@ export default function CameraPreview() {
           />
         </div>
         {devices.length > 1 ? (
-          <select
-            className="h-9 w-full rounded-lg border border-border bg-white px-2 text-xs"
+          <Select
+            className="h-9 text-xs"
             value={videoDeviceId}
             onChange={(e) => setVideoDeviceId(e.target.value)}
           >
@@ -90,7 +91,7 @@ export default function CameraPreview() {
                 {d.label || "كاميرا"}
               </option>
             ))}
-          </select>
+          </Select>
         ) : null}
         <div className="space-y-1 text-sm">
           <p className={cameraOk ? "text-success" : "text-danger"}>

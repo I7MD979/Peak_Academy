@@ -10,7 +10,7 @@ import StatusBadge from "@/components/admin/StatusBadge";
 import ParentChildCard from "@/components/parent/ParentChildCard";
 import ProgressBar from "@/components/shared/ProgressBar";
 import EmptyState from "@/components/shared/EmptyState";
-import LoadingSkeleton from "@/components/shared/LoadingSkeleton";
+import { DashboardSkeleton } from "@/components/shared/LoadingSkeleton";
 import Icon from "@/components/shared/Icon";
 import { parentApi } from "@/lib/api";
 import { formatDateTimeAr } from "@/lib/format";
@@ -193,11 +193,7 @@ export default function ParentDashboardPage() {
         ) : null}
       </section>
 
-      {loading ? (
-        <div className="rounded-2xl border border-border bg-card p-4">
-          <LoadingSkeleton />
-        </div>
-      ) : null}
+      {loading ? <DashboardSkeleton /> : null}
 
       {!loading && children.length === 0 ? (
         <EmptyState

@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
-import LoadingSkeleton from "@/components/shared/LoadingSkeleton";
+import { SectionLoader } from "@/components/shared/LoadingSkeleton";
 import EmptyState from "@/components/shared/EmptyState";
 import { sessionsApi } from "@/lib/api";
 
 const LiveRoom = dynamic(() => import("@/lib/livekit"), {
   ssr: false,
-  loading: () => <LoadingSkeleton />
+  loading: () => <SectionLoader message="جاري تحميل غرفة البث..." />
 });
 
 export default function LiveSessionRoom({ sessionId, isTeacher, sessionStart }) {
@@ -84,7 +84,7 @@ export default function LiveSessionRoom({ sessionId, isTeacher, sessionStart }) 
     };
   }, [sessionId, isTeacher]);
 
-  if (loading) return <LoadingSkeleton />;
+  if (loading) return <SectionLoader message="جاري تحميل غرفة البث..." />;
   if (error) {
     return (
       <main className="bg-bg p-4 md:p-6">

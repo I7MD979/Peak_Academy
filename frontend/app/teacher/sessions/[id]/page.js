@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import StatusBadge from "@/components/admin/StatusBadge";
-import LoadingSkeleton from "@/components/shared/LoadingSkeleton";
+import { PageLoader } from "@/components/shared/LoadingSkeleton";
 import EmptyState from "@/components/shared/EmptyState";
 import ErrorState from "@/components/shared/ErrorState";
 import Icon from "@/components/shared/Icon";
@@ -99,11 +99,7 @@ export default function TeacherSessionDetailPage({ params }) {
   };
 
   if (loading) {
-    return (
-      <main className="p-4 md:p-6">
-        <LoadingSkeleton />
-      </main>
-    );
+    return <PageLoader />;
   }
 
   if (error || !session) {

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import StatsCard from "@/components/admin/StatsCard";
 import QuestionCard from "@/components/student/QuestionCard";
 import EmptyState from "@/components/shared/EmptyState";
-import LoadingSkeleton from "@/components/shared/LoadingSkeleton";
+import { SectionLoader } from "@/components/shared/LoadingSkeleton";
 import Icon from "@/components/shared/Icon";
 import { questionsApi } from "@/lib/api";
 import { initiateQuestionPayment, pollQuestionPayment } from "@/lib/paymob";
@@ -258,7 +258,7 @@ export default function StudentAskPage() {
 
       {loading ? (
         <div className="rounded-2xl border border-border bg-card p-4">
-          <LoadingSkeleton />
+          <SectionLoader />
         </div>
       ) : null}
 
@@ -416,7 +416,7 @@ export default function StudentAskPage() {
             </div>
 
             {listLoading ? (
-              <LoadingSkeleton />
+              <SectionLoader />
             ) : questions.length > 0 ? (
               <div className="space-y-3">
                 {questions.map((question) => (
