@@ -8,11 +8,23 @@ import { Label } from "@/components/ui/label";
 import StatsCard from "@/components/admin/StatsCard";
 import DataTable from "@/components/admin/DataTable";
 import StatusBadge from "@/components/admin/StatusBadge";
-import { dashboardApi } from "@/lib/api";
+import ErrorState from "@/components/shared/ErrorState";
+import { StatCardSkeleton } from "@/components/shared/LoadingSkeleton";
+import { dashboardApi, logApiError } from "@/lib/api";
 import { formatCurrencyEgp, formatDateTimeAr, formatWithdrawalMethod } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 const MIN_WITHDRAWAL = 50;
+
+const EGYPTIAN_BANKS = [
+  { value: "nbe", label: "البنك الأهلي المصري" },
+  { value: "cib", label: "بنك CIB" },
+  { value: "qnb", label: "بنك QNB الأهلي" },
+  { value: "banque_misr", label: "بنك مصر" },
+  { value: "aaib", label: "بنك العربي الأفريقي" },
+  { value: "adib", label: "بنك أبوظبي الإسلامي" },
+  { value: "other", label: "بنك آخر" }
+];
 
 const mainTabs = [
   { key: "earnings", label: "سجل الأرباح" },
@@ -33,7 +45,7 @@ const withdrawalStatusTabs = [
   { key: "rejected", label: "مرفوضة" }
 ];
 
-function validateWithdrawForm(amount, account, available) {
+function validateWithdrawForm(amount, account, available, method, bankName) {
   const errors = {};
   const value = Number(amount);
 
@@ -47,6 +59,10 @@ function validateWithdrawForm(amount, account, available) {
 
   if (!account.trim() || account.trim().length < 6) {
     errors.account = "أدخل رقم حساب أو محفظة صحيحًا";
+  }
+
+  if (method === "bank_transfer" && !bankName) {
+    errors.bank = "اختر اسم البنك";
   }
 
   return errors;
@@ -72,6 +88,7 @@ export default function TeacherEarningsPage() {
 
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [withdrawMethod, setWithdrawMethod] = useState("instapay");
+  const [withdrawBank, setWithdrawBank] = useState("");
   const [withdrawAccount, setWithdrawAccount] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
 
@@ -104,6 +121,7 @@ export default function TeacherEarningsPage() {
       setWithdrawals(withdrawalsRes?.data || []);
       setWithdrawalsTotalPages(withdrawalsRes?.pagination?.totalPages || 1);
     } catch (err) {
+      logApiError("teacher/earnings", err);
       setSummary(null);
       setEarnings([]);
       setWithdrawals([]);
@@ -119,7 +137,13 @@ export default function TeacherEarningsPage() {
 
   const onSubmitWithdrawal = async (e) => {
     e.preventDefault();
-    const errors = validateWithdrawForm(withdrawAmount, withdrawAccount, available);
+    const errors = validateWithdrawForm(
+      withdrawAmount,
+      withdrawAccount,
+      available,
+      withdrawMethod,
+      withdrawBank
+    );
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
       toast.error("يرجى مراجعة بيانات طلب السحب");
@@ -129,10 +153,15 @@ export default function TeacherEarningsPage() {
     try {
       setWithdrawing(true);
       setFieldErrors({});
+      const bankLabel = EGYPTIAN_BANKS.find((b) => b.value === withdrawBank)?.label;
       await dashboardApi.teacherRequestWithdrawal({
         amount: Number(withdrawAmount),
         method: withdrawMethod,
-        account_number: withdrawAccount.trim()
+        account_number: withdrawAccount.trim(),
+        notes:
+          withdrawMethod === "bank_transfer" && bankLabel
+            ? `بنك: ${bankLabel}`
+            : undefined
       });
       toast.success("تم إرسال طلب السحب بنجاح");
       setWithdrawAmount("");
@@ -217,9 +246,19 @@ export default function TeacherEarningsPage() {
       render: (row) => <span dir="ltr" className="font-mono text-xs">{row.account_number || "—"}</span>
     },
     {
+      key: "processed_at",
+      label: "تاريخ المعالجة",
+      render: (row) => formatDateTimeAr(row.processed_at)
+    },
+    {
       key: "status",
       label: "الحالة",
       render: (row) => <StatusBadge status={row.status} />
+    },
+    {
+      key: "notes",
+      label: "ملاحظة",
+      render: (row) => <span className="text-xs text-text-muted">{row.notes || "—"}</span>
     }
   ];
 
@@ -242,44 +281,48 @@ export default function TeacherEarningsPage() {
         </Button>
       </section>
 
-      {error ? (
-        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4">
-          <p className="text-sm font-bold text-destructive">{error}</p>
-          <Button type="button" className="mt-3" variant="outline" onClick={loadData}>
-            إعادة المحاولة
-          </Button>
-        </div>
-      ) : null}
+      {error ? <ErrorState message={error} onRetry={loadData} /> : null}
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {loading ? (
+          <>
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+          </>
+        ) : (
+          <>
         <StatsCard
           title="إجمالي الأرباح"
-          value={loading ? "…" : formatCurrencyEgp(summary?.total_earnings)}
+          value={formatCurrencyEgp(summary?.total_earnings)}
           iconName="wallet"
           tone="blue"
           hint="منذ بداية الحساب"
         />
         <StatsCard
           title="رصيد متاح للسحب"
-          value={loading ? "…" : formatCurrencyEgp(summary?.available_balance)}
+          value={formatCurrencyEgp(summary?.available_balance)}
           iconName="check"
           tone="success"
           hint="بعد خصم الطلبات المعلقة"
         />
         <StatsCard
           title="أرباح هذا الشهر"
-          value={loading ? "…" : formatCurrencyEgp(summary?.this_month_earnings)}
+          value={formatCurrencyEgp(summary?.this_month_earnings)}
           iconName="trending"
           tone="accent"
           hint="من أول الشهر"
         />
         <StatsCard
           title="تم سحبه"
-          value={loading ? "…" : formatCurrencyEgp(summary?.withdrawn_total)}
+          value={formatCurrencyEgp(summary?.withdrawn_total)}
           iconName="bank"
           tone="warning"
           hint={`${(summary?.pending_withdrawal_count ?? 0).toLocaleString("ar-EG")} طلب معلق`}
         />
+          </>
+        )}
       </section>
 
       <div className="grid gap-5 xl:grid-cols-3">
@@ -288,9 +331,11 @@ export default function TeacherEarningsPage() {
           className="rounded-2xl border border-border bg-card p-5 shadow-sm xl:col-span-1"
         >
           <h3 className="text-lg font-black text-text">طلب سحب جديد</h3>
-          <p className="mt-1 text-sm text-text-muted">
-            الرصيد المتاح: <span className="font-bold text-success">{formatCurrencyEgp(available)}</span>
-          </p>
+          <div className="mt-2 rounded-xl border border-success/20 bg-success/5 p-3">
+            <p className="text-xs text-text-muted">الرصيد المتاح للسحب</p>
+            <p className="text-2xl font-black text-success">{formatCurrencyEgp(available)}</p>
+          </div>
+          <p className="mt-2 text-xs text-text-muted">مدة المعالجة المتوقعة: 3–5 أيام عمل</p>
           {summary?.locked_in_withdrawals > 0 ? (
             <p className="mt-1 text-xs text-warning">
               محجوز في طلبات قيد المراجعة: {formatCurrencyEgp(summary.locked_in_withdrawals)}
@@ -334,7 +379,10 @@ export default function TeacherEarningsPage() {
               <select
                 id="withdraw_method"
                 value={withdrawMethod}
-                onChange={(e) => setWithdrawMethod(e.target.value)}
+                onChange={(e) => {
+                  setWithdrawMethod(e.target.value);
+                  if (e.target.value !== "bank_transfer") setWithdrawBank("");
+                }}
                 className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
               >
                 <option value="instapay">إنستاباي</option>
@@ -342,6 +390,31 @@ export default function TeacherEarningsPage() {
                 <option value="bank_transfer">تحويل بنكي</option>
               </select>
             </div>
+
+            {withdrawMethod === "bank_transfer" ? (
+              <div className="space-y-1">
+                <Label htmlFor="withdraw_bank">اسم البنك</Label>
+                <select
+                  id="withdraw_bank"
+                  value={withdrawBank}
+                  onChange={(e) => {
+                    setWithdrawBank(e.target.value);
+                    setFieldErrors((prev) => ({ ...prev, bank: "" }));
+                  }}
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="">اختر البنك</option>
+                  {EGYPTIAN_BANKS.map((bank) => (
+                    <option key={bank.value} value={bank.value}>
+                      {bank.label}
+                    </option>
+                  ))}
+                </select>
+                {fieldErrors.bank ? (
+                  <p className="text-xs font-semibold text-destructive">{fieldErrors.bank}</p>
+                ) : null}
+              </div>
+            ) : null}
 
             <div className="space-y-1">
               <Label htmlFor="withdraw_account">رقم الحساب / المحفظة</Label>
@@ -371,7 +444,7 @@ export default function TeacherEarningsPage() {
 
             {available < MIN_WITHDRAWAL ? (
               <p className="text-center text-xs text-text-muted">
-                لا يوجد رصيد كافٍ لإرسال طلب سحب حاليًا
+                لا يوجد رصيد كافٍ (الحد الأدنى {MIN_WITHDRAWAL} جنيه). أكمل جلسات مدفوعة لزيادة رصيدك.
               </p>
             ) : null}
           </div>

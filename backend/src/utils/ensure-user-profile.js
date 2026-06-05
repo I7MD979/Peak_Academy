@@ -268,13 +268,15 @@ export async function fetchFullUserProfile(supabase, userId) {
   if (user.role === "teacher") {
     const { data, error: tpError } = await supabase
       .from("teacher_profiles")
-      .select("id, bio, subjects, rating, commission_rate, id_verified, created_at")
+      .select(
+        "id, bio, subjects, rating, commission_rate, id_verified, created_at, review_count, grades, experience_years, education, social_url"
+      )
       .eq("user_id", userId)
       .maybeSingle();
     if (tpError) {
       const fallback = await supabase
         .from("teacher_profiles")
-        .select("id, bio, subjects, commission_rate")
+        .select("id, bio, subjects, commission_rate, rating, review_count")
         .eq("user_id", userId)
         .maybeSingle();
       teacher_profile = fallback.data;

@@ -247,9 +247,29 @@ router.put("/profile", auth, async (req, res) => {
     });
 
     if (req.user.role === "teacher") {
+      const teacherUpdate = { bio: bio || null, subjects };
+      const gradesInput = req.body.grades;
+      if (Array.isArray(gradesInput)) {
+        teacherUpdate.grades = gradesInput.map((g) => String(g).trim()).filter(Boolean).slice(0, 6);
+      }
+      const experienceYears = req.body.experience_years;
+      if (experienceYears !== undefined && experienceYears !== null && experienceYears !== "") {
+        const years = Number(experienceYears);
+        if (Number.isFinite(years) && years >= 0 && years <= 60) {
+          teacherUpdate.experience_years = Math.floor(years);
+        }
+      }
+      const education = String(req.body.education || "").trim();
+      if (education.length <= 200) teacherUpdate.education = education || null;
+      const socialUrl = String(req.body.social_url || "").trim();
+      if (socialUrl && !/^https?:\/\/.+/i.test(socialUrl)) {
+        return error(res, "رابط السوشيال ميديا غير صالح", 400);
+      }
+      if (socialUrl.length <= 500) teacherUpdate.social_url = socialUrl || null;
+
       const { error: teacherError } = await supabase
         .from("teacher_profiles")
-        .update({ bio: bio || null, subjects })
+        .update(teacherUpdate)
         .eq("user_id", req.user.id);
       if (teacherError) throw teacherError;
     }
@@ -300,6 +320,57 @@ router.put("/profile", auth, async (req, res) => {
       console.error("PUT /auth/profile", err);
     }
     return error(res, "تعذر حفظ الملف الشخصي", 500);
+  }
+});
+
+router.post("/avatar", auth, async (req, res) => {
+  try {
+    const contentType = String(req.body.content_type || "").toLowerCase();
+    const imageBase64 = String(req.body.image_base64 || "").trim();
+
+    const allowed = ["image/jpeg", "image/png", "image/webp"];
+    if (!allowed.includes(contentType)) {
+      return error(res, "نوع الصورة غير مدعوم. استخدم JPEG أو PNG أو WebP", 400);
+    }
+
+    if (!imageBase64) {
+      return error(res, "لم يتم إرسال صورة", 400);
+    }
+
+    const buffer = Buffer.from(imageBase64, "base64");
+    if (buffer.length > 2 * 1024 * 1024) {
+      return error(res, "حجم الصورة يجب ألا يتجاوز 2 ميجابايت", 400);
+    }
+
+    const ext = contentType === "image/png" ? "png" : contentType === "image/webp" ? "webp" : "jpg";
+    const storagePath = `${req.user.id}/avatar.${ext}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("avatars")
+      .upload(storagePath, buffer, { upsert: true, contentType });
+
+    if (uploadError) {
+      console.error("POST /auth/avatar upload:", uploadError.message);
+      return error(res, "تعذر رفع الصورة. تأكد من إعداد bucket الصور في Supabase", 500);
+    }
+
+    const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(storagePath);
+    const publicUrl = urlData?.publicUrl;
+    if (!publicUrl) {
+      return error(res, "تعذر الحصول على رابط الصورة", 500);
+    }
+
+    const { error: userError } = await supabase
+      .from("users")
+      .update({ avatar_url: publicUrl })
+      .eq("id", req.user.id);
+    if (userError) throw userError;
+
+    const user = await fetchFullUserProfile(supabase, req.user.id);
+    return success(res, { avatar_url: publicUrl, user }, "تم تحديث الصورة الشخصية");
+  } catch (err) {
+    console.error("POST /auth/avatar", err?.message || err);
+    return error(res, "تعذر رفع الصورة الشخصية", 500);
   }
 });
 

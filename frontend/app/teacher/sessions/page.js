@@ -8,8 +8,9 @@ import { Button } from "@/components/ui/button";
 import DataTable from "@/components/admin/DataTable";
 import StatusBadge from "@/components/admin/StatusBadge";
 import TeacherSessionDetailsModal from "@/components/teacher/TeacherSessionDetailsModal";
+import ErrorState from "@/components/shared/ErrorState";
 import LoadingSkeleton from "@/components/shared/LoadingSkeleton";
-import { sessionsApi } from "@/lib/api";
+import { logApiError, sessionsApi, teacherApi } from "@/lib/api";
 import { formatCurrencyEgp, formatDateTimeAr } from "@/lib/format";
 import {
   getEnrollmentCount,
@@ -115,7 +116,7 @@ function SessionCard({ session, onDetails, onStart, onEnd, onCancel, onJoin, act
           <h3 className="truncate text-base font-black text-text">{session.title}</h3>
           <p className="mt-1 text-sm text-text-muted">{getSubjectLabel(session)}</p>
         </div>
-        <StatusBadge status={session.status} />
+        <StatusBadge status={session.status} variant="session" />
       </div>
 
       <dl className="mt-4 grid grid-cols-2 gap-2 text-sm">
@@ -226,22 +227,10 @@ export default function TeacherSessionsPage() {
   const loadTabCounts = useCallback(async (silent = false) => {
     if (!silent) setCountsLoading(true);
     try {
-      const res = await sessionsApi.list("status=all&limit=100&page=1");
-      const rows = res?.data || [];
-      const counts = {
-        all: res?.pagination?.total ?? rows.length,
-        scheduled: 0,
-        live: 0,
-        completed: 0,
-        cancelled: 0
-      };
-      for (const row of rows) {
-        if (row?.status && counts[row.status] !== undefined) {
-          counts[row.status] += 1;
-        }
-      }
-      setTabCounts(counts);
-    } catch {
+      const res = await teacherApi.sessionCounts();
+      setTabCounts(res?.data || {});
+    } catch (err) {
+      logApiError("teacher/sessions/counts", err);
       setTabCounts({});
     } finally {
       if (!silent) setCountsLoading(false);
@@ -442,7 +431,7 @@ export default function TeacherSessionsPage() {
       {
         key: "status",
         label: "الحالة",
-        render: (row) => <StatusBadge status={row.status} />
+        render: (row) => <StatusBadge status={row.status} variant="session" />
       },
       {
         key: "actions",
@@ -581,14 +570,7 @@ export default function TeacherSessionsPage() {
         </div>
       </section>
 
-      {error ? (
-        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4">
-          <p className="text-sm font-bold text-destructive">{error}</p>
-          <Button type="button" className="mt-3" variant="outline" onClick={refreshAll}>
-            إعادة المحاولة
-          </Button>
-        </div>
-      ) : null}
+      {error ? <ErrorState message={error} onRetry={refreshAll} /> : null}
 
       {loading ? (
         <div className="rounded-2xl border border-border bg-card p-4">

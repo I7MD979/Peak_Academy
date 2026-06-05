@@ -15,6 +15,7 @@ import adminPromotionsRoutes from "./routes/adminPromotions.js";
 import subscriptionRoutes from "./routes/subscriptions.js";
 import notificationRoutes from "./routes/notifications.js";
 import studentRoutes from "./routes/student.js";
+import teacherRoutes from "./routes/teacher.js";
 import studyRoomsRoutes from "./routes/studyRooms.js";
 import enrollmentRoutes from "./routes/enrollments.js";
 import promotionRoutes from "./routes/promotions.js";
@@ -148,6 +149,7 @@ app.use("/api/admin", adminPromotionsRoutes);
 app.use("/api/subscriptions", subscriptionRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/student", studentRoutes);
+app.use("/api/teacher", teacherRoutes);
 app.use("/api/study-rooms", studyRoomsRoutes);
 
 app.use((req, res, next) => {

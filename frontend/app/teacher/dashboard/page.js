@@ -1,18 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import StatsCard from "@/components/shared/StatsCard";
+import StatsCard from "@/components/admin/StatsCard";
 import DataTable from "@/components/admin/DataTable";
-import { dashboardApi, sessionsApi } from "@/lib/api";
+import ErrorState from "@/components/shared/ErrorState";
+import { StatCardSkeleton } from "@/components/shared/LoadingSkeleton";
+import { logApiError, sessionsApi, teacherApi } from "@/lib/api";
 import { formatCurrencyEgp, formatDateTimeAr } from "@/lib/format";
 import { getStartAvailability } from "@/lib/teacher-sessions";
 
 export default function TeacherDashboardPage() {
-  const [profile, setProfile] = useState(null);
-  const [sessions, setSessions] = useState([]);
-  const [earningsSummary, setEarningsSummary] = useState(null);
+  const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [actionLoadingId, setActionLoadingId] = useState("");
   const [error, setError] = useState("");
@@ -21,19 +20,12 @@ export default function TeacherDashboardPage() {
     setLoading(true);
     setError("");
     try {
-      const [profileRes, sessionsRes, summaryRes] = await Promise.all([
-        dashboardApi.myProfile(),
-        sessionsApi.list("status=all&limit=100"),
-        dashboardApi.teacherEarningsSummary()
-      ]);
-      setProfile(profileRes?.data || null);
-      setSessions(sessionsRes?.data || []);
-      setEarningsSummary(summaryRes?.data || null);
+      const res = await teacherApi.dashboard();
+      setData(res?.data || null);
     } catch (err) {
+      logApiError("teacher/dashboard", err);
+      setData(null);
       setError(err.message || "تعذر تحميل لوحة المعلم");
-      setProfile(null);
-      setSessions([]);
-      setEarningsSummary(null);
     } finally {
       setLoading(false);
     }
@@ -43,36 +35,13 @@ export default function TeacherDashboardPage() {
     loadDashboard();
   }, [loadDashboard]);
 
-  const scheduledCount = useMemo(
-    () => sessions.filter((s) => s.status === "scheduled").length,
-    [sessions]
-  );
-  const liveCount = useMemo(() => sessions.filter((s) => s.status === "live").length, [sessions]);
-  const completedCount = useMemo(
-    () => sessions.filter((s) => s.status === "completed").length,
-    [sessions]
-  );
-  const totalEarnings = earningsSummary?.total_earnings ?? 0;
-
-  const upcomingSessions = useMemo(() => {
-    const now = Date.now();
-    return sessions
-      .filter((s) => s.status === "scheduled" && new Date(s.scheduled_at).getTime() >= now)
-      .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())
-      .slice(0, 6);
-  }, [sessions]);
-
-  const recentCompleted = useMemo(
-    () =>
-      sessions
-        .filter((s) => s.status === "completed")
-        .sort((a, b) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime())
-        .slice(0, 5),
-    [sessions]
-  );
+  const profile = data?.profile;
+  const stats = data?.stats;
+  const upcomingSessions = data?.upcoming_sessions || [];
+  const recentCompleted = data?.recent_completed || [];
 
   const handleStartSession = async (sessionId) => {
-    const session = sessions.find((s) => s.id === sessionId);
+    const session = upcomingSessions.find((s) => s.id === sessionId);
     const startInfo = session ? getStartAvailability(session) : { canStart: true };
     if (!startInfo.canStart) {
       setError(startInfo.reason || "لا يمكن بدء الجلسة الآن");
@@ -82,11 +51,12 @@ export default function TeacherDashboardPage() {
     try {
       setActionLoadingId(`start-${sessionId}`);
       const res = await sessionsApi.start(sessionId);
-      if (res?.data?.room_warning) {
-        setError(res.data.room_warning);
-      }
+      const roomUrl = res?.data?.room_url;
+      if (roomUrl) window.open(roomUrl, "_blank", "noopener,noreferrer");
+      if (res?.data?.room_warning) setError(res.data.room_warning);
       await loadDashboard();
     } catch (err) {
+      logApiError("teacher/dashboard/start", err);
       setError(err.message || "تعذر بدء الجلسة");
     } finally {
       setActionLoadingId("");
@@ -99,6 +69,7 @@ export default function TeacherDashboardPage() {
       await sessionsApi.end(sessionId);
       await loadDashboard();
     } catch (err) {
+      logApiError("teacher/dashboard/end", err);
       setError(err.message || "تعذر إنهاء الجلسة");
     } finally {
       setActionLoadingId("");
@@ -177,17 +148,45 @@ export default function TeacherDashboardPage() {
         </div>
       </section>
 
-      {error ? (
-        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-          {error}
-        </div>
-      ) : null}
+      {error ? <ErrorState message={error} onRetry={loadDashboard} /> : null}
 
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <StatsCard title="جلسات مجدولة" value={loading ? "..." : scheduledCount.toLocaleString("ar-EG")} />
-        <StatsCard title="جلسات مباشرة" value={loading ? "..." : liveCount.toLocaleString("ar-EG")} />
-        <StatsCard title="جلسات مكتملة" value={loading ? "..." : completedCount.toLocaleString("ar-EG")} />
-        <StatsCard title="إجمالي الأرباح" value={loading ? "..." : formatCurrencyEgp(totalEarnings)} />
+        {loading ? (
+          <>
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+          </>
+        ) : (
+          <>
+            <StatsCard
+              title="جلسات مجدولة"
+              value={(stats?.scheduled_sessions ?? 0).toLocaleString("ar-EG")}
+              iconName="calendarDays"
+              tone="blue"
+            />
+            <StatsCard
+              title="جلسات مباشرة"
+              value={(stats?.live_sessions ?? 0).toLocaleString("ar-EG")}
+              iconName="live"
+              tone="accent"
+            />
+            <StatsCard
+              title="جلسات مكتملة"
+              value={(stats?.completed_sessions ?? 0).toLocaleString("ar-EG")}
+              iconName="check"
+              tone="success"
+            />
+            <StatsCard
+              title="إجمالي الأرباح"
+              value={formatCurrencyEgp(stats?.total_earnings)}
+              iconName="wallet"
+              tone="warning"
+              hint={`متاح للسحب: ${formatCurrencyEgp(stats?.available_balance)}`}
+            />
+          </>
+        )}
       </section>
 
       <section className="rounded-2xl border border-border bg-card p-4 shadow-sm">

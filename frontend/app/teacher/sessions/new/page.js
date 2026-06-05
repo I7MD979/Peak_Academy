@@ -264,7 +264,17 @@ export default function NewSessionPage() {
             <div className="rounded-xl bg-bg p-3">
               <p className="text-xs text-text-muted">السعر / السعة / المدة</p>
               <p className="font-bold text-text">
-                {formatCurrencyEgp(form.price || 0)} • {Number(form.max_students || 0).toLocaleString("ar-EG")} طالب • {Number(form.duration_min || 0).toLocaleString("ar-EG")} دقيقة
+                {form.price
+                  ? formatCurrencyEgp(form.price)
+                  : "—"}
+                {" • "}
+                {form.max_students
+                  ? `${Number(form.max_students).toLocaleString("ar-EG")} طالب`
+                  : "—"}
+                {" • "}
+                {form.duration_min
+                  ? `${Number(form.duration_min).toLocaleString("ar-EG")} دقيقة`
+                  : "—"}
               </p>
             </div>
           </div>

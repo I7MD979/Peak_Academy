@@ -1,14 +1,11 @@
-import { Button } from "@/components/ui/button";
+import ErrorState from "@/components/shared/ErrorState";
 
 export default function ProfileErrorState({ message, onRetry }) {
   return (
-    <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4">
-      <p className="text-sm font-bold text-destructive">{message || "تعذر تحميل الملف الشخصي"}</p>
-      {onRetry ? (
-        <Button type="button" className="mt-3 rounded-xl" variant="outline" onClick={onRetry}>
-          إعادة المحاولة
-        </Button>
-      ) : null}
-    </div>
+    <ErrorState
+      message={message || "تعذر تحميل الملف الشخصي"}
+      onRetry={onRetry}
+      title="تعذر تحميل الملف الشخصي"
+    />
   );
 }

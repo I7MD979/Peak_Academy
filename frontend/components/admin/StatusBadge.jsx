@@ -13,6 +13,13 @@ const styles = {
   suspended: "bg-danger/10 text-danger"
 };
 
+const sessionLabels = {
+  scheduled: "مجدولة",
+  live: "مباشرة الآن",
+  completed: "مكتملة",
+  cancelled: "ملغاة"
+};
+
 const labels = {
   scheduled: "قادمة",
   live: "مباشر",
@@ -26,8 +33,11 @@ const labels = {
   suspended: "موقوف"
 };
 
-export default function StatusBadge({ status }) {
+export default function StatusBadge({ status, variant }) {
   if (!status) return <span className="text-xs text-text-muted">—</span>;
+
+  const labelMap = variant === "session" ? { ...labels, ...sessionLabels } : labels;
+  const displayLabel = labelMap[status] || status;
 
   return (
     <span
@@ -36,8 +46,15 @@ export default function StatusBadge({ status }) {
         styles[status] || "bg-slate-100 text-slate-600"
       )}
     >
-      {status === "live" ? <span className="h-2 w-2 animate-pulse rounded-full bg-success" /> : null}
-      {labels[status] || status}
+      {status === "live" ? (
+        <span
+          className={cn(
+            "h-2 w-2 animate-pulse rounded-full",
+            variant === "session" ? "bg-danger" : "bg-success"
+          )}
+        />
+      ) : null}
+      {displayLabel}
     </span>
   );
 }

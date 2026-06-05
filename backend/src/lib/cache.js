@@ -137,6 +137,7 @@ export const CACHE = {
     subjectsList: 3600,
     teacherProfile: 300,
     studentDashboard: 120,
+    teacherDashboard: 120,
     parentReport: 600,
     adminDashboard: 120
   },
@@ -145,6 +146,7 @@ export const CACHE = {
   subjectsList: () => "subjects:all",
   teacherProfile: (id) => `teacher:${id}:profile`,
   studentDashboard: (id) => `student:${id}:dashboard`,
+  teacherDashboard: (id) => `teacher:${id}:dashboard`,
   studentSubscription: (id) => `student:${id}:subscription`,
   subscriptionPlans: () => "subscription:plans",
   parentReport: (parentId, studentId, month) => `parent:${parentId}:${studentId}:${month}`,
@@ -206,11 +208,12 @@ export async function invalidatePattern(prefix) {
   }
 }
 
-export async function invalidateSessionCaches(sessionId) {
+export async function invalidateSessionCaches(sessionId, teacherUserId = null) {
   await Promise.all([
     invalidatePattern(`session:${sessionId}:`),
     invalidatePattern("sessions:list:"),
     invalidatePattern(`teacher:`),
+    teacherUserId ? invalidate(CACHE.teacherDashboard(teacherUserId)) : Promise.resolve(),
     invalidate(CACHE.adminDashboard())
   ]);
 }
@@ -230,6 +233,14 @@ export async function invalidateStudentCaches(studentUserId) {
   await Promise.all([
     invalidate(CACHE.studentDashboard(studentUserId)),
     invalidatePattern(`student:${studentUserId}:`)
+  ]);
+}
+
+export async function invalidateTeacherCaches(teacherUserId) {
+  if (!teacherUserId) return;
+  await Promise.all([
+    invalidate(CACHE.teacherDashboard(teacherUserId)),
+    invalidatePattern(`teacher:${teacherUserId}:`)
   ]);
 }
 

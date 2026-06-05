@@ -29,6 +29,7 @@ const ROUTES = {
     { prefix: "/teacher/sessions", title: "جلساتي", subtitle: "إدارة الجلسات والبث", icon: "video" },
     { prefix: "/teacher/live", title: "جلسة مباشرة", subtitle: "غرفة البث المباشر", icon: "live" },
     { prefix: "/teacher/earnings", title: "أرباحي", subtitle: "الأرباح وطلبات السحب", icon: "wallet" },
+    { prefix: "/teacher/analytics", title: "تحليلاتي", subtitle: "إحصائيات أدائك التعليمي", icon: "barChart" },
     { prefix: "/teacher/profile", title: "ملفي الشخصي", subtitle: "بياناتك المهنية", icon: "user" }
   ],
   student: [

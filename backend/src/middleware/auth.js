@@ -11,7 +11,9 @@ const INCOMPLETE_PROFILE_PATHS = [
   "/auth/me",
   "/auth/complete-profile",
   "/auth/profile",
-  "/sessions"
+  "/sessions",
+  "/earnings",
+  "/teacher"
 ];
 
 function allowsIncompleteProfile(path) {

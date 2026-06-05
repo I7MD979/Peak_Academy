@@ -7,7 +7,8 @@ export default function PersonalInfoFields({
   fieldErrors,
   email,
   onChange,
-  disabled = false
+  disabled = false,
+  showAvatarUrl = true
 }) {
   return (
     <div className="grid gap-4 md:grid-cols-2">
@@ -47,23 +48,25 @@ export default function PersonalInfoFields({
         <p className="text-xs text-text-muted">لا يمكن تغيير البريد من هنا.</p>
       </div>
 
-      <div className="space-y-2 md:col-span-2">
-        <Label htmlFor="avatar_url">رابط الصورة الشخصية (اختياري)</Label>
-        <Input
-          id="avatar_url"
-          dir="ltr"
-          value={form.avatar_url}
-          onChange={onChange("avatar_url")}
-          placeholder="https://..."
-          disabled={disabled}
-          className={cn(fieldErrors.avatar_url && "border-destructive")}
-        />
-        {fieldErrors.avatar_url ? (
-          <p className="text-xs text-destructive">{fieldErrors.avatar_url}</p>
-        ) : (
-          <p className="text-xs text-text-muted">رابط مباشر لصورة واضحة (يفضّل مربعة).</p>
-        )}
-      </div>
+      {showAvatarUrl ? (
+        <div className="space-y-2 md:col-span-2">
+          <Label htmlFor="avatar_url">رابط الصورة الشخصية (اختياري)</Label>
+          <Input
+            id="avatar_url"
+            dir="ltr"
+            value={form.avatar_url}
+            onChange={onChange("avatar_url")}
+            placeholder="https://..."
+            disabled={disabled}
+            className={cn(fieldErrors.avatar_url && "border-destructive")}
+          />
+          {fieldErrors.avatar_url ? (
+            <p className="text-xs text-destructive">{fieldErrors.avatar_url}</p>
+          ) : (
+            <p className="text-xs text-text-muted">رابط مباشر لصورة واضحة (يفضّل مربعة).</p>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }

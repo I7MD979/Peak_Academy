@@ -128,6 +128,14 @@ export const authApi = {
     });
     clearApiCache("/auth/me");
     return result;
+  },
+  uploadAvatar: async ({ image_base64, content_type }) => {
+    const result = await apiRequest("/auth/avatar", {
+      method: "POST",
+      body: JSON.stringify({ image_base64, content_type })
+    });
+    clearApiCache("/auth/me");
+    return result;
   }
 };
 
@@ -198,6 +206,24 @@ export const paymentsApi = {
     }),
   transactionStatus: (transactionId) => apiRequest(`/payments/transactions/${transactionId}/status`),
   history: (query = "") => apiRequest(withQuery("/payments/history", query))
+};
+
+/** Log API failures with context (teacher dashboard debugging). */
+export function logApiError(context, err) {
+  console.error(`[API] ${context}:`, {
+    message: err?.message,
+    status: err?.status,
+    code: err?.code,
+    details: err?.details,
+    data: err?.data
+  });
+}
+
+export const teacherApi = {
+  dashboard: () => apiRequest("/teacher/dashboard"),
+  analytics: () => apiRequest("/teacher/analytics"),
+  reviews: (limit = 5) => apiRequest(`/teacher/reviews?limit=${limit}`),
+  sessionCounts: () => apiRequest("/teacher/session-counts")
 };
 
 export const studentApi = {

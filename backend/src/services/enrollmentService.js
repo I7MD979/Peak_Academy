@@ -105,13 +105,13 @@ export async function notifyEnrollmentConfirm(userId, sessionId, amountPaid) {
     supabase.from("users").select("email, full_name").eq("id", userId).maybeSingle(),
     supabase
       .from("sessions")
-      .select("title, scheduled_at, start_time")
+      .select("title, scheduled_at, start_time, teacher_id")
       .eq("id", sessionId)
       .maybeSingle()
   ]);
 
   const paidAmount = Number(amountPaid) || 0;
-  await Promise.all([
+  const jobs = [
     enqueueJob("email", "enrollment-confirm", {
       studentEmail: user?.email,
       studentName: user?.full_name,
@@ -127,7 +127,21 @@ export async function notifyEnrollmentConfirm(userId, sessionId, amountPaid) {
       body: `تم تأكيد تسجيلك في ${session?.title || "الحصة"}`,
       data: { session_id: sessionId }
     })
-  ]);
+  ];
+
+  if (session?.teacher_id) {
+    jobs.push(
+      enqueueJob("notifications", "push-notification", {
+        userId: session.teacher_id,
+        type: "enrollment",
+        title: "طالب جديد سجل في حصتك",
+        body: `${user?.full_name || "طالب"} سجل في ${session?.title || "الحصة"}`,
+        data: { session_id: sessionId, student_id: userId }
+      })
+    );
+  }
+
+  await Promise.all(jobs);
 }
 
 export async function confirmEnrollment({

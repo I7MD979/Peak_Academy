@@ -3,20 +3,37 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import StatusBadge from "@/components/admin/StatusBadge";
 import LoadingSkeleton from "@/components/shared/LoadingSkeleton";
 import EmptyState from "@/components/shared/EmptyState";
+import ErrorState from "@/components/shared/ErrorState";
 import Icon from "@/components/shared/Icon";
-import { sessionsApi } from "@/lib/api";
+import { logApiError, sessionsApi } from "@/lib/api";
 import { formatCurrencyEgp, formatDateTimeAr } from "@/lib/format";
-import { getEnrollmentCount, getSubjectLabel, gradeLabels } from "@/lib/teacher-sessions";
+import { getEnrollmentCount, getStartAvailability, getSubjectLabel, gradeLabels } from "@/lib/teacher-sessions";
+
+function StudentAvatar({ name, url }) {
+  const initial = (name || "ط").trim().slice(0, 1);
+  return (
+    <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-muted">
+      {url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={url} alt="" className="h-full w-full object-cover" />
+      ) : (
+        <span className="text-sm font-bold text-text-muted">{initial}</span>
+      )}
+    </div>
+  );
+}
 
 export default function TeacherSessionDetailPage({ params }) {
   const router = useRouter();
   const [session, setSession] = useState(null);
   const [enrollments, setEnrollments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [actionId, setActionId] = useState("");
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
@@ -30,6 +47,7 @@ export default function TeacherSessionDetailPage({ params }) {
       setSession(sessionRes?.data || null);
       setEnrollments(enrollRes?.data?.enrollments || []);
     } catch (err) {
+      logApiError("teacher/session/detail", err);
       setSession(null);
       setEnrollments([]);
       setError(err.message || "تعذر تحميل الجلسة");
@@ -41,6 +59,44 @@ export default function TeacherSessionDetailPage({ params }) {
   useEffect(() => {
     load();
   }, [load]);
+
+  const handleStart = async () => {
+    const startInfo = getStartAvailability(session);
+    if (!startInfo.canStart) {
+      toast.error(startInfo.reason || "لا يمكن بدء الجلسة الآن");
+      return;
+    }
+    try {
+      setActionId("start");
+      const res = await sessionsApi.start(params.id);
+      const roomUrl = res?.data?.room_url;
+      if (res?.data?.room_warning) toast.warning(res.data.room_warning);
+      toast.success("تم بدء الجلسة");
+      await load();
+      if (roomUrl) window.open(roomUrl, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      logApiError("teacher/session/start", err);
+      toast.error(err.message || "تعذر بدء الجلسة");
+    } finally {
+      setActionId("");
+    }
+  };
+
+  const handleEnd = async () => {
+    const confirmed = window.confirm("هل تريد إنهاء الجلسة؟ سيتم تسجيل الحضور وحساب الأرباح.");
+    if (!confirmed) return;
+    try {
+      setActionId("end");
+      await sessionsApi.end(params.id);
+      toast.success("تم إنهاء الجلسة وحساب الأرباح");
+      await load();
+    } catch (err) {
+      logApiError("teacher/session/end", err);
+      toast.error(err.message || "تعذر إنهاء الجلسة");
+    } finally {
+      setActionId("");
+    }
+  };
 
   if (loading) {
     return (
@@ -56,7 +112,7 @@ export default function TeacherSessionDetailPage({ params }) {
         <Link href="/teacher/sessions" className="text-sm font-bold text-accent">
           العودة لجلساتي
         </Link>
-        <EmptyState title={error || "الجلسة غير موجودة"} />
+        <ErrorState message={error || "الجلسة غير موجودة"} onRetry={load} />
       </main>
     );
   }
@@ -80,7 +136,7 @@ export default function TeacherSessionDetailPage({ params }) {
             <h1 className="mt-1 text-2xl font-black">{session.title}</h1>
             <p className="mt-2 text-sm text-white/75">{getSubjectLabel(session)}</p>
           </div>
-          <StatusBadge status={session.status} />
+          <StatusBadge status={session.status} variant="session" />
         </div>
       </section>
 
@@ -101,7 +157,7 @@ export default function TeacherSessionDetailPage({ params }) {
         </div>
         <div>
           <p className="text-xs text-text-muted">السعر</p>
-          <p className="font-bold text-accent">{formatCurrencyEgp(session.price_per_student)}</p>
+          <p className="font-bold text-accent">{formatCurrencyEgp(session.price_per_student ?? session.price)}</p>
         </div>
       </section>
 
@@ -117,36 +173,68 @@ export default function TeacherSessionDetailPage({ params }) {
         {enrollments.length > 0 ? (
           <ul className="mt-3 divide-y divide-border">
             {enrollments.map((row) => (
-              <li key={row.id} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm">
-                <div>
-                  <p className="font-bold text-text">{row.student_name}</p>
-                  {row.student_email ? (
-                    <p className="text-xs text-text-muted" dir="ltr">
-                      {row.student_email}
+              <li key={row.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
+                <div className="flex items-center gap-3">
+                  <StudentAvatar name={row.student_name} url={row.student_avatar_url} />
+                  <div>
+                    <p className="font-bold text-text">{row.student_name}</p>
+                    <p className="text-xs text-text-muted">
+                      تاريخ التسجيل: {formatDateTimeAr(row.created_at)}
                     </p>
-                  ) : null}
+                  </div>
                 </div>
-                <StatusBadge
-                  status={row.status === "attended" ? "completed" : "scheduled"}
-                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatusBadge
+                    status={row.payment_status === "paid" ? "paid" : "pending"}
+                  />
+                  <StatusBadge
+                    status={row.attendance === "attended" ? "completed" : "scheduled"}
+                    variant="session"
+                  />
+                </div>
               </li>
             ))}
           </ul>
         ) : (
-          <p className="mt-3 text-sm text-text-muted">لا يوجد طلاب مسجلون بعد.</p>
+          <EmptyState
+            icon="👥"
+            title="لا يوجد طلاب مسجلون بعد"
+            description="شارك رابط الجلسة مع طلابك لزيادة التسجيلات."
+          />
         )}
       </section>
 
       <div className="flex flex-wrap gap-2">
-        {session.status === "live" ? (
+        {session.status === "scheduled" ? (
           <Button
             type="button"
-            variant="destructive"
             className="rounded-xl"
-            onClick={() => router.push(`/teacher/live/${session.id}`)}
+            disabled={actionId === "start" || !getStartAvailability(session).canStart}
+            title={getStartAvailability(session).reason || undefined}
+            onClick={handleStart}
           >
-            دخول البث
+            {actionId === "start" ? "جارٍ..." : "بدء الجلسة"}
           </Button>
+        ) : null}
+        {session.status === "live" ? (
+          <>
+            <Button
+              type="button"
+              className="rounded-xl"
+              onClick={() => router.push(`/teacher/live/${session.id}`)}
+            >
+              دخول البث
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              className="rounded-xl"
+              disabled={actionId === "end"}
+              onClick={handleEnd}
+            >
+              {actionId === "end" ? "جارٍ..." : "إنهاء الجلسة"}
+            </Button>
+          </>
         ) : null}
         <Button type="button" variant="outline" className="rounded-xl" onClick={load}>
           تحديث

@@ -243,10 +243,36 @@ router.put("/withdrawals/:id", auth, checkRole("admin"), async (req, res) => {
             status
           });
         }
+
+        await enqueueJob("notifications", "push-notification", {
+          userId: teacherProfile.user_id,
+          type: "withdrawal",
+          title: status === "approved" ? "تمت الموافقة على طلب السحب" : "تم رفض طلب السحب",
+          body:
+            status === "approved"
+              ? `تمت الموافقة على سحب ${withdrawal.amount} جنيه`
+              : `تم رفض طلب السحب${reason ? `: ${reason}` : ""}`,
+          data: { withdrawal_id: req.params.id, status }
+        });
       }
     }
 
     if (status === "paid") {
+      const { data: teacherProfilePaid } = await supabase
+        .from("teacher_profiles")
+        .select("user_id")
+        .eq("id", withdrawal.teacher_id)
+        .maybeSingle();
+      if (teacherProfilePaid?.user_id) {
+        await enqueueJob("notifications", "push-notification", {
+          userId: teacherProfilePaid.user_id,
+          type: "withdrawal",
+          title: "تم تحويل مبلغ السحب",
+          body: `تم دفع ${withdrawal.amount} جنيه إلى حسابك`,
+          data: { withdrawal_id: req.params.id, status: "paid" }
+        });
+      }
+
       const targetAmount = Number(withdrawal.amount);
       const { data: pendingEarnings } = await supabase
         .from("teacher_earnings")

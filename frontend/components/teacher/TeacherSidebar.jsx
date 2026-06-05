@@ -43,24 +43,37 @@ export default function TeacherSidebar({ mobileOpen = false, onCloseMobile }) {
   const navItems = useMemo(
     () => [
       { href: "/teacher/dashboard", label: "لوحتي", icon: "home" },
-      { href: "/teacher/sessions", label: "جلساتي", icon: "calendarDays" },
-      { href: "/teacher/sessions/new", label: "جلسة جديدة", icon: "plus" },
+      { href: "/teacher/sessions", label: "جلساتي", icon: "calendarDays", matchPrefix: "/teacher/sessions", exact: false },
+      { href: "/teacher/sessions/new", label: "جلسة جديدة", icon: "plus", matchPrefix: "/teacher/sessions/new", exact: true },
+      { href: "/teacher/analytics", label: "تحليلاتي", icon: "barChart" },
       { href: "/teacher/earnings", label: "أرباحي", icon: "wallet" },
       { href: "/teacher/profile", label: "ملفي الشخصي", icon: "user" }
     ],
     []
   );
 
+  const isNavActive = (item) => {
+    if (item.exact) return pathname === item.href;
+    if (item.matchPrefix === "/teacher/sessions") {
+      return (
+        pathname === "/teacher/sessions" ||
+        (pathname?.startsWith("/teacher/sessions/") && !pathname?.startsWith("/teacher/sessions/new"))
+      );
+    }
+    return pathname === item.href || (pathname || "").startsWith(`${item.href}/`);
+  };
+
   const activeItemClass = "bg-accent/15 border-r-4 border-accent text-white hover:bg-accent/20";
 
   const Nav = ({ onNavigate }) => (
     <nav className="flex flex-col gap-1" aria-label="تنقل المدرس">
       {navItems.map((item) => {
-        const active = pathname === item.href || (pathname || "").startsWith(`${item.href}/`);
+        const active = isNavActive(item);
         return (
           <Link
             key={item.href}
             href={item.href}
+            title={item.label}
             onClick={() => onNavigate?.()}
             className={cn(
               "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-white/80 transition-colors hover:bg-white/10",
