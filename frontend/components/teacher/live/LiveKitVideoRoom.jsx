@@ -55,13 +55,17 @@ export default function LiveKitVideoRoom({ roomUrl, token, onCallReady, onPartic
   }
 
   return (
-    <div className="relative h-full min-h-[320px] w-full overflow-hidden rounded-xl border border-border bg-black">
+    <div
+      className="lk-room-container relative h-full min-h-[320px] w-full overflow-hidden rounded-xl border border-border bg-black"
+      style={{ height: "100%", width: "100%", minHeight: "320px" }}
+    >
       <LiveKitRoom
         serverUrl={roomUrl}
         token={token}
-        connect
-        video
-        audio
+        connect={true}
+        video={true}
+        audio={true}
+        data-lk-theme="default"
         style={{ height: "100%", width: "100%" }}
       >
         <VideoConference />

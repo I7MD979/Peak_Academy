@@ -1,4 +1,5 @@
 import "./globals.css";
+import "@livekit/components-styles";
 import { Toaster } from "sonner";
 import { Cairo } from "next/font/google";
 import Providers from "./providers";
