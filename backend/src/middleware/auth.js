@@ -125,25 +125,30 @@ export async function resolveAuthUserFromToken(token) {
         .maybeSingle();
 
       if (!existing?.id) {
-        try {
-          await ensureUserProfile(supabase, {
-            id: authUser.id,
-            email: authUser.email,
-            full_name: name,
-            role: meta.role || appMeta.role || "student",
-            phone: meta.phone || null,
-            grade: meta.grade || null
-          });
+        const metaRole = meta.role || appMeta.role;
+        // Defer DB profile creation to POST /auth/setup-profile (onboarding).
+        // Auto-provisioning as "student" here blocked teachers/parents from choosing their role.
+        if (metaRole) {
+          try {
+            await ensureUserProfile(supabase, {
+              id: authUser.id,
+              email: authUser.email,
+              full_name: name,
+              role: metaRole,
+              phone: meta.phone || null,
+              grade: meta.grade || null
+            });
 
-          const retry = await supabase
-            .from("users")
-            .select("id, full_name, email, role, avatar_url, phone, is_active")
-            .eq("id", authUser.id)
-            .maybeSingle();
-          profile = retry.data;
-        } catch (provisionError) {
-          if (process.env.NODE_ENV !== "production") {
-            console.warn("[auth] auto-provision skipped:", provisionError.message);
+            const retry = await supabase
+              .from("users")
+              .select("id, full_name, email, role, avatar_url, phone, is_active")
+              .eq("id", authUser.id)
+              .maybeSingle();
+            profile = retry.data;
+          } catch (provisionError) {
+            if (process.env.NODE_ENV !== "production") {
+              console.warn("[auth] auto-provision skipped:", provisionError.message);
+            }
           }
         }
       } else {

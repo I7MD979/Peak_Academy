@@ -13,7 +13,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { authApi } from "@/lib/api";
 import { getAuthErrorMessage } from "@/lib/auth-errors";
 import { GRADE_OPTIONS } from "@/lib/profile-form";
-import { resolvePostAuthPathClient } from "@/lib/role-routes";
+import { isProfileComplete, resolvePostAuthPathClient, ROLE_HOME } from "@/lib/role-routes";
 import { createClient } from "@/lib/supabase/client";
 import {
   REGISTER_ROLES,
@@ -99,14 +99,18 @@ export default function RegisterForm() {
         return;
       }
 
-      await authApi.setupProfile({
+      const res = await authApi.setupProfile({
         full_name: profileValues.full_name.trim(),
         role: profileValues.role,
         grade: profileValues.role === "student" ? profileValues.grade : undefined,
         phone: profileValues.phone?.trim() || undefined
       });
 
-      const nextPath = await resolvePostAuthPathClient(session?.access_token);
+      const createdUser = res?.data;
+      const nextPath =
+        createdUser && isProfileComplete(createdUser)
+          ? ROLE_HOME[createdUser.role] || "/onboarding"
+          : await resolvePostAuthPathClient(session?.access_token);
       router.replace(nextPath);
     } catch (err) {
       const needsOnboarding =

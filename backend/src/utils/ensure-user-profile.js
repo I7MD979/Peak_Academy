@@ -153,7 +153,8 @@ export async function ensureUserProfile(
     .maybeSingle();
 
   const safeRole = normalizeRole(role || existingUser?.role);
-  const roleToWrite = existingUser?.role ? normalizeRole(existingUser.role) : safeRole;
+  // During onboarding, honor the role from the request over a stale auto-provisioned row.
+  const roleToWrite = role ? normalizeRole(role) : existingUser?.role ? normalizeRole(existingUser.role) : safeRole;
   const name = String(full_name || email?.split("@")?.[0] || "مستخدم").trim();
   const incomingEmail = String(email || "").trim().toLowerCase();
   const safeEmail =

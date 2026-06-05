@@ -7,6 +7,7 @@ import {
   buildLinkCode,
   ensureUserProfile,
   fetchFullUserProfile,
+  isRoleProfileComplete,
   normalizeRole
 } from "../utils/ensure-user-profile.js";
 import { ensureReferralCode } from "../services/referralService.js";
@@ -83,20 +84,6 @@ router.get("/me", auth, async (req, res) => {
   }
 });
 
-async function fetchExistingUserRole(userId) {
-  const { data, error: dbError } = await supabase
-    .from("users")
-    .select("role")
-    .eq("id", userId)
-    .maybeSingle();
-
-  if (dbError && process.env.NODE_ENV !== "production") {
-    console.warn("setup-profile role lookup:", dbError.message);
-  }
-
-  return data?.role ? normalizeRole(data.role) : null;
-}
-
 async function syncAuthUserMetadata(userId, { role, full_name, phone }) {
   try {
     const meta = { role, full_name };
@@ -118,8 +105,16 @@ router.post("/setup-profile", auth, async (req, res) => {
     const grade = req.body.grade;
     const section = req.body.section;
 
-    const existingRole = await fetchExistingUserRole(req.user.id);
-    if (existingRole && existingRole !== role) {
+    const existingProfile = await fetchFullUserProfile(supabase, req.user.id);
+    const existingRole = existingProfile?.role ? normalizeRole(existingProfile.role) : null;
+    const profileAlreadyComplete =
+      existingProfile &&
+      isRoleProfileComplete(existingProfile.role, {
+        student_profile: existingProfile.student_profile,
+        teacher_profile: existingProfile.teacher_profile
+      });
+
+    if (profileAlreadyComplete && existingRole && existingRole !== role) {
       return error(res, "لا يمكن تغيير نوع الحساب بعد إنشاء الملف", 400);
     }
 
