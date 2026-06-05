@@ -7,6 +7,7 @@ import {
   buildLinkCode,
   ensureUserProfile,
   fetchFullUserProfile,
+  fetchTeacherProfileRow,
   isRoleProfileComplete,
   normalizeRole
 } from "../utils/ensure-user-profile.js";
@@ -152,6 +153,17 @@ router.post("/setup-profile", auth, async (req, res) => {
       }
     }
 
+    await supabase
+      .from("users")
+      .update({
+        role,
+        full_name: fullName,
+        phone: phone || null,
+        is_active: true,
+        is_verified: true
+      })
+      .eq("id", req.user.id);
+
     await syncAuthUserMetadata(req.user.id, {
       role: role,
       full_name: fullName,
@@ -163,26 +175,43 @@ router.post("/setup-profile", auth, async (req, res) => {
     if (!fresh) {
       fresh = user;
     }
+
+    let teacherProfile =
+      role === "teacher" ? fresh.teacher_profile || (await fetchTeacherProfileRow(supabase, req.user.id)) : null;
+
     fresh.role = role;
     fresh.full_name = fullName;
     fresh.phone = phone || null;
+    if (role === "teacher") {
+      fresh.teacher_profile = teacherProfile;
+      fresh.student_profile = null;
+    }
     fresh.profile_complete = isRoleProfileComplete(role, {
       student_profile: role === "student" ? fresh.student_profile : null,
-      teacher_profile: role === "teacher" ? fresh.teacher_profile : null
+      teacher_profile: role === "teacher" ? teacherProfile : null
     });
 
     if (!fresh.profile_complete) {
+      const { data: dbUser } = await supabase
+        .from("users")
+        .select("id, role, email")
+        .eq("id", req.user.id)
+        .maybeSingle();
+
       console.error("POST /auth/setup-profile incomplete:", {
         userId: req.user.id,
-        role,
-        teacherProfileId: fresh.teacher_profile?.id,
+        requestedRole: role,
+        dbRole: dbUser?.role,
+        teacherProfileId: teacherProfile?.id,
         studentGrade: fresh.student_profile?.grade
       });
-      return error(
-        res,
-        "تعذر إكمال الملف الشخصي. تأكد من تشغيل migrations قاعدة البيانات أو تواصل مع الدعم.",
-        500
-      );
+
+      const hint =
+        role === "teacher" && !teacherProfile?.id
+          ? "ملف المدرس غير موجود في قاعدة البيانات. نفّذ backend/supabase/PROMOTE_TEACHER_ACCOUNT.sql في Supabase SQL Editor."
+          : "تأكد أن role في جدول users يطابق نوع الحساب (teacher) وأن migrations مفعّلة.";
+
+      return error(res, `تعذر إكمال الملف الشخصي. ${hint}`, 500);
     }
 
     return success(res, fresh, "تم إنشاء ملفك الشخصي بنجاح");

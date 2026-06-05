@@ -71,6 +71,47 @@ async function upsertStudentProfileRow(supabase, row) {
   throw error;
 }
 
+export async function fetchTeacherProfileRow(supabase, userId) {
+  const columnSets = [
+    "id, bio, subjects, rating, commission_rate, id_verified, created_at, review_count, grades, experience_years, education, social_url",
+    "id, bio, subjects, commission_rate, rating, review_count",
+    "id, subjects, commission_rate",
+    "id"
+  ];
+
+  for (const columns of columnSets) {
+    const { data, error } = await supabase
+      .from("teacher_profiles")
+      .select(columns)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!error && data?.id) return data;
+    if (error && !isMissingColumnError(error)) break;
+  }
+
+  return null;
+}
+
+export async function fetchStudentProfileRow(supabase, userId) {
+  const columnSets = [
+    "id, grade, section, streak_days, link_code, parent_id, created_at",
+    "id, grade, section, link_code",
+    "id, grade"
+  ];
+
+  for (const columns of columnSets) {
+    const { data, error } = await supabase
+      .from("student_profiles")
+      .select(columns)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!error && data?.id) return data;
+    if (error && !isMissingColumnError(error)) break;
+  }
+
+  return null;
+}
+
 async function upsertTeacherProfileRow(supabase, row) {
   const run = (payload) =>
     supabase.from("teacher_profiles").upsert(payload, { onConflict: "user_id" });
@@ -246,47 +287,11 @@ export async function fetchFullUserProfile(supabase, userId) {
   let teacher_profile = null;
 
   if (user.role === "student") {
-    const { data, error: spError } = await supabase
-      .from("student_profiles")
-      .select("id, grade, section, streak_days, link_code, parent_id, created_at")
-      .eq("user_id", userId)
-      .maybeSingle();
-    if (spError) {
-      const fallback = await supabase
-        .from("student_profiles")
-        .select("id, grade, section, link_code")
-        .eq("user_id", userId)
-        .maybeSingle();
-      student_profile = fallback.data;
-      if (fallback.error && process.env.NODE_ENV !== "production") {
-        console.warn("[profile] student_profiles:", fallback.error.message);
-      }
-    } else {
-      student_profile = data;
-    }
+    student_profile = await fetchStudentProfileRow(supabase, userId);
   }
 
   if (user.role === "teacher") {
-    const { data, error: tpError } = await supabase
-      .from("teacher_profiles")
-      .select(
-        "id, bio, subjects, rating, commission_rate, id_verified, created_at, review_count, grades, experience_years, education, social_url"
-      )
-      .eq("user_id", userId)
-      .maybeSingle();
-    if (tpError) {
-      const fallback = await supabase
-        .from("teacher_profiles")
-        .select("id, bio, subjects, commission_rate, rating, review_count")
-        .eq("user_id", userId)
-        .maybeSingle();
-      teacher_profile = fallback.data;
-      if (fallback.error && process.env.NODE_ENV !== "production") {
-        console.warn("[profile] teacher_profiles:", fallback.error.message);
-      }
-    } else {
-      teacher_profile = data;
-    }
+    teacher_profile = await fetchTeacherProfileRow(supabase, userId);
   }
 
   return {
