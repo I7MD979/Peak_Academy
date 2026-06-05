@@ -49,7 +49,7 @@ function computeSubjectProgress(enrollments) {
 export async function listLinkedStudents(parentId) {
   const { data, error } = await supabase
     .from("student_profiles")
-    .select("id, grade, section, streak_days, link_code, user:users(id, full_name, avatar_url)")
+    .select("id, grade, section, streak_days, link_code, user:users!student_profiles_user_id_fkey(id, full_name, avatar_url)")
     .eq("parent_id", parentId)
     .order("created_at", { ascending: true });
 
@@ -70,7 +70,7 @@ export async function listLinkedStudents(parentId) {
 export async function getStudentReportForParent(parentId, studentProfileId) {
   const { data: student, error: studentError } = await supabase
     .from("student_profiles")
-    .select("*, user:users(id, full_name, avatar_url, email)")
+    .select("*, user:users!student_profiles_user_id_fkey(id, full_name, avatar_url, email)")
     .eq("id", studentProfileId)
     .eq("parent_id", parentId)
     .single();
