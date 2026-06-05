@@ -8,26 +8,23 @@ import RoleGate from "@/components/layout/RoleGate";
 
 export default function StudentLayout({ children }) {
   const [mobileOpen, setMobileOpen] = useState(false);
-
   return (
     <RoleGate roles={["student"]}>
       <div className="flex h-screen bg-bg font-cairo" dir="rtl">
-      <StudentSidebar
-        className="hidden lg:flex"
-        mobileOpen={mobileOpen}
-        onCloseMobile={() => setMobileOpen(false)}
-      />
-
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <AppTopbar
-          role="student"
-          onOpenMobile={() => setMobileOpen(true)}
-          menuBreakpoint="lg"
+        <StudentSidebar
+          mobileOpen={mobileOpen}
+          onCloseMobile={() => setMobileOpen(false)}
         />
-        <main className="flex-1 overflow-y-auto pb-20 lg:pb-0">{children}</main>
-        <StudentBottomNav className="lg:hidden" />
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <AppTopbar
+            role="student"
+            onOpenMobile={() => setMobileOpen(true)}
+            menuBreakpoint="md"
+          />
+          <main className="flex-1 overflow-y-auto pb-20 md:pb-0">{children}</main>
+          <StudentBottomNav className="md:hidden" />
+        </div>
       </div>
-    </div>
     </RoleGate>
   );
 }

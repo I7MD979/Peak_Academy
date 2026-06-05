@@ -8,6 +8,7 @@ import Icon from "@/components/shared/Icon";
 import MenuButton from "@/components/shared/MenuButton";
 import PeakLogo from "@/components/shared/PeakLogo";
 import { useAuth } from "@/hooks/useAuth";
+import { ROLE_LABELS_AR } from "@/lib/profile-form";
 import { getTopbarBreadcrumbs, getTopbarMeta } from "@/lib/topbar";
 import { getUserDisplay } from "@/lib/user-display";
 import { cn } from "@/lib/utils";
@@ -262,7 +263,7 @@ export default function AppTopbar({
     avatar_url: displayAvatar ?? baseProfile.avatar_url,
     email: displayEmail ?? baseProfile.email
   };
-  const roleLabel = displayRoleLabel || baseProfile.roleLabel;
+  const roleLabel = displayRoleLabel || ROLE_LABELS_AR[role] || baseProfile.roleLabel;
 
   const meta = useMemo(() => {
     const base = getTopbarMeta(pathname || "", role);
