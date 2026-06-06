@@ -44,8 +44,14 @@ export default function LandingHeader() {
             : "border-white/5 bg-landing-navy/60 backdrop-blur-xl"
       )}
     >
-      <nav className="relative mx-auto flex h-14 max-w-[75rem] flex-row-reverse items-center justify-between gap-3 px-4 sm:h-16 sm:gap-4 sm:px-6 md:px-8">
-        <PeakLogo href="/" variant="header" showSubtitle={false} theme={lightHeader ? "light" : "dark"} />
+      <nav className="relative mx-auto flex h-[4.5rem] max-w-[75rem] flex-row-reverse items-center justify-between gap-3 px-4 sm:h-20 sm:gap-4 sm:px-6 md:px-8">
+        <PeakLogo
+          href="/"
+          variant="landing"
+          showWordmark
+          priority
+          theme={lightHeader ? "light" : "dark"}
+        />
 
         <ul className="hidden items-center gap-8 md:flex">
           {landingNavLinks.map((link) => (

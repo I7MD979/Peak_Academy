@@ -59,19 +59,38 @@ export function resolveLandingPlans(plans) {
 
 const GROUP_SIZE_STAT_PATTERN = /8\s*طلاب|مجموعات?\s*صغ|حد\s*أقصى.*طل/i;
 
+const QUICK_STAT_ICON_BY_KEY = {
+  dashboards: "groups",
+  teachers: "schedule",
+  sessions_monthly: "live_tv",
+  pricing_starts: "payments"
+};
+
 export function mapStatsToQuickCards(stats) {
   if (!Array.isArray(stats) || !stats.length) return null;
-  const icons = ["groups", "schedule", "menu_book", "payments"];
+  const icons = ["groups", "schedule", "live_tv", "payments"];
   const filtered = stats.filter((row) => {
     const text = `${row.label || ""} ${row.hint || ""} ${row.value || ""}`;
     return !GROUP_SIZE_STAT_PATTERN.test(text);
   });
   if (!filtered.length) return null;
   return filtered.slice(0, 4).map((row, index) => ({
-    icon: row.icon || icons[index] || "star",
+    icon: row.icon || QUICK_STAT_ICON_BY_KEY[row.key] || icons[index] || "star",
     title: row.label || row.key || "—",
     sub: row.hint || ""
   }));
+}
+
+export function resolveQuickStats(stats, fallback) {
+  const mapped = mapStatsToQuickCards(stats);
+  const base = mapped?.length ? mapped : [];
+  if (base.length >= 4) return base.slice(0, 4);
+
+  const usedTitles = new Set(base.map((item) => item.title));
+  const extras = fallback.filter((item) => !usedTitles.has(item.title));
+  const merged = [...base, ...extras];
+
+  return merged.length ? merged.slice(0, 4) : fallback;
 }
 
 export function mapPromosToRecord(promos) {

@@ -8,9 +8,9 @@ export const landingNavLinks = [
 
 /** بطاقات المميزات السريعة أسفل الـ Hero */
 export const landingQuickStatsFallback = [
-  { icon: "live_tv", title: "حصص تفاعلية", sub: "بث مباشر مع المعلّم" },
-  { icon: "schedule", title: "مواعيد مرنة", sub: "تناسب نمط حياتك الدراسي" },
-  { icon: "menu_book", title: "مناهج كاملة", sub: "بأحدث معايير الوزارة" },
+  { icon: "groups", title: "لوحات متخصصة", sub: "طالب، معلّم، ولي أمر، إدارة" },
+  { icon: "schedule", title: "معلّم معتمد", sub: "على منهج الثانوية العامة" },
+  { icon: "live_tv", title: "جلسة لايف شهرياً", sub: "جلسات تفاعلية مع المعلّم" },
   { icon: "payments", title: "تبدأ من 80 جنيه", sub: "أفضل قيمة مقابل جودة" }
 ];
 

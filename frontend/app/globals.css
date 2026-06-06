@@ -162,7 +162,7 @@ a {
 
 .landing-card-accent-top {
   position: relative;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .landing-card-accent-top::before {
@@ -171,7 +171,7 @@ a {
   top: 0;
   right: 0;
   left: 0;
-  height: 3px;
+  height: 4px;
   background: linear-gradient(90deg, var(--landing-navy), var(--landing-orange) 45%, #ffb366);
 }
 
@@ -540,23 +540,65 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
 
 /* Hero */
 .landing-hero-display {
-  font-size: clamp(44px, 9vw, 88px);
-  line-height: 1.02;
-  letter-spacing: -0.04em;
+  font-size: clamp(28px, 5.5vw, 52px);
+  line-height: 1.08;
+  letter-spacing: -0.03em;
   font-family: "Cairo", sans-serif;
 }
 
 .landing-hero-accent {
-  font-size: clamp(44px, 9vw, 88px);
-  line-height: 1.05;
-  letter-spacing: -0.04em;
+  font-size: clamp(28px, 5.5vw, 52px);
+  line-height: 1.1;
+  letter-spacing: -0.03em;
   font-family: "Cairo", sans-serif;
 }
 
 .landing-hero-tagline {
-  font-size: clamp(20px, 3vw, 36px);
+  font-size: clamp(16px, 2.2vw, 26px);
   opacity: 0.45;
   font-family: "Cairo", sans-serif;
+}
+
+@keyframes landingHeroChildIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.landing-hero-enter > * {
+  opacity: 0;
+  animation: landingHeroChildIn 0.75s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.landing-hero-enter > *:nth-child(1) {
+  animation-delay: 0.05s;
+}
+.landing-hero-enter > *:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.landing-hero-enter > *:nth-child(3) {
+  animation-delay: 0.25s;
+}
+.landing-hero-enter > *:nth-child(4) {
+  animation-delay: 0.35s;
+}
+.landing-hero-enter > *:nth-child(5) {
+  animation-delay: 0.45s;
+}
+.landing-hero-enter > *:nth-child(6) {
+  animation-delay: 0.55s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-hero-enter > * {
+    opacity: 1;
+    animation: none;
+    transform: none;
+  }
 }
 
 .landing-hero-glow {
@@ -673,9 +715,9 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
 }
 
 .landing-h2 {
-  font-size: clamp(28px, 5vw, 44px);
+  font-size: clamp(22px, 3.5vw, 36px);
   font-weight: 800;
-  line-height: 1.15;
+  line-height: 1.2;
   letter-spacing: -0.02em;
   margin-bottom: 0.75rem;
   font-family: "Cairo", sans-serif;
@@ -737,7 +779,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
   top: 0;
   left: 0;
   right: 0;
-  height: 3px;
+  height: 4px;
   background: linear-gradient(90deg, #f5721a, #ff9a4d);
   border-radius: inherit;
   border-bottom-left-radius: 0;
@@ -807,13 +849,15 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
   animation: float 8s ease-in-out infinite;
 }
 
-/* Scroll reveal */
-.scroll-reveal {
+/* Scroll reveal — landing page (scoped to avoid conflicts) */
+.landing-page .scroll-reveal {
   opacity: 0;
   transform: translateY(32px);
-  transition: opacity 0.8s cubic-bezier(0.22, 1, 0.36, 1), transform 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+  transition:
+    opacity 0.85s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.85s cubic-bezier(0.22, 1, 0.36, 1);
 }
-.scroll-reveal.visible {
+.landing-page .scroll-reveal.visible {
   opacity: 1;
   transform: translateY(0);
 }

@@ -8,7 +8,7 @@ export default function LandingPricing({ plans }) {
   return (
     <>
       <LandingWaveDivider fill="white" />
-      <section id="pricing" className="scroll-reveal landing-section-light landing-pattern-dots landing-section-y">
+      <section id="pricing" className="scroll-reveal overflow-visible landing-section-light landing-pattern-dots landing-section-y">
         <div className="landing-container relative z-10">
           <div className="landing-section-head">
             <span className="landing-section-tag-light mb-4 inline-block sm:mb-5">الأسعار</span>
@@ -19,18 +19,18 @@ export default function LandingPricing({ plans }) {
             <p className="landing-lead text-landing-ink-muted">اختر الباقة التي تناسب تطلعاتك التعليمية</p>
           </div>
 
-          <div className="grid grid-cols-1 items-stretch gap-6 sm:grid-cols-2 sm:gap-7 xl:grid-cols-4">
+          <div className="grid grid-cols-1 items-stretch gap-6 pt-6 sm:grid-cols-2 sm:gap-7 sm:pt-8 xl:grid-cols-4">
             {displayPlans.map((plan) => (
               <div
                 key={plan.id || plan.label}
-                className={`relative flex h-full flex-col rounded-3xl p-6 transition-all duration-500 sm:p-7 md:p-8 ${
+                className={`relative flex h-full flex-col overflow-visible rounded-3xl p-6 transition-all duration-500 sm:p-7 md:p-8 ${
                   plan.featured
-                    ? "landing-card-accent-top bg-white pt-8 shadow-[0_24px_60px_-16px_rgba(245,114,26,0.22)] ring-2 ring-landing-orange/35 xl:scale-[1.03]"
-                    : "landing-card-light landing-card-accent-top hover:-translate-y-1 hover:shadow-[0_20px_50px_-14px_rgba(10,18,32,0.14)]"
+                    ? "landing-card-accent-top border-2 border-landing-orange bg-white pt-10 shadow-[0_24px_60px_-16px_rgba(245,114,26,0.28)] xl:scale-[1.03]"
+                    : "landing-card-light landing-card-accent-top border-2 border-landing-ink/12 hover:-translate-y-1 hover:border-landing-ink/22 hover:shadow-[0_20px_50px_-14px_rgba(10,18,32,0.16)]"
                 }`}
               >
                 {plan.featured && plan.featuredLabel ? (
-                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-landing-orange px-4 py-1.5 text-[11px] font-black uppercase tracking-tight text-white shadow-xl sm:px-5 sm:py-2 sm:text-xs">
+                  <div className="absolute -top-4 left-1/2 z-20 -translate-x-1/2 whitespace-nowrap rounded-full border-2 border-amber-300 bg-gradient-to-r from-landing-orange via-amber-500 to-landing-orange px-5 py-2 text-xs font-black tracking-tight text-white shadow-[0_8px_28px_-6px_rgba(245,114,26,0.65)] sm:text-sm">
                     {plan.featuredLabel}
                   </div>
                 ) : null}

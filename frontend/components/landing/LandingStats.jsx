@@ -1,8 +1,8 @@
-import { mapStatsToQuickCards } from "@/lib/landing-api";
+import { resolveQuickStats } from "@/lib/landing-api";
 import { landingQuickStatsFallback } from "@/lib/landing-constants";
 
 export default function LandingStats({ stats }) {
-  const items = mapStatsToQuickCards(stats) || landingQuickStatsFallback;
+  const items = resolveQuickStats(stats, landingQuickStatsFallback);
 
   return (
     <section className="landing-section-light landing-pattern-light relative z-20 pb-16 pt-0 sm:pb-20 md:pb-24">
