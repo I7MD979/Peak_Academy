@@ -20,6 +20,7 @@ import {
 } from "./middleware/security.js";
 
 import authRoutes from "./routes/auth.js";
+import googleAuthRoutes from "./routes/google-auth.js";
 import sessionRoutes from "./routes/sessions.js";
 import paymentRoutes from "./routes/payments.js";
 import earningRoutes from "./routes/earnings.js";
@@ -204,6 +205,8 @@ app.get("/api/diag", async (_req, res) => {
   res.status(200).json(payload);
 });
 
+app.use("/api/auth", googleAuthRoutes);
+app.use("/auth", googleAuthRoutes);
 app.use("/api/auth", authRoutes);
 /** Same routes without /api prefix when NEXT_PUBLIC_API_URL omits /api */
 app.use("/auth", authRoutes);

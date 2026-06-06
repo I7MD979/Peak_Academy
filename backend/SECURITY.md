@@ -21,6 +21,7 @@
 | A10 | SSRF | blockSSRF() — blocks internal IPs & metadata endpoints |
 
 ## OAuth & Payments
+- Custom Google OAuth via backend (`/api/auth/google`) — hides Supabase URL on consent screen
 - Google OAuth email validation, open-redirect blocking, OAuth rate limits
 - Paymob webhook: strict HMAC, transaction validation, replay cache (in-memory; use Redis in production)
 

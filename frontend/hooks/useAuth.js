@@ -4,7 +4,8 @@ import { useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { clearApiCache } from "@/lib/api-cache";
 import { useAuthStore } from "@/store/authStore";
-import { buildOAuthCallbackUrl } from "@/lib/auth-redirect";
+import { getApiBaseUrl } from "@/lib/api-base";
+import { sanitizeRedirectPath } from "@/lib/safe-redirect";
 
 export const useAuth = () => {
   const supabaseRef = useRef(null);
@@ -16,16 +17,17 @@ export const useAuth = () => {
   const { user, session, loading, clearAuth } = useAuthStore();
 
   const signInWithGoogle = async ({ returnTo } = {}) => {
-    const redirectTo =
-      typeof window !== "undefined"
-        ? buildOAuthCallbackUrl(window.location.origin, returnTo)
-        : undefined;
+    try {
+      const apiBase = getApiBaseUrl().replace(/\/api$/, "");
+      const params = new URLSearchParams();
+      const safeReturnTo = sanitizeRedirectPath(returnTo);
+      if (safeReturnTo) params.set("return_to", safeReturnTo);
 
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo }
-    });
-    return { error };
+      window.location.href = `${apiBase}/api/auth/google${params.toString() ? `?${params}` : ""}`;
+      return { error: null };
+    } catch (err) {
+      return { error: err };
+    }
   };
 
   const signInWithEmail = async (email, password) => {
