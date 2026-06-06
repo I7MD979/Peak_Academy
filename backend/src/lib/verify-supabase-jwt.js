@@ -27,6 +27,14 @@ function issuerMatchesBackend(token, supabaseUrl) {
 export async function verifySupabaseAccessToken(token) {
   if (!token) return { user: null, error: "missing_token" };
 
+  // Short-circuit في test environment للـ tokens الفاضية أو الـ fake
+  if (process.env.NODE_ENV === "test") {
+    const payload = decodeJwtPayload(token);
+    if (!payload?.sub || !payload?.iss?.includes("supabase.co")) {
+      return { user: null, error: "invalid_token_test" };
+    }
+  }
+
   const { url, serviceKey } = getSupabaseConfig();
   const anonKey = process.env.SUPABASE_ANON_KEY?.trim() || "";
 
@@ -57,7 +65,8 @@ export async function verifySupabaseAccessToken(token) {
         headers: {
           Authorization: `Bearer ${token}`,
           apikey: apiKey
-        }
+        },
+        signal: AbortSignal.timeout(3000)
       });
 
       if (res.ok) {
