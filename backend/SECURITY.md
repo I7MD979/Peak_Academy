@@ -16,9 +16,13 @@
 | A05 | Misconfiguration | Helmet CSP, securityHeaders(), error sanitization |
 | A06 | Vulnerable Components | npm audit in CI |
 | A07 | Auth Failures | authLimiter (10/15min), slowDown, uniform responses |
-| A08 | Data Integrity | Paymob HMAC verification |
-| A09 | Logging & Monitoring | securityLogger(), Sentry |
+| A08 | Data Integrity | Paymob HMAC verification (timing-safe), replay protection |
+| A09 | Logging & Monitoring | securityLogger(), Sentry, security_audit_log table |
 | A10 | SSRF | blockSSRF() — blocks internal IPs & metadata endpoints |
+
+## OAuth & Payments
+- Google OAuth email validation, open-redirect blocking, OAuth rate limits
+- Paymob webhook: strict HMAC, transaction validation, replay cache (in-memory; use Redis in production)
 
 ## Reporting
 security@peak-academy.net

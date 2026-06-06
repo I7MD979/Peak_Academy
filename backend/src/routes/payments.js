@@ -4,9 +4,13 @@ import { createPaymobOrder } from "../services/paymob.service.js";
 import { supabase } from "../lib/supabase.js";
 import { paginate, paginationMeta } from "../utils/paginate.js";
 import { success, error, paginated } from "../utils/response.js";
-import { verifyPaymobHmac } from "../utils/paymob-hmac.js";
-import { verifyPaymobHMAC as requirePaymobHMAC } from "../middleware/security.js";
 import { handlePaymobWebhook } from "../utils/payments-fulfillment.js";
+import {
+  verifyPaymobHmacStrict,
+  validatePaymobTransaction,
+  checkReplayAttack,
+  webhookLimiter
+} from "../utils/paymob-security.js";
 import { mapCheckoutResponse } from "../lib/schema.js";
 import { resolveTransactionFulfillment } from "../utils/transaction-status.js";
 import { validatePromoCode, calculateDiscount } from "../utils/promoValidator.js";
@@ -172,25 +176,38 @@ router.post("/initiate", auth, async (req, res) => {
 
 async function paymobWebhookHandler(req, res) {
   try {
-    const hmac = req.query.hmac;
-    const obj = req.body?.obj;
-
-    if (!verifyPaymobHmac(obj, hmac)) {
-      return error(res, "Invalid HMAC", 401);
+    const receivedHmac = req.query?.hmac || req.body?.hmac;
+    const hmacResult = verifyPaymobHmacStrict(req.body, receivedHmac);
+    if (!hmacResult.valid) {
+      console.warn(`[webhook] HMAC failed: ${hmacResult.reason} — IP: ${req.ip}`);
+      return res.status(401).json({ success: false, error: "Invalid HMAC", code: "HMAC_INVALID" });
     }
 
-    const orderId = String(obj.order?.id ?? "");
-    const paymobTxnId = String(obj.id ?? "");
+    const transaction = req.body?.obj || req.body;
+    const validation = validatePaymobTransaction(transaction);
+    if (!validation.valid) {
+      console.warn(`[webhook] invalid transaction: ${validation.errors.join(", ")}`);
+      return res.status(400).json({ success: false, error: "Invalid transaction" });
+    }
 
-    const result = await handlePaymobWebhook(orderId, paymobTxnId, Boolean(obj?.success));
-    return success(res, { received: true, ...result });
-  } catch (_err) {
-    return error(res, "Webhook error", 500);
+    const replayCheck = checkReplayAttack(transaction.id);
+    if (replayCheck.isReplay) {
+      console.warn(`[webhook] replay attack for transaction: ${transaction.id}`);
+      return res.status(200).json({ success: true, message: "Already processed" });
+    }
+
+    const orderId = String(transaction.order?.id ?? "");
+    const paymobTxnId = String(transaction.id ?? "");
+    const result = await handlePaymobWebhook(orderId, paymobTxnId, Boolean(transaction?.success));
+    return res.status(200).json({ success: true, received: true, ...result });
+  } catch (err) {
+    console.error("[webhook] error:", err.message);
+    return res.status(500).json({ success: false, error: "Webhook processing failed" });
   }
 }
 
-router.post("/webhook", requirePaymobHMAC, paymobWebhookHandler);
-router.get("/webhook", requirePaymobHMAC, paymobWebhookHandler);
+router.post("/webhook", webhookLimiter, paymobWebhookHandler);
+router.get("/webhook", webhookLimiter, paymobWebhookHandler);
 
 router.get("/transactions/:id/status", auth, async (req, res) => {
   try {

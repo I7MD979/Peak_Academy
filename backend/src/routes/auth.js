@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { auth } from "../middleware/auth.js";
 import { authLimiter, authSlowDown, uniformAuthResponse } from "../middleware/security.js";
+import { oauthLimiter, validateRedirectUrl, validateOAuthEmail } from "../middleware/oauth-security.js";
 import { supabase } from "../lib/supabase.js";
 import { mapDbError } from "../utils/db-errors.js";
 import { success, error } from "../utils/response.js";
@@ -16,6 +17,8 @@ import { ensureReferralCode } from "../services/referralService.js";
 import { isValidGrade } from "../lib/grades.js";
 
 const router = Router();
+
+router.use(validateRedirectUrl);
 
 function onboardingRedirectUrl() {
   return `${(process.env.FRONTEND_URL || "https://peak-academy.net").replace(/\/$/, "")}/onboarding`;
@@ -95,7 +98,7 @@ async function syncAuthUserMetadata(userId, { role, full_name, phone }) {
 }
 
 /** إنشاء / إكمال الملف الشخصي بعد التسجيل (onboarding) */
-router.post("/setup-profile", authSlowDown, authLimiter, uniformAuthResponse, auth, async (req, res) => {
+router.post("/setup-profile", oauthLimiter, authSlowDown, authLimiter, uniformAuthResponse, auth, async (req, res) => {
   try {
     const fullName = String(req.body.full_name || "").trim();
     const role = normalizeRole(req.body.role);
@@ -120,6 +123,13 @@ router.post("/setup-profile", authSlowDown, authLimiter, uniformAuthResponse, au
     }
 
     const email = req.user.email || req.body.email;
+
+    if (email) {
+      const emailCheck = validateOAuthEmail(email);
+      if (!emailCheck.valid) {
+        return error(res, "البريد الإلكتروني غير مقبول", 400);
+      }
+    }
 
     let user;
     try {
@@ -276,8 +286,15 @@ router.put("/profile", auth, async (req, res) => {
     };
 
     if (avatarUrl) {
-      if (!/^https?:\/\/.+/i.test(avatarUrl)) {
-        return error(res, "رابط الصورة الشخصية غير صالح", 400);
+      const supabaseStorageBase = `${process.env.SUPABASE_URL}/storage/v1/object/public/`;
+      const allowedAvatarDomains = [
+        supabaseStorageBase,
+        "https://lh3.googleusercontent.com/",
+        "https://avatars.githubusercontent.com/"
+      ];
+      const isAllowedAvatar = allowedAvatarDomains.some((d) => avatarUrl.startsWith(d));
+      if (!isAllowedAvatar && !/^https:\/\/[a-zA-Z0-9.-]+\.supabase\.co\//.test(avatarUrl)) {
+        return error(res, "مصدر الصورة غير مسموح", 400);
       }
       if (avatarUrl.length > 500) {
         return error(res, "رابط الصورة الشخصية طويل جداً", 400);
@@ -436,7 +453,7 @@ router.post("/avatar", auth, async (req, res) => {
   }
 });
 
-router.post("/complete-profile", authSlowDown, authLimiter, uniformAuthResponse, auth, async (req, res) => {
+router.post("/complete-profile", oauthLimiter, authSlowDown, authLimiter, uniformAuthResponse, auth, async (req, res) => {
   try {
     const existing = await fetchFullUserProfile(supabase, req.user.id);
     const fullName = String(req.body.full_name || req.user.full_name || "").trim();
