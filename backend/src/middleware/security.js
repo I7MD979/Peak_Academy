@@ -40,6 +40,15 @@ export function selfOnly(paramKey = "userId") {
 /** إجبار HTTPS في production */
 export function enforceHttps(req, res, next) {
   if (process.env.NODE_ENV !== "production") return next();
+
+  // السماح لـ Railway healthcheck بالمرور — بيبعت plain HTTP مباشرة للـ container
+  const path = req.originalUrl || req.url || "";
+  if (path === "/api/health" || path === "/health") return next();
+
+  // السماح لـ Railway internal requests (بدون host header أو بـ internal hostname)
+  const host = req.headers.host || "";
+  if (host.includes("railway.internal") || host.includes(".railway.internal")) return next();
+
   const proto = req.headers["x-forwarded-proto"] || req.protocol;
   if (proto !== "https") {
     return res.redirect(301, `https://${req.headers.host}${req.originalUrl}`);
