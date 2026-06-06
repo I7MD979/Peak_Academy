@@ -4,7 +4,6 @@ import { useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { clearApiCache } from "@/lib/api-cache";
 import { useAuthStore } from "@/store/authStore";
-import { getApiBaseUrl } from "@/lib/api-base";
 import { sanitizeRedirectPath } from "@/lib/safe-redirect";
 
 export const useAuth = () => {
@@ -18,9 +17,13 @@ export const useAuth = () => {
 
   const signInWithGoogle = async ({ returnTo } = {}) => {
     try {
-      const apiBase = getApiBaseUrl()
-        .replace(/\/api$/, "")
-        .replace(/\/peak-api$/, "");
+      // استخدم الـ backend URL مباشرة — مش عبر الـ Next.js proxy
+      const apiBase = (() => {
+        if (typeof window !== "undefined" && window.location.hostname !== "localhost") {
+          return "https://api.peak-academy.net";
+        }
+        return "http://localhost:4000";
+      })();
       const params = new URLSearchParams();
       const safeReturnTo = sanitizeRedirectPath(returnTo);
       if (safeReturnTo) params.set("return_to", safeReturnTo);
