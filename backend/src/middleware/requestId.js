@@ -1,9 +1,8 @@
-function requestId(req, res, next) {
-  const inboundId = req.headers["x-request-id"];
-  const id = typeof inboundId === "string" && inboundId.trim() ? inboundId.trim() : `req-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+import { randomUUID } from "crypto";
+
+export function requestId(req, res, next) {
+  const id = req.headers["x-request-id"] || randomUUID();
   req.requestId = id;
-  res.setHeader("x-request-id", id);
+  res.setHeader("X-Request-ID", id);
   next();
 }
-
-module.exports = { requestId };

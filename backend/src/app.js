@@ -3,6 +3,21 @@ import cors from "cors";
 import helmet from "helmet";
 import { limiter } from "./middleware/rateLimit.js";
 import { timeout } from "./middleware/timeout.js";
+import { requestId } from "./middleware/requestId.js";
+import {
+  blockPathTraversal,
+  enforceHttps,
+  sanitizeLogging,
+  sanitizeInput,
+  blockSQLInjection,
+  securityHeaders,
+  sanitizeErrors,
+  securityLogger,
+  blockSSRF,
+  hppProtection,
+  validateInputLengths,
+  bodySizeLimit
+} from "./middleware/security.js";
 
 import authRoutes from "./routes/auth.js";
 import sessionRoutes from "./routes/sessions.js";
@@ -46,24 +61,78 @@ function getAllowedOrigins() {
 
 const allowedOrigins = getAllowedOrigins();
 
-app.use(helmet());
+app.use(requestId);
+
+// ── Layer 1: Transport Security ──────────
+app.use(enforceHttps);
+
+// ── Layer 2: Security Headers (OWASP A05, NIST SC-8) ──
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "https://cdn.jsdelivr.net"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com"],
+        imgSrc: ["'self'", "data:", "https:"],
+        connectSrc: ["'self'", "https://*.supabase.co", "https://api.paymob.com"],
+        frameSrc: ["'none'"],
+        objectSrc: ["'none'"],
+        upgradeInsecureRequests: []
+      }
+    },
+    hsts: {
+      maxAge: 31536000,
+      includeSubDomains: true,
+      preload: true
+    },
+    referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+    frameguard: { action: "deny" },
+    xssFilter: true,
+    noSniff: true,
+    hidePoweredBy: true
+  })
+);
+app.use(securityHeaders);
+
+// ── Layer 3: CORS ──────────────────────────
 app.use(
   cors({
     origin(origin, callback) {
-      if (!origin) {
-        return callback(null, true);
-      }
-      if (allowedOrigins.has(origin)) {
-        return callback(null, true);
-      }
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.has(origin)) return callback(null, true);
       return callback(null, false);
     },
-    credentials: true
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Request-ID"],
+    maxAge: 86400
   })
 );
-app.use(express.json());
+
+// ── Layer 4: Body Parsing ──────────────────
+// Larger limits for routes that need binary/base64 payloads
+app.use(["/api/auth/avatar", "/auth/avatar"], express.json({ limit: "3mb" }));
+app.use(["/api/payments/webhook", "/payments/webhook"], express.json({ limit: "512kb" }));
+app.use(express.json({ limit: bodySizeLimit }));
+app.use(express.urlencoded({ extended: false, limit: bodySizeLimit }));
+
+// ── Layer 5: Security Middleware (OWASP A03, CWE-20) ──
+app.use(blockPathTraversal);
+app.use(blockSQLInjection);
+app.use(sanitizeInput);
+app.use(hppProtection);
+app.use(validateInputLengths);
+app.use(blockSSRF);
+app.use(sanitizeLogging);
+
+// ── Layer 6: Rate Limiting (OWASP A07) ────
 app.use(timeout);
 app.use(["/api", "/auth"], limiter);
+
+// ── Layer 7: Monitoring (NIST AU-2) ───────
+app.use(securityLogger);
 
 export const API_VERSION = "2026-06-09-schema-v2";
 
@@ -164,13 +233,9 @@ app.use((req, res, next) => {
 
 setupExpressSentry(app);
 
-app.use((err, _req, res, _next) => {
+app.use((err, req, res, next) => {
   captureException(err);
-  console.error(err.stack);
-  res.status(err.status || 500).json({
-    success: false,
-    error: err.message || "Internal server error"
-  });
+  sanitizeErrors(err, req, res, next);
 });
 
 export default app;

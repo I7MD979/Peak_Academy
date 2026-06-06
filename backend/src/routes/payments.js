@@ -5,6 +5,7 @@ import { supabase } from "../lib/supabase.js";
 import { paginate, paginationMeta } from "../utils/paginate.js";
 import { success, error, paginated } from "../utils/response.js";
 import { verifyPaymobHmac } from "../utils/paymob-hmac.js";
+import { verifyPaymobHMAC as requirePaymobHMAC } from "../middleware/security.js";
 import { handlePaymobWebhook } from "../utils/payments-fulfillment.js";
 import { mapCheckoutResponse } from "../lib/schema.js";
 import { resolveTransactionFulfillment } from "../utils/transaction-status.js";
@@ -169,7 +170,7 @@ router.post("/initiate", auth, async (req, res) => {
   }
 });
 
-router.post("/webhook", async (req, res) => {
+async function paymobWebhookHandler(req, res) {
   try {
     const hmac = req.query.hmac;
     const obj = req.body?.obj;
@@ -186,7 +187,10 @@ router.post("/webhook", async (req, res) => {
   } catch (_err) {
     return error(res, "Webhook error", 500);
   }
-});
+}
+
+router.post("/webhook", requirePaymobHMAC, paymobWebhookHandler);
+router.get("/webhook", requirePaymobHMAC, paymobWebhookHandler);
 
 router.get("/transactions/:id/status", auth, async (req, res) => {
   try {

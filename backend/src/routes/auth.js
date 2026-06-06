@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { auth } from "../middleware/auth.js";
+import { authLimiter, authSlowDown, uniformAuthResponse } from "../middleware/security.js";
 import { supabase } from "../lib/supabase.js";
 import { mapDbError } from "../utils/db-errors.js";
 import { success, error } from "../utils/response.js";
@@ -94,7 +95,7 @@ async function syncAuthUserMetadata(userId, { role, full_name, phone }) {
 }
 
 /** إنشاء / إكمال الملف الشخصي بعد التسجيل (onboarding) */
-router.post("/setup-profile", auth, async (req, res) => {
+router.post("/setup-profile", authSlowDown, authLimiter, uniformAuthResponse, auth, async (req, res) => {
   try {
     const fullName = String(req.body.full_name || "").trim();
     const role = normalizeRole(req.body.role);
@@ -435,7 +436,7 @@ router.post("/avatar", auth, async (req, res) => {
   }
 });
 
-router.post("/complete-profile", auth, async (req, res) => {
+router.post("/complete-profile", authSlowDown, authLimiter, uniformAuthResponse, auth, async (req, res) => {
   try {
     const existing = await fetchFullUserProfile(supabase, req.user.id);
     const fullName = String(req.body.full_name || req.user.full_name || "").trim();
