@@ -1,8 +1,6 @@
 import { supabase } from "../lib/supabase.js";
 import { SUBJECT_LABELS, GRADE_LABELS } from "./studyRoomsService.js";
 
-const MONTH_MS = 30 * 24 * 60 * 60 * 1000;
-
 function subjectLabel(session) {
   return (
     session?.subject_row?.name_ar ||
@@ -67,7 +65,7 @@ export async function listLinkedStudents(parentId) {
   }));
 }
 
-export async function getStudentReportForParent(parentId, studentProfileId) {
+export async function getStudentReportForParent(parentId, studentProfileId, { from = null, to = null } = {}) {
   const { data: student, error: studentError } = await supabase
     .from("student_profiles")
     .select("*, user:users!student_profiles_user_id_fkey(id, full_name, avatar_url, email)")
@@ -76,8 +74,6 @@ export async function getStudentReportForParent(parentId, studentProfileId) {
     .single();
 
   if (studentError || !student) return null;
-
-  const monthAgo = new Date(Date.now() - MONTH_MS).toISOString();
 
   const [{ data: enrollments }, { count: questionsTotal }, { count: questionsAnswered }] =
     await Promise.all([
@@ -100,27 +96,40 @@ export async function getStudentReportForParent(parentId, studentProfileId) {
 
   const rows = enrollments || [];
   const now = Date.now();
+  const rangeFrom = from ? new Date(from).getTime() : null;
+  const rangeTo = to ? new Date(to).getTime() : null;
 
-  const sessionsThisMonth = rows.filter((r) => r.created_at >= monthAgo).length;
-  const completedSessions = rows.filter((r) => r.session?.status === "completed").length;
-  const upcomingSessions = rows.filter(
+  const inRange = (row) => {
+    const at = row.session?.scheduled_at || row.created_at;
+    if (!at) return true;
+    const ts = new Date(at).getTime();
+    if (rangeFrom != null && ts < rangeFrom) return false;
+    if (rangeTo != null && ts > rangeTo) return false;
+    return true;
+  };
+
+  const filteredRows = rows.filter(inRange);
+
+  const sessionsInPeriod = filteredRows.length;
+  const completedSessions = filteredRows.filter((r) => r.session?.status === "completed").length;
+  const upcomingSessions = filteredRows.filter(
     (r) =>
       r.session?.status === "scheduled" && new Date(r.session.scheduled_at).getTime() >= now
   ).length;
-  const liveSessions = rows.filter((r) => r.session?.status === "live").length;
+  const liveSessions = filteredRows.filter((r) => r.session?.status === "live").length;
 
-  const studyMinutes = rows
+  const studyMinutes = filteredRows
     .filter((r) => r.session?.status === "completed")
     .reduce((sum, r) => sum + (r.session?.duration_min || 45), 0);
 
-  const subjects = computeSubjectProgress(rows);
+  const subjects = computeSubjectProgress(filteredRows);
   const weakSubjects = subjects.filter((s) => s.needs_attention);
   const averageProgress =
     subjects.length > 0
       ? Math.round(subjects.reduce((sum, s) => sum + s.progress, 0) / subjects.length)
       : 0;
 
-  const recentSessions = rows
+  const recentSessions = filteredRows
     .filter((r) => r.session)
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .slice(0, 6)
@@ -144,7 +153,7 @@ export async function getStudentReportForParent(parentId, studentProfileId) {
       streak_days: student.streak_days || 0
     },
     stats: {
-      sessions_this_month: sessionsThisMonth,
+      sessions_this_month: sessionsInPeriod,
       average_progress: averageProgress,
       study_hours: Math.round(studyMinutes / 60),
       questions_total: questionsTotal || 0,
@@ -152,7 +161,11 @@ export async function getStudentReportForParent(parentId, studentProfileId) {
       completed_sessions: completedSessions,
       upcoming_sessions: upcomingSessions,
       live_sessions: liveSessions,
-      total_enrollments: rows.length
+      total_enrollments: filteredRows.length
+    },
+    period: {
+      from: from || null,
+      to: to || null
     },
     subjects,
     weak_subjects: weakSubjects,

@@ -1,104 +1,139 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import PeakLogo from "@/components/shared/PeakLogo";
-import Icon from "@/components/shared/Icon";
-import { Button } from "@/components/ui/button";
-import { landingNavLinks } from "@/lib/landing-content";
+import { landingNavLinks } from "@/lib/landing-constants";
 import { cn } from "@/lib/utils";
 
-function scrollToSection(id) {
-  const el = document.getElementById(id);
-  if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-}
-
 export default function LandingHeader() {
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const [lightHeader, setLightHeader] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => {
+      const y = window.scrollY;
+      setScrolled(y > 8);
+      setLightHeader(y > window.innerHeight * 0.65);
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
+    document.body.style.overflow = mobileOpen ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [mobileOpen]);
+
+  const navLinkClass = lightHeader
+    ? "text-sm font-bold text-landing-ink-muted transition-colors hover:text-landing-ink"
+    : "text-sm font-bold text-landing-on-dark-subtle transition-colors hover:text-white";
 
   return (
-    <header className="landing-header sticky top-0 z-50 border-b border-border/80 bg-white/95 shadow-sm backdrop-blur-xl">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3.5 md:px-8">
-        <Link
-          href="/"
-          className="shrink-0 transition-opacity hover:opacity-90"
-          aria-label="الصفحة الرئيسية — Peak Academy"
-        >
-          <PeakLogo theme="light" subtitle="منصة الثانوية العامة" />
-        </Link>
+    <header
+      className={cn(
+        "fixed top-0 z-50 w-full border-b transition-all duration-300",
+        lightHeader
+          ? "border-landing-ink/8 bg-white/95 shadow-[0_4px_24px_-8px_rgba(8,13,22,0.1)] backdrop-blur-xl"
+          : scrolled
+            ? "border-white/10 bg-landing-navy/90 backdrop-blur-2xl"
+            : "border-white/5 bg-landing-navy/60 backdrop-blur-xl"
+      )}
+    >
+      <nav className="relative mx-auto flex h-14 max-w-[75rem] flex-row-reverse items-center justify-between gap-3 px-4 sm:h-16 sm:gap-4 sm:px-6 md:px-8">
+        <PeakLogo href="/" variant="header" showSubtitle={false} theme={lightHeader ? "light" : "dark"} />
 
-        <nav className="hidden items-center gap-1 lg:flex" aria-label="تنقل الصفحة">
+        <ul className="hidden items-center gap-8 md:flex">
           {landingNavLinks.map((link) => (
-            <button
-              key={link.id}
-              type="button"
-              onClick={() => scrollToSection(link.id)}
-              className="rounded-lg px-3 py-2 text-sm font-semibold text-text-muted transition hover:bg-slate-100 hover:text-primary"
-            >
-              {link.label}
-            </button>
+            <li key={link.id}>
+              <a href={`#${link.id}`} className={navLinkClass}>
+                {link.label}
+              </a>
+            </li>
           ))}
+        </ul>
+
+        <div className="flex items-center gap-2">
           <Link
             href="/auth/login"
-            className="rounded-lg px-3 py-2 text-sm font-semibold text-text-muted transition hover:bg-slate-100 hover:text-primary"
+            className={cn(
+              "hidden rounded-full px-5 py-2 text-sm font-bold transition-colors sm:inline-flex",
+              lightHeader ? "text-landing-ink/80 hover:text-landing-ink" : "text-landing-on-dark-muted hover:text-white"
+            )}
           >
             تسجيل الدخول
           </Link>
-          <Button
+          <Link
             href="/auth/register"
-            variant="accent"
-            size="sm"
-            className="mr-1 shadow-md shadow-accent/25"
+            className={cn(
+              "rounded-full px-4 py-2 text-xs font-bold transition-all duration-300 sm:px-6 sm:py-2.5 sm:text-sm",
+              lightHeader
+                ? "bg-landing-orange text-white shadow-[0_8px_24px_-8px_rgba(245,114,26,0.45)] hover:bg-landing-navy"
+                : "bg-white text-landing-navy hover:bg-landing-orange hover:text-white"
+            )}
           >
-            ابدأ مجاناً
-          </Button>
-        </nav>
-
-        <div className="flex items-center gap-2 lg:hidden">
-          <Button href="/auth/register" variant="accent" size="sm" className="shadow-md shadow-accent/20">
-            ابدأ
-          </Button>
+            ابدأ الآن
+          </Link>
           <button
             type="button"
-            className="flex h-10 w-10 items-center justify-center rounded-xl border border-border text-primary"
-            aria-expanded={menuOpen}
-            aria-label="فتح القائمة"
-            onClick={() => setMenuOpen((v) => !v)}
+            className={cn(
+              "inline-flex rounded-lg p-2 transition-colors md:hidden",
+              lightHeader ? "text-landing-ink hover:bg-landing-cream" : "text-landing-on-dark-muted hover:bg-white/10"
+            )}
+            onClick={() => setMobileOpen((prev) => !prev)}
+            aria-label={mobileOpen ? "إغلاق القائمة" : "فتح القائمة"}
+            aria-expanded={mobileOpen}
           >
-            <Icon name={menuOpen ? "close" : "menu"} size={20} />
+            <span className="material-symbols-outlined">{mobileOpen ? "close" : "menu"}</span>
           </button>
         </div>
-      </div>
+      </nav>
 
-      <div
-        className={cn(
-          "border-t border-border bg-white lg:hidden",
-          menuOpen ? "block" : "hidden"
-        )}
-      >
-        <nav className="mx-auto flex max-w-6xl flex-col gap-1 px-4 py-3" aria-label="قائمة الجوال">
-          {landingNavLinks.map((link) => (
-            <button
-              key={link.id}
-              type="button"
-              className="rounded-xl px-3 py-3 text-start text-sm font-semibold text-text hover:bg-slate-50"
-              onClick={() => {
-                scrollToSection(link.id);
-                setMenuOpen(false);
-              }}
-            >
-              {link.label}
-            </button>
-          ))}
-          <Link
-            href="/auth/login"
-            className="rounded-xl px-3 py-3 text-sm font-semibold text-text hover:bg-slate-50"
-            onClick={() => setMenuOpen(false)}
-          >
-            تسجيل الدخول
-          </Link>
-        </nav>
-      </div>
+      {mobileOpen ? (
+        <div
+          className={cn(
+            "border-t px-5 py-4 md:hidden",
+            lightHeader ? "border-landing-ink/8 bg-white/98" : "border-white/10 bg-landing-navy/95"
+          )}
+        >
+          <ul className="space-y-1">
+            {landingNavLinks.map((link) => (
+              <li key={link.id}>
+                <a
+                  href={`#${link.id}`}
+                  onClick={() => setMobileOpen(false)}
+                  className={cn(
+                    "block rounded-xl px-4 py-3 text-sm font-bold transition-colors",
+                    lightHeader
+                      ? "text-landing-ink/80 hover:bg-landing-cream hover:text-landing-ink"
+                      : "text-landing-on-dark-muted hover:bg-white/5 hover:text-white"
+                  )}
+                >
+                  {link.label}
+                </a>
+              </li>
+            ))}
+            <li>
+              <Link
+                href="/auth/login"
+                onClick={() => setMobileOpen(false)}
+                className={cn(
+                  "block rounded-xl px-4 py-3 text-sm font-bold transition-colors",
+                  lightHeader
+                    ? "text-landing-ink/80 hover:bg-landing-cream hover:text-landing-ink"
+                    : "text-landing-on-dark-muted hover:bg-white/5 hover:text-white"
+                )}
+              >
+                تسجيل الدخول
+              </Link>
+            </li>
+          </ul>
+        </div>
+      ) : null}
     </header>
   );
 }

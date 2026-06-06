@@ -8,17 +8,19 @@ import Icon from "@/components/shared/Icon";
 import MenuButton from "@/components/shared/MenuButton";
 import PeakLogo from "@/components/shared/PeakLogo";
 import { useAuth } from "@/hooks/useAuth";
+import { useSidebarProfile } from "@/hooks/useSidebarProfile";
 import { ROLE_LABELS_AR } from "@/lib/profile-form";
 import { getTopbarBreadcrumbs, getTopbarMeta } from "@/lib/topbar";
-import { getUserDisplay } from "@/lib/user-display";
+import {
+  ROLE_QUICK_ACTIONS,
+  ROLE_SEARCH_PLACEHOLDER,
+  TOPBAR_THEMES
+} from "@/lib/topbar-styles";
 import { cn } from "@/lib/utils";
 
 function UserAvatar({ fullName, avatarUrl, className, size = "md" }) {
   const initial = (fullName || "م").trim().slice(0, 1);
-  const sizes = {
-    md: "h-9 w-9 text-sm",
-    sm: "h-8 w-8 text-xs"
-  };
+  const sizes = { md: "h-9 w-9 text-sm", sm: "h-8 w-8 text-xs" };
 
   return (
     <div
@@ -38,38 +40,23 @@ function UserAvatar({ fullName, avatarUrl, className, size = "md" }) {
   );
 }
 
-function TopbarBreadcrumbs({ crumbs, theme = "light" }) {
+function TopbarBreadcrumbs({ crumbs, t }) {
   if (!crumbs?.length) return null;
-  const isBrand = theme === "brand";
 
   return (
     <nav aria-label="مسار الصفحة" className="mb-0.5 flex flex-wrap items-center gap-1.5 text-xs">
       {crumbs.map((crumb, index) => (
         <Fragment key={`${crumb.label}-${index}`}>
           {index > 0 ? (
-            <Icon
-              name="arrowRight"
-              size={12}
-              className={cn("rotate-180 opacity-40", isBrand ? "text-white/50" : "text-text-muted")}
-              aria-hidden
-            />
+            <Icon name="arrowRight" size={12} className={cn("rotate-180 opacity-40", t.crumbSep)} aria-hidden />
           ) : null}
           {crumb.href && index < crumbs.length - 1 ? (
-            <Link
-              href={crumb.href}
-              className={cn(
-                "font-semibold transition-colors hover:underline",
-                isBrand ? "text-white/70 hover:text-white" : "text-text-muted hover:text-accent"
-              )}
-            >
+            <Link href={crumb.href} className={cn("font-semibold transition-colors hover:underline", t.crumbLink)}>
               {crumb.label}
             </Link>
           ) : (
             <span
-              className={cn(
-                "font-bold",
-                isBrand ? "text-white/90" : index === crumbs.length - 1 ? "text-text-muted" : "text-text"
-              )}
+              className={cn("font-bold", t.crumbCurrent)}
               aria-current={index === crumbs.length - 1 ? "page" : undefined}
             >
               {crumb.label}
@@ -81,18 +68,33 @@ function TopbarBreadcrumbs({ crumbs, theme = "light" }) {
   );
 }
 
-function NotificationsButton({ theme = "light" }) {
-  return <NotificationBell theme={theme} />;
+function TopbarSearch({ placeholder, t }) {
+  const [query, setQuery] = useState("");
+
+  return (
+    <div className="relative hidden max-w-xs flex-1 lg:block xl:max-w-sm">
+      <Icon
+        name="search"
+        size={17}
+        className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 text-on-surface-variant"
+      />
+      <input
+        type="search"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder={placeholder}
+        aria-label="بحث"
+        className={cn(
+          "h-10 w-full rounded-xl border border-outline-variant/60 bg-surface-container-low pe-10 ps-3 text-sm text-on-surface",
+          "placeholder:text-on-surface-variant/60 transition-all",
+          "focus:border-primary-container focus:outline-none focus:ring-1 focus:ring-primary-container/30"
+        )}
+      />
+    </div>
+  );
 }
 
-function UserMenu({
-  profile,
-  roleLabel,
-  profileHref,
-  profileMenuLabel,
-  onLogout,
-  theme = "light"
-}) {
+function UserMenu({ profile, roleLabel, profileHref, profileMenuLabel, onLogout, t }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -112,8 +114,6 @@ function UserMenu({
     };
   }, [open]);
 
-  const isBrand = theme === "brand";
-
   return (
     <div className="relative" ref={ref}>
       <button
@@ -122,39 +122,18 @@ function UserMenu({
         onClick={() => setOpen((v) => !v)}
         className={cn(
           "flex items-center gap-2 rounded-xl border px-2 py-1.5 transition-all",
-          isBrand
-            ? "border-white/20 bg-white/10 text-white hover:bg-white/15"
-            : "border-border bg-card hover:border-accent/25 hover:shadow-sm",
-          open && !isBrand && "border-accent/30 ring-2 ring-accent/10"
+          t.menuBtn,
+          open && t.menuBtnOpen
         )}
         aria-expanded={open}
         aria-haspopup="menu"
         aria-controls="topbar-user-menu"
       >
-        <UserAvatar
-          fullName={profile.full_name}
-          avatarUrl={profile.avatar_url}
-          className={
-            isBrand ? "border-white/20 bg-white/15 text-white" : "border-border bg-primary/10 text-primary"
-          }
-        />
-        <span
-          className={cn(
-            "hidden max-w-[110px] truncate text-sm font-bold sm:inline",
-            isBrand ? "text-white" : "text-text"
-          )}
-        >
+        <UserAvatar fullName={profile.full_name} avatarUrl={profile.avatar_url} className={t.avatar} />
+        <span className={cn("hidden max-w-[110px] truncate text-sm font-bold sm:inline", t.userName)}>
           {profile.full_name || "مستخدم"}
         </span>
-        <Icon
-          name="chevronDown"
-          size={16}
-          className={cn(
-            "hidden shrink-0 transition-transform sm:block",
-            isBrand ? "text-white/70" : "text-text-muted",
-            open && "rotate-180"
-          )}
-        />
+        <Icon name="chevronDown" size={16} className={cn("hidden shrink-0 transition-transform sm:block", t.chevron, open && "rotate-180")} />
       </button>
 
       {open ? (
@@ -162,16 +141,19 @@ function UserMenu({
           id="topbar-user-menu"
           role="menu"
           aria-labelledby="topbar-user-menu-button"
-          className="absolute end-0 top-[calc(100%+8px)] z-50 min-w-[220px] overflow-hidden rounded-2xl border border-border bg-card shadow-xl ring-1 ring-black/5 animate-[fadeIn_0.2s_ease-out]"
+          className={cn(
+            "absolute end-0 top-[calc(100%+8px)] z-50 min-w-[240px] overflow-hidden rounded-2xl animate-[fadeIn_0.2s_ease-out]",
+            t.dropdown
+          )}
         >
-          <div className="border-b border-border bg-bg/50 px-3 py-3">
-            <p className="truncate text-sm font-black text-text">{profile.full_name || "مستخدم"}</p>
+          <div className={cn("border-b px-3 py-3", t.dropdownHeader)}>
+            <p className={cn("truncate text-sm font-black", t.dropdownName)}>{profile.full_name || "مستخدم"}</p>
             {profile.email ? (
-              <p className="mt-0.5 truncate text-xs text-text-muted" dir="ltr">
+              <p className={cn("mt-0.5 truncate text-xs", t.dropdownEmail)} dir="ltr">
                 {profile.email}
               </p>
             ) : null}
-            <span className="mt-2 inline-flex rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-bold text-primary">
+            <span className={cn("mt-2 inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-bold", t.dropdownRole)}>
               {roleLabel}
             </span>
           </div>
@@ -180,10 +162,19 @@ function UserMenu({
               href={profileHref}
               role="menuitem"
               onClick={() => setOpen(false)}
-              className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold text-text transition-colors hover:bg-accent/10 hover:text-accent"
+              className={cn("flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors", t.dropdownItem)}
             >
               <Icon name="user" size={16} />
               {profileMenuLabel}
+            </Link>
+            <Link
+              href="/"
+              role="menuitem"
+              onClick={() => setOpen(false)}
+              className={cn("flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors", t.dropdownItem)}
+            >
+              <Icon name="globe" size={16} />
+              الصفحة الرئيسية
             </Link>
             <button
               type="button"
@@ -192,7 +183,7 @@ function UserMenu({
                 setOpen(false);
                 onLogout();
               }}
-              className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold text-danger transition-colors hover:bg-danger/10"
+              className={cn("flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors", t.dropdownLogout)}
             >
               <Icon name="logout" size={16} />
               تسجيل الخروج
@@ -204,39 +195,17 @@ function UserMenu({
   );
 }
 
-function PageHeading({ meta, theme = "light" }) {
-  const isBrand = theme === "brand";
-
+function PageHeading({ meta, t }) {
   return (
     <div className="flex min-w-0 items-center gap-3">
-      <div
-        className={cn(
-          "hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl sm:flex",
-          isBrand ? "bg-white/10 text-accent" : "bg-accent/10 text-accent"
-        )}
-        aria-hidden
-      >
+      <div className={cn("hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl sm:flex", t.iconWrap)} aria-hidden>
         <Icon name={meta.icon} size={22} strokeWidth={2.25} />
       </div>
       <div className="min-w-0">
-        <TopbarBreadcrumbs crumbs={meta.breadcrumbs} theme={theme} />
-        <h1
-          className={cn(
-            "truncate text-base font-black sm:text-lg",
-            isBrand ? "text-white" : "text-primary"
-          )}
-        >
-          {meta.title}
-        </h1>
+        <TopbarBreadcrumbs crumbs={meta.breadcrumbs} t={t} />
+        <h1 className={cn("truncate text-base font-black sm:text-lg", t.title)}>{meta.title}</h1>
         {meta.subtitle ? (
-          <p
-            className={cn(
-              "hidden truncate text-xs sm:block",
-              isBrand ? "text-white/65" : "text-text-muted"
-            )}
-          >
-            {meta.subtitle}
-          </p>
+          <p className={cn("hidden truncate text-xs sm:block", t.subtitle)}>{meta.subtitle}</p>
         ) : null}
       </div>
     </div>
@@ -246,8 +215,9 @@ function PageHeading({ meta, theme = "light" }) {
 export default function AppTopbar({
   role = "admin",
   onOpenMobile,
-  variant = "light",
+  variant = "surface",
   menuBreakpoint = "md",
+  showSearch = null,
   displayName,
   displayAvatar,
   displayRoleLabel,
@@ -256,14 +226,16 @@ export default function AppTopbar({
   const pathname = usePathname();
   const router = useRouter();
   const { user, signOut } = useAuth();
-  const baseProfile = getUserDisplay(user);
+  const sidebarProfile = useSidebarProfile();
+
   const profile = {
-    ...baseProfile,
-    full_name: displayName || baseProfile.full_name,
-    avatar_url: displayAvatar ?? baseProfile.avatar_url,
-    email: displayEmail ?? baseProfile.email
+    full_name: displayName || sidebarProfile.full_name || user?.email?.split("@")[0] || "مستخدم",
+    avatar_url: displayAvatar ?? sidebarProfile.avatar_url ?? null,
+    email: displayEmail ?? sidebarProfile.email ?? user?.email ?? ""
   };
-  const roleLabel = displayRoleLabel || ROLE_LABELS_AR[role] || baseProfile.roleLabel;
+  const roleLabel = displayRoleLabel || sidebarProfile.roleLabel || ROLE_LABELS_AR[role] || role;
+  const t = TOPBAR_THEMES[variant] || TOPBAR_THEMES.surface;
+  const notifyTheme = variant === "brand" ? "brand" : variant === "surface" ? "surface" : "light";
 
   const meta = useMemo(() => {
     const base = getTopbarMeta(pathname || "", role);
@@ -271,8 +243,9 @@ export default function AppTopbar({
     return { ...base, breadcrumbs };
   }, [pathname, role]);
 
-  const isBrand = variant === "brand";
-  const showMenu = Boolean(onOpenMobile);
+  const quickAction = ROLE_QUICK_ACTIONS[role];
+  const searchEnabled = showSearch ?? ["admin", "teacher", "student"].includes(role);
+  const searchPlaceholder = ROLE_SEARCH_PLACEHOLDER[role] || "بحث...";
   const menuClass = menuBreakpoint === "lg" ? "lg:hidden" : "md:hidden";
 
   const handleLogout = async () => {
@@ -280,14 +253,13 @@ export default function AppTopbar({
     router.replace("/auth/login");
   };
 
-  if (isBrand) {
+  if (variant === "brand") {
     return (
-      <header className="sticky top-0 z-30 border-b border-white/10 bg-gradient-to-l from-primary to-[#12182a] shadow-md">
+      <header className={t.header}>
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 md:px-6">
           <Link href={meta.homeHref} className="shrink-0 transition-opacity hover:opacity-90">
-            <PeakLogo subtitle={meta.panelLabel} />
+            <PeakLogo variant="compact" subtitle={meta.panelLabel} showSubtitle={false} />
           </Link>
-
           <div className="flex items-center gap-2">
             <Link
               href="/parent/report"
@@ -301,16 +273,14 @@ export default function AppTopbar({
               <Icon name="barChart" size={16} />
               التقرير
             </Link>
-
-            <NotificationsButton theme="brand" />
-
+            <NotificationBell theme={notifyTheme} />
             <UserMenu
               profile={profile}
               roleLabel={roleLabel || meta.roleLabel}
               profileHref={meta.profileHref}
               profileMenuLabel={meta.profileMenuLabel}
               onLogout={handleLogout}
-              theme="brand"
+              t={t}
             />
           </div>
         </div>
@@ -319,25 +289,38 @@ export default function AppTopbar({
   }
 
   return (
-    <header className="sticky top-0 z-30 border-b border-border/70 bg-card/95 shadow-sm backdrop-blur-lg supports-[backdrop-filter]:bg-card/80">
+    <header className={t.header}>
       <div className="flex items-center justify-between gap-3 px-4 py-3 md:px-6">
         <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
-          {showMenu ? (
+          {onOpenMobile ? (
             <div className={cn("shrink-0", menuClass)}>
-              <MenuButton onClick={onOpenMobile} label="فتح قائمة التنقل" />
+              <MenuButton onClick={onOpenMobile} label="فتح قائمة التنقل" variant={variant} />
             </div>
           ) : null}
-
-          <PageHeading meta={meta} />
+          <PageHeading meta={meta} t={t} />
+          {searchEnabled ? <TopbarSearch placeholder={searchPlaceholder} t={t} /> : null}
         </div>
 
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-          <span className="hidden items-center gap-1.5 rounded-full border border-primary/15 bg-primary/5 px-3 py-1 text-xs font-bold text-primary lg:inline-flex">
-            <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden />
+          {quickAction ? (
+            <Link
+              href={quickAction.href}
+              className={cn(
+                "hidden items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-bold transition-all sm:inline-flex",
+                t.quickAction
+              )}
+            >
+              <Icon name={quickAction.icon} size={16} />
+              {quickAction.label}
+            </Link>
+          ) : null}
+
+          <span className={cn("hidden items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold lg:inline-flex", t.roleBadge)}>
+            <span className="h-1.5 w-1.5 rounded-full bg-primary-container" aria-hidden />
             {roleLabel || meta.roleLabel}
           </span>
 
-          <NotificationsButton />
+          <NotificationBell theme={notifyTheme} />
 
           <UserMenu
             profile={profile}
@@ -345,6 +328,7 @@ export default function AppTopbar({
             profileHref={meta.profileHref}
             profileMenuLabel={meta.profileMenuLabel}
             onLogout={handleLogout}
+            t={t}
           />
         </div>
       </div>

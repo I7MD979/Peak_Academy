@@ -7,65 +7,301 @@ import { success, error, paginated } from "../utils/response.js";
 import { CACHE, invalidate, withCache } from "../lib/cache.js";
 import { enqueueJob } from "../lib/queue.js";
 import { cleanupOrphanedLiveKitRooms, isLiveKitConfigured } from "../services/livekit.service.js";
+import { querySessionsList } from "../utils/session-select.js";
+import { isValidGrade, VALID_SCHOOL_LEVELS } from "../lib/grades.js";
 
 const router = Router();
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function parseDateEndIso(value) {
+  if (!value) return null;
+  const date = new Date(String(value));
+  if (Number.isNaN(date.getTime())) return null;
+  date.setHours(23, 59, 59, 999);
+  return date.toISOString();
+}
+
+function parseDateStartIso(value) {
+  if (!value) return null;
+  const date = new Date(String(value));
+  if (Number.isNaN(date.getTime())) return null;
+  date.setHours(0, 0, 0, 0);
+  return date.toISOString();
+}
+
+const VALID_REPORT_PERIODS = new Set(["month", "3months", "6months", "year"]);
+const MAX_CUSTOM_REPORT_MONTHS = 24;
+
+function assertSupabaseResults(results) {
+  for (const result of results) {
+    if (result?.error) throw result.error;
+  }
+}
+
+async function fetchUserForAdminAction(userId) {
+  const { data, error: dbError } = await supabase
+    .from("users")
+    .select("id, role, is_active, is_verified, full_name")
+    .eq("id", userId)
+    .maybeSingle();
+  if (dbError) throw dbError;
+  return data;
+}
+
+function assertCanModifyUser(target, actorId, actionLabel) {
+  if (!target) return { ok: false, status: 404, message: "المستخدم غير موجود" };
+  if (target.id === actorId) {
+    return { ok: false, status: 403, message: `لا يمكنك ${actionLabel} حسابك الشخصي` };
+  }
+  if (target.role === "admin") {
+    return { ok: false, status: 403, message: `لا يمكن ${actionLabel} حساب مشرف` };
+  }
+  return { ok: true };
+}
+
+async function fetchAdminDashboardStats() {
+  const [users, liveSessions, scheduledSessions, revenue, withdrawals] = await Promise.all([
+    supabase.from("users").select("id", { count: "exact", head: true }),
+    supabase.from("sessions").select("id", { count: "exact", head: true }).eq("status", "live"),
+    supabase.from("sessions").select("id", { count: "exact", head: true }).eq("status", "scheduled"),
+    supabase.from("teacher_earnings").select("platform_amount"),
+    supabase.from("withdrawal_requests").select("id", { count: "exact", head: true }).eq("status", "pending")
+  ]);
+
+  assertSupabaseResults([users, liveSessions, scheduledSessions, withdrawals]);
+
+  if (revenue.error) throw revenue.error;
+
+  const totalRevenue = revenue.data?.reduce((sum, e) => sum + Number(e.platform_amount || 0), 0) || 0;
+
+  return {
+    total_users: users.count || 0,
+    live_sessions: liveSessions.count || 0,
+    scheduled_sessions: scheduledSessions.count || 0,
+    total_revenue: totalRevenue,
+    pending_withdrawals: withdrawals.count || 0
+  };
+}
+
 router.get("/stats", auth, checkRole("admin"), async (_req, res) => {
   try {
-    const stats = await withCache(CACHE.adminDashboard(), CACHE.TTL.adminDashboard, async () => {
-      const [users, sessions, revenue, withdrawals] = await Promise.all([
-        supabase.from("users").select("role", { count: "exact", head: true }),
-        supabase.from("sessions").select("status", { count: "exact", head: true }).eq("status", "live"),
-        supabase.from("teacher_earnings").select("platform_amount"),
-        supabase.from("withdrawal_requests").select("id", { count: "exact", head: true }).eq("status", "pending")
-      ]);
-      const totalRevenue = revenue.data?.reduce((sum, e) => sum + Number(e.platform_amount || 0), 0) || 0;
-      return {
-        total_users: users.count || 0,
-        live_sessions: sessions.count || 0,
-        total_revenue: totalRevenue,
-        pending_withdrawals: withdrawals.count || 0
-      };
-    });
+    const stats = await withCache(CACHE.adminDashboard(), CACHE.TTL.adminDashboard, fetchAdminDashboardStats);
     return success(res, stats);
   } catch (_err) {
     return error(res, "تعذر تحميل الإحصائيات", 500);
   }
 });
 
+router.get("/dashboard", auth, checkRole("admin"), async (_req, res) => {
+  try {
+    const payload = await withCache(CACHE.adminDashboardFull(), CACHE.TTL.adminDashboard, async () => {
+      const [stats, recentUsersResult, sessionsResult] = await Promise.all([
+        fetchAdminDashboardStats(),
+        supabase
+          .from("users")
+          .select("id, full_name, role, email, phone, avatar_url, is_active, is_verified, created_at")
+          .order("created_at", { ascending: false })
+          .limit(5),
+        querySessionsList((query, orderColumn) => {
+          let q = query.eq("status", "scheduled").limit(5);
+          q = q.order(orderColumn, { ascending: true });
+          return q;
+        })
+      ]);
+
+      assertSupabaseResults([recentUsersResult]);
+
+      return {
+        stats,
+        recent_users: recentUsersResult.data || [],
+        recent_sessions: sessionsResult.data || []
+      };
+    });
+
+    return success(res, payload);
+  } catch (_err) {
+    return error(res, "تعذر تحميل لوحة التحكم", 500);
+  }
+});
+
+router.get("/users/stats", auth, checkRole("admin"), async (_req, res) => {
+  try {
+    const [total, students, teachers, parents, admins, suspended] = await Promise.all([
+      supabase.from("users").select("id", { count: "exact", head: true }),
+      supabase.from("users").select("id", { count: "exact", head: true }).eq("role", "student"),
+      supabase.from("users").select("id", { count: "exact", head: true }).eq("role", "teacher"),
+      supabase.from("users").select("id", { count: "exact", head: true }).eq("role", "parent"),
+      supabase.from("users").select("id", { count: "exact", head: true }).eq("role", "admin"),
+      supabase.from("users").select("id", { count: "exact", head: true }).eq("is_active", false)
+    ]);
+
+    return success(res, {
+      total: total.count || 0,
+      students: students.count || 0,
+      teachers: teachers.count || 0,
+      parents: parents.count || 0,
+      admins: admins.count || 0,
+      suspended: suspended.count || 0
+    });
+  } catch (_err) {
+    return error(res, "تعذر تحميل إحصائيات المستخدمين", 500);
+  }
+});
+
+router.get("/sessions/stats", auth, checkRole("admin"), async (_req, res) => {
+  try {
+    const [total, scheduled, live, completed, cancelled] = await Promise.all([
+      supabase.from("sessions").select("id", { count: "exact", head: true }),
+      supabase.from("sessions").select("id", { count: "exact", head: true }).eq("status", "scheduled"),
+      supabase.from("sessions").select("id", { count: "exact", head: true }).eq("status", "live"),
+      supabase.from("sessions").select("id", { count: "exact", head: true }).eq("status", "completed"),
+      supabase.from("sessions").select("id", { count: "exact", head: true }).eq("status", "cancelled")
+    ]);
+
+    assertSupabaseResults([total, scheduled, live, completed, cancelled]);
+
+    return success(res, {
+      total: total.count || 0,
+      scheduled: scheduled.count || 0,
+      live: live.count || 0,
+      completed: completed.count || 0,
+      cancelled: cancelled.count || 0
+    });
+  } catch (_err) {
+    return error(res, "تعذر تحميل إحصائيات الجلسات", 500);
+  }
+});
+
+router.get("/sessions", auth, checkRole("admin"), async (req, res) => {
+  try {
+    const {
+      page = 1,
+      limit = 20,
+      status = "all",
+      search,
+      school_level,
+      grade,
+      scheduled_from,
+      scheduled_to
+    } = req.query;
+
+    const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
+    const pageNum = Math.max(Number(page) || 1, 1);
+    const { from, to } = paginate(pageNum, safeLimit);
+
+    const validStatuses = new Set(["all", "scheduled", "live", "completed", "cancelled"]);
+    const safeStatus = validStatuses.has(String(status)) ? String(status) : "all";
+    const ascending = safeStatus === "completed" || safeStatus === "cancelled" ? false : true;
+
+    const searchTerm = sanitizeSearchTerm(search);
+    let teacherIdsForSearch = [];
+
+    if (searchTerm) {
+      const { data: teachers, error: teacherError } = await supabase
+        .from("users")
+        .select("id")
+        .eq("role", "teacher")
+        .ilike("full_name", `%${searchTerm}%`);
+      if (teacherError) throw teacherError;
+      teacherIdsForSearch = (teachers || []).map((t) => t.id);
+    }
+
+    const schoolLevelRaw = String(school_level || "").trim();
+    const safeSchoolLevel = VALID_SCHOOL_LEVELS.includes(schoolLevelRaw) ? schoolLevelRaw : null;
+
+    const gradeRaw = String(grade || "").trim();
+    const safeGrade = isValidGrade(gradeRaw) ? gradeRaw : null;
+
+    const { data, count, db_warning } = await querySessionsList((query, orderColumn) => {
+      let q = query.range(from, to);
+
+      if (safeStatus !== "all") {
+        q = q.eq("status", safeStatus);
+      }
+
+      q = q.order(orderColumn, { ascending });
+
+      if (safeGrade) q = q.eq("grade", safeGrade);
+      if (safeSchoolLevel) q = q.eq("school_level", safeSchoolLevel);
+
+      const scheduleColumn = orderColumn === "start_time" ? "start_time" : "scheduled_at";
+      const fromIso = parseDateStartIso(scheduled_from);
+      if (fromIso) q = q.gte(scheduleColumn, fromIso);
+
+      const toIso = parseDateEndIso(scheduled_to);
+      if (toIso) q = q.lte(scheduleColumn, toIso);
+
+      if (searchTerm) {
+        if (teacherIdsForSearch.length) {
+          q = q.or(`title.ilike.%${searchTerm}%,teacher_id.in.(${teacherIdsForSearch.join(",")})`);
+        } else {
+          q = q.ilike("title", `%${searchTerm}%`);
+        }
+      }
+
+      return q;
+    });
+
+    if (db_warning) {
+      res.setHeader("X-Peak-Db-Warning", "schema");
+    }
+
+    return paginated(res, data || [], paginationMeta(count ?? 0, pageNum, safeLimit));
+  } catch (_err) {
+    return error(res, "تعذر تحميل الجلسات", 500);
+  }
+});
+
 router.get("/users", auth, checkRole("admin"), async (req, res) => {
   try {
-    const { page = 1, limit = 20, role, search, is_active } = req.query;
-    const { from, to } = paginate(page, limit);
-    let query = supabase.from("users").select("*", { count: "exact" }).order("created_at", { ascending: false }).range(from, to);
-    if (role) query = query.eq("role", role);
+    const { page = 1, limit = 20, role, search, is_active, created_from, created_to } = req.query;
+    const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
+    const { from, to } = paginate(page, safeLimit);
+    let query = supabase
+      .from("users")
+      .select("*", { count: "exact" })
+      .order("created_at", { ascending: false })
+      .range(from, to);
+    if (role && ["student", "teacher", "parent", "admin"].includes(role)) {
+      query = query.eq("role", role);
+    }
     if (is_active === "true") query = query.eq("is_active", true);
     if (is_active === "false") query = query.eq("is_active", false);
+    if (created_from) {
+      const fromDate = new Date(String(created_from));
+      if (!Number.isNaN(fromDate.getTime())) {
+        query = query.gte("created_at", fromDate.toISOString());
+      }
+    }
+    const createdToIso = parseDateEndIso(created_to);
+    if (createdToIso) query = query.lte("created_at", createdToIso);
     if (search) {
       const term = String(search)
         .trim()
         .replace(/[%_,]/g, "");
       if (term) query = query.or(`full_name.ilike.%${term}%,email.ilike.%${term}%`);
     }
-    const { data, count } = await query;
-    return paginated(res, data, paginationMeta(count, Number(page), Number(limit)));
+    const { data, count, error: dbError } = await query;
+    if (dbError) throw dbError;
+    return paginated(res, data, paginationMeta(count, Number(page), safeLimit));
   } catch (_err) {
-    return error(res, "Failed to fetch users", 500);
+    return error(res, "تعذر تحميل المستخدمين", 500);
   }
 });
 
 router.put("/users/:id/verify", auth, checkRole("admin"), async (req, res) => {
   try {
-    const { data: userRow, error: userLookupError } = await supabase
-      .from("users")
-      .select("id, role")
-      .eq("id", req.params.id)
-      .maybeSingle();
+    if (!UUID_RE.test(req.params.id)) return error(res, "معرّف المستخدم غير صالح", 400);
 
-    if (userLookupError) throw userLookupError;
-    if (!userRow) return error(res, "User not found", 404);
+    const userRow = await fetchUserForAdminAction(req.params.id);
+
+    if (!userRow) return error(res, "المستخدم غير موجود", 404);
     if (userRow.role !== "teacher") {
       return error(res, "يمكن توثيق حسابات المدرسين فقط", 400);
+    }
+    if (userRow.is_verified === true) {
+      return error(res, "المدرس موثّق بالفعل", 400);
     }
 
     const { error: teacherError } = await supabase
@@ -80,53 +316,152 @@ router.put("/users/:id/verify", auth, checkRole("admin"), async (req, res) => {
     if (teacherError) throw teacherError;
     if (userError) throw userError;
 
-    return success(res, null, "Teacher verified");
+    return success(res, null, "تم توثيق المدرس بنجاح");
   } catch (_err) {
-    return error(res, "Failed to verify teacher", 500);
+    return error(res, "تعذر توثيق المدرس", 500);
   }
 });
 
 router.put("/users/:id/suspend", auth, checkRole("admin"), async (req, res) => {
   try {
+    if (!UUID_RE.test(req.params.id)) return error(res, "معرّف المستخدم غير صالح", 400);
+
+    const target = await fetchUserForAdminAction(req.params.id);
+    const guard = assertCanModifyUser(target, req.user.id, "تعليق");
+    if (!guard.ok) return error(res, guard.message, guard.status);
+    if (target.is_active === false) return error(res, "الحساب موقوف بالفعل", 400);
+
     const { error: dbError } = await supabase.from("users").update({ is_active: false }).eq("id", req.params.id);
     if (dbError) throw dbError;
-    return success(res, null, "User suspended");
+    return success(res, null, "تم تعليق الحساب بنجاح");
   } catch (_err) {
-    return error(res, "Failed to suspend user", 500);
+    return error(res, "تعذر تعليق الحساب", 500);
   }
 });
 
 router.put("/users/:id/activate", auth, checkRole("admin"), async (req, res) => {
   try {
+    if (!UUID_RE.test(req.params.id)) return error(res, "معرّف المستخدم غير صالح", 400);
+
+    const target = await fetchUserForAdminAction(req.params.id);
+    const guard = assertCanModifyUser(target, req.user.id, "تفعيل");
+    if (!guard.ok) return error(res, guard.message, guard.status);
+    if (target.is_active !== false) return error(res, "الحساب نشط بالفعل", 400);
+
     const { error: dbError } = await supabase.from("users").update({ is_active: true }).eq("id", req.params.id);
     if (dbError) throw dbError;
-    return success(res, null, "User activated");
+    return success(res, null, "تم تفعيل الحساب بنجاح");
   } catch (_err) {
-    return error(res, "Failed to activate user", 500);
+    return error(res, "تعذر تفعيل الحساب", 500);
+  }
+});
+
+router.get("/withdrawals/stats", auth, checkRole("admin"), async (_req, res) => {
+  try {
+    const [total, pending, approved, paid, rejected, pendingRows] = await Promise.all([
+      supabase.from("withdrawal_requests").select("id", { count: "exact", head: true }),
+      supabase.from("withdrawal_requests").select("id", { count: "exact", head: true }).eq("status", "pending"),
+      supabase.from("withdrawal_requests").select("id", { count: "exact", head: true }).eq("status", "approved"),
+      supabase.from("withdrawal_requests").select("id", { count: "exact", head: true }).eq("status", "paid"),
+      supabase.from("withdrawal_requests").select("id", { count: "exact", head: true }).eq("status", "rejected"),
+      supabase.from("withdrawal_requests").select("amount").eq("status", "pending")
+    ]);
+
+    const pendingAmount =
+      (pendingRows.data || []).reduce((sum, row) => sum + Number(row.amount || 0), 0) || 0;
+
+    return success(res, {
+      total: total.count || 0,
+      pending: pending.count || 0,
+      approved: approved.count || 0,
+      paid: paid.count || 0,
+      rejected: rejected.count || 0,
+      pending_amount: pendingAmount
+    });
+  } catch (_err) {
+    return error(res, "تعذر تحميل إحصائيات السحب", 500);
   }
 });
 
 router.get("/withdrawals", auth, checkRole("admin"), async (req, res) => {
   const page = Number(req.query.page) || 1;
-  const limit = Number(req.query.limit) || 20;
+  const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
   const status = req.query.status || "pending";
+  const method = req.query.method;
+  const search = req.query.search;
+  const requestedFrom = req.query.requested_from;
+  const requestedTo = req.query.requested_to;
+
+  const validStatuses = ["all", "pending", "approved", "paid", "rejected"];
+  const safeStatus = validStatuses.includes(String(status)) ? String(status) : "pending";
 
   try {
     const { from, to } = paginate(page, limit);
 
-    let query = supabase.from("withdrawal_requests").select("*", { count: "exact" }).range(from, to);
-
-    if (status && status !== "all") {
-      query = query.eq("status", status);
+    let teacherIdsForSearch = [];
+    if (search) {
+      const term = String(search)
+        .trim()
+        .replace(/[%_,]/g, "");
+      if (term) {
+        const { data: users } = await supabase
+          .from("users")
+          .select("id")
+          .eq("role", "teacher")
+          .or(`full_name.ilike.%${term}%,phone.ilike.%${term}%`);
+        const userIds = (users || []).map((u) => u.id);
+        if (userIds.length) {
+          const { data: profiles } = await supabase
+            .from("teacher_profiles")
+            .select("id")
+            .in("user_id", userIds);
+          teacherIdsForSearch = (profiles || []).map((p) => p.id);
+        }
+      }
     }
 
-    const ascending = status === "pending";
+    let query = supabase.from("withdrawal_requests").select("*", { count: "exact" }).range(from, to);
+
+    if (safeStatus && safeStatus !== "all") {
+      query = query.eq("status", safeStatus);
+    }
+
+    if (method) {
+      query = query.eq("method", String(method));
+    }
+
+    if (requestedFrom) {
+      const fromDate = new Date(String(requestedFrom));
+      if (!Number.isNaN(fromDate.getTime())) {
+        query = query.gte("requested_at", fromDate.toISOString());
+      }
+    }
+
+    if (requestedTo) {
+      const toDate = parseDateEndIso(requestedTo);
+      if (toDate) query = query.lte("requested_at", toDate);
+    }
+
+    if (search) {
+      const term = String(search)
+        .trim()
+        .replace(/[%_,]/g, "");
+      if (term) {
+        if (teacherIdsForSearch.length) {
+          query = query.in("teacher_id", teacherIdsForSearch);
+        } else {
+          query = query.ilike("account_number", `%${term}%`);
+        }
+      }
+    }
+
+    const ascending = safeStatus === "pending";
     query = query.order("requested_at", { ascending });
 
     const { data, count, error: dbError } = await query;
     if (dbError) {
       if (dbError.code === "PGRST205" || dbError.code === "42P01") {
-        return paginated(res, [], paginationMeta(0, Number(page), Number(limit)));
+        return paginated(res, [], paginationMeta(0, Number(page), limit));
       }
       throw dbError;
     }
@@ -145,7 +480,7 @@ router.get("/withdrawals", auth, checkRole("admin"), async (req, res) => {
       if (userIds.length > 0) {
         const { data: users } = await supabase
           .from("users")
-          .select("id, full_name, phone")
+          .select("id, full_name, phone, email")
           .in("id", userIds);
         usersById = Object.fromEntries((users || []).map((u) => [u.id, u]));
       }
@@ -154,8 +489,13 @@ router.get("/withdrawals", auth, checkRole("admin"), async (req, res) => {
         (profiles || []).map((p) => [
           p.id,
           {
-            full_name: usersById[p.user_id]?.full_name,
-            phone: usersById[p.user_id]?.phone
+            user: usersById[p.user_id]
+              ? {
+                  full_name: usersById[p.user_id].full_name,
+                  phone: usersById[p.user_id].phone,
+                  email: usersById[p.user_id].email
+                }
+              : null
           }
         ])
       );
@@ -171,24 +511,31 @@ router.get("/withdrawals", auth, checkRole("admin"), async (req, res) => {
     if (process.env.NODE_ENV !== "production") {
       console.error("admin withdrawals", err);
     }
-    return error(res, "Failed to fetch withdrawals", 500);
+    return error(res, "تعذر تحميل طلبات السحب", 500);
   }
 });
 
 router.put("/withdrawals/:id", auth, checkRole("admin"), async (req, res) => {
   try {
+    const withdrawalId = String(req.params.id || "").trim();
+    if (!withdrawalId) return error(res, "معرّف الطلب غير صالح", 400);
+
     const { status, reason } = req.body;
-    if (!status) return error(res, "status is required", 400);
+    if (!status) return error(res, "حالة الطلب مطلوبة", 400);
 
     const allowedStatuses = ["approved", "rejected", "paid"];
     if (!allowedStatuses.includes(status)) {
       return error(res, "حالة غير صالحة", 400);
     }
 
+    if (reason && String(reason).trim().length > 500) {
+      return error(res, "سبب الرفض طويل جداً (500 حرف كحد أقصى)", 400);
+    }
+
     const { data: withdrawal, error: dbError } = await supabase
       .from("withdrawal_requests")
       .select("teacher_id,status,amount")
-      .eq("id", req.params.id)
+      .eq("id", withdrawalId)
       .single();
 
     if (dbError) throw dbError;
@@ -218,7 +565,7 @@ router.put("/withdrawals/:id", auth, checkRole("admin"), async (req, res) => {
     const { error: updateError } = await supabase
       .from("withdrawal_requests")
       .update(updatePayload)
-      .eq("id", req.params.id);
+      .eq("id", withdrawalId);
 
     if (updateError) throw updateError;
 
@@ -253,7 +600,7 @@ router.put("/withdrawals/:id", auth, checkRole("admin"), async (req, res) => {
             status === "approved"
               ? `تمت الموافقة على سحب ${withdrawal.amount} جنيه`
               : `تم رفض طلب السحب${reason ? `: ${reason}` : ""}`,
-          data: { withdrawal_id: req.params.id, status }
+          data: { withdrawal_id: withdrawalId, status }
         });
       }
     }
@@ -270,7 +617,7 @@ router.put("/withdrawals/:id", auth, checkRole("admin"), async (req, res) => {
           type: "withdrawal",
           title: "تم تحويل مبلغ السحب",
           body: `تم دفع ${withdrawal.amount} جنيه إلى حسابك`,
-          data: { withdrawal_id: req.params.id, status: "paid" }
+          data: { withdrawal_id: withdrawalId, status: "paid" }
         });
       }
 
@@ -302,9 +649,9 @@ router.put("/withdrawals/:id", auth, checkRole("admin"), async (req, res) => {
       }
     }
 
-    return success(res, null, "Withdrawal updated");
+    return success(res, null, "تم تحديث طلب السحب بنجاح");
   } catch (_err) {
-    return error(res, "Failed to update withdrawal", 500);
+    return error(res, "تعذر تحديث طلب السحب", 500);
   }
 });
 
@@ -326,30 +673,96 @@ const AR_MONTHS = [
 function getPeriodConfig(period) {
   const now = new Date();
   const start = new Date(now);
+  const end = new Date(now);
+  end.setHours(23, 59, 59, 999);
 
   if (period === "3months") {
     start.setMonth(start.getMonth() - 2);
     start.setDate(1);
     start.setHours(0, 0, 0, 0);
-    return { startIso: start.toISOString(), bucketCount: 3 };
+    return { startIso: start.toISOString(), endIso: end.toISOString(), bucketCount: 3 };
   }
 
   if (period === "6months") {
     start.setMonth(start.getMonth() - 5);
     start.setDate(1);
     start.setHours(0, 0, 0, 0);
-    return { startIso: start.toISOString(), bucketCount: 6 };
+    return { startIso: start.toISOString(), endIso: end.toISOString(), bucketCount: 6 };
   }
 
   if (period === "year") {
     start.setMonth(0, 1);
     start.setHours(0, 0, 0, 0);
-    return { startIso: start.toISOString(), bucketCount: 12 };
+    return { startIso: start.toISOString(), endIso: end.toISOString(), bucketCount: 12 };
   }
 
   start.setDate(1);
   start.setHours(0, 0, 0, 0);
-  return { startIso: start.toISOString(), bucketCount: 1 };
+  return { startIso: start.toISOString(), endIso: end.toISOString(), bucketCount: 1 };
+}
+
+function resolveReportRange(period, dateFrom, dateTo) {
+  const hasFrom = Boolean(dateFrom);
+  const hasTo = Boolean(dateTo);
+
+  if (hasFrom || hasTo) {
+    const startIso = hasFrom ? parseDateStartIso(dateFrom) : null;
+    const endIso = hasTo ? parseDateEndIso(dateTo) : parseDateEndIso(new Date().toISOString().slice(0, 10));
+
+    if (hasFrom && !startIso) {
+      return { ok: false, status: 400, message: "تاريخ البداية غير صالح" };
+    }
+    if (hasTo && !parseDateEndIso(dateTo)) {
+      return { ok: false, status: 400, message: "تاريخ النهاية غير صالح" };
+    }
+    if (startIso && endIso && new Date(startIso) > new Date(endIso)) {
+      return { ok: false, status: 400, message: "تاريخ البداية يجب أن يكون قبل تاريخ النهاية" };
+    }
+
+    const effectiveStart =
+      startIso ||
+      (() => {
+        const d = new Date(endIso);
+        d.setMonth(0, 1);
+        d.setHours(0, 0, 0, 0);
+        return d.toISOString();
+      })();
+    const buckets = buildMonthlyBucketsFromRange(effectiveStart, endIso);
+    if (buckets.length > MAX_CUSTOM_REPORT_MONTHS) {
+      return {
+        ok: false,
+        status: 400,
+        message: `الفترة المخصصة طويلة جداً (الحد الأقصى ${MAX_CUSTOM_REPORT_MONTHS} شهراً)`
+      };
+    }
+
+    return {
+      ok: true,
+      period: "custom",
+      startIso: effectiveStart,
+      endIso,
+      buckets,
+      periodLabel: "فترة مخصصة"
+    };
+  }
+
+  const normalizedPeriod = VALID_REPORT_PERIODS.has(period) ? period : "month";
+  const { startIso, endIso, bucketCount } = getPeriodConfig(normalizedPeriod);
+  const periodLabels = {
+    month: "هذا الشهر",
+    "3months": "آخر 3 شهور",
+    "6months": "آخر 6 شهور",
+    year: "هذا العام"
+  };
+
+  return {
+    ok: true,
+    period: normalizedPeriod,
+    startIso,
+    endIso,
+    buckets: buildMonthlyBuckets(bucketCount),
+    periodLabel: periodLabels[normalizedPeriod] || periodLabels.month
+  };
 }
 
 function buildMonthlyBuckets(bucketCount) {
@@ -370,6 +783,28 @@ function buildMonthlyBuckets(bucketCount) {
   return buckets;
 }
 
+function buildMonthlyBucketsFromRange(startIso, endIso) {
+  const buckets = [];
+  const cursor = new Date(startIso);
+  cursor.setDate(1);
+  cursor.setHours(0, 0, 0, 0);
+  const end = new Date(endIso);
+  const endMonth = new Date(end.getFullYear(), end.getMonth(), 1);
+
+  while (cursor <= endMonth) {
+    const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}`;
+    buckets.push({
+      key,
+      month: AR_MONTHS[cursor.getMonth()],
+      revenue: 0,
+      withdrawn: 0
+    });
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+
+  return buckets;
+}
+
 function monthKeyFromDate(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
@@ -378,8 +813,57 @@ function monthKeyFromDate(value) {
 
 router.get("/reports", auth, checkRole("admin"), async (req, res) => {
   try {
-    const period = req.query.period || "month";
-    const { startIso, bucketCount } = getPeriodConfig(period);
+    const period = String(req.query.period || "month");
+    const dateFrom = req.query.from ? String(req.query.from).trim() : "";
+    const dateTo = req.query.to ? String(req.query.to).trim() : "";
+
+    const range = resolveReportRange(period, dateFrom, dateTo);
+    if (!range.ok) {
+      return error(res, range.message, range.status);
+    }
+
+    const { startIso, endIso, buckets: monthly, period: resolvedPeriod, periodLabel } = range;
+    const monthlyMap = Object.fromEntries(monthly.map((item) => [item.key, item]));
+
+    const earningsQuery = supabase
+      .from("teacher_earnings")
+      .select("platform_amount, created_at")
+      .gte("created_at", startIso)
+      .lte("created_at", endIso);
+    const withdrawalsQuery = supabase
+      .from("withdrawal_requests")
+      .select("amount, processed_at")
+      .eq("status", "paid")
+      .gte("processed_at", startIso)
+      .lte("processed_at", endIso);
+    const studentsQuery = supabase
+      .from("users")
+      .select("id", { count: "exact", head: true })
+      .eq("role", "student")
+      .gte("created_at", startIso)
+      .lte("created_at", endIso);
+    const sessionsQuery = supabase
+      .from("sessions")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "completed")
+      .gte("scheduled_at", startIso)
+      .lte("scheduled_at", endIso);
+    const reviewsQuery = supabase
+      .from("reviews")
+      .select("rating")
+      .gte("created_at", startIso)
+      .lte("created_at", endIso);
+    const earningsDetailsQuery = supabase
+      .from("teacher_earnings")
+      .select("teacher_amount, teacher_id, session_id, created_at")
+      .gte("created_at", startIso)
+      .lte("created_at", endIso);
+    const completedSessionsQuery = supabase
+      .from("sessions")
+      .select("id, subject")
+      .eq("status", "completed")
+      .gte("scheduled_at", startIso)
+      .lte("scheduled_at", endIso);
 
     const [
       earningsRes,
@@ -390,36 +874,24 @@ router.get("/reports", auth, checkRole("admin"), async (req, res) => {
       earningsDetailsRes,
       completedSessionsRes
     ] = await Promise.all([
-      supabase.from("teacher_earnings").select("platform_amount, created_at").gte("created_at", startIso),
-      supabase
-        .from("withdrawal_requests")
-        .select("amount, processed_at")
-        .eq("status", "paid")
-        .gte("processed_at", startIso),
-      supabase
-        .from("users")
-        .select("id", { count: "exact", head: true })
-        .eq("role", "student")
-        .gte("created_at", startIso),
-      supabase
-        .from("sessions")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "completed")
-        .gte("scheduled_at", startIso),
-      supabase.from("reviews").select("rating").gte("created_at", startIso),
-      supabase
-        .from("teacher_earnings")
-        .select("teacher_amount, teacher_id, session_id, created_at")
-        .gte("created_at", startIso),
-      supabase
-        .from("sessions")
-        .select("id, subject")
-        .eq("status", "completed")
-        .gte("scheduled_at", startIso)
+      earningsQuery,
+      withdrawalsQuery,
+      studentsQuery,
+      sessionsQuery,
+      reviewsQuery,
+      earningsDetailsQuery,
+      completedSessionsQuery
     ]);
 
-    const monthly = buildMonthlyBuckets(bucketCount);
-    const monthlyMap = Object.fromEntries(monthly.map((item) => [item.key, item]));
+    assertSupabaseResults([
+      earningsRes,
+      withdrawalsRes,
+      studentsRes,
+      sessionsRes,
+      reviewsRes,
+      earningsDetailsRes,
+      completedSessionsRes
+    ]);
 
     for (const row of earningsRes.data || []) {
       const key = monthKeyFromDate(row.created_at);
@@ -435,6 +907,10 @@ router.get("/reports", auth, checkRole("admin"), async (req, res) => {
 
     const platformRevenue = (earningsRes.data || []).reduce(
       (sum, row) => sum + Number(row.platform_amount || 0),
+      0
+    );
+    const totalWithdrawn = (withdrawalsRes.data || []).reduce(
+      (sum, row) => sum + Number(row.amount || 0),
       0
     );
 
@@ -457,14 +933,18 @@ router.get("/reports", auth, checkRole("admin"), async (req, res) => {
 
     let teacherNameByProfileId = {};
     if (teacherProfileIds.length > 0) {
-      const { data: profiles } = await supabase
+      const { data: profiles, error: profilesError } = await supabase
         .from("teacher_profiles")
         .select("id, user_id")
         .in("id", teacherProfileIds);
+      if (profilesError) throw profilesError;
+
       const userIds = [...new Set((profiles || []).map((p) => p.user_id).filter(Boolean))];
-      const { data: users } = userIds.length
+      const { data: users, error: usersError } = userIds.length
         ? await supabase.from("users").select("id, full_name").in("id", userIds)
-        : { data: [] };
+        : { data: [], error: null };
+      if (usersError) throw usersError;
+
       const usersById = Object.fromEntries((users || []).map((u) => [u.id, u]));
       teacherNameByProfileId = Object.fromEntries(
         (profiles || []).map((p) => [p.id, usersById[p.user_id]?.full_name || "مدرس"])
@@ -473,10 +953,11 @@ router.get("/reports", auth, checkRole("admin"), async (req, res) => {
 
     let sessionSubjectById = {};
     if (sessionIds.length > 0) {
-      const { data: sessions } = await supabase
+      const { data: sessions, error: sessionsError } = await supabase
         .from("sessions")
         .select("id, subject")
         .in("id", sessionIds);
+      if (sessionsError) throw sessionsError;
       sessionSubjectById = Object.fromEntries(
         (sessions || []).map((s) => [s.id, typeof s.subject === "string" ? s.subject : "مادة"])
       );
@@ -484,10 +965,12 @@ router.get("/reports", auth, checkRole("admin"), async (req, res) => {
 
     const teacherMap = new Map();
     for (const row of earningsDetailsRes.data || []) {
+      if (!row.teacher_id) continue;
       const teacherName = teacherNameByProfileId[row.teacher_id] || "مدرس";
       const subjectName = sessionSubjectById[row.session_id] || "مادة";
-      const mapKey = teacherName;
+      const mapKey = row.teacher_id;
       const current = teacherMap.get(mapKey) || {
+        teacher_id: row.teacher_id,
         teacher_name: teacherName,
         subject: subjectName,
         sessions_count: 0,
@@ -495,6 +978,9 @@ router.get("/reports", auth, checkRole("admin"), async (req, res) => {
       };
       current.sessions_count += 1;
       current.total_earnings += Number(row.teacher_amount || 0);
+      if (!current.subject || current.subject === "مادة") {
+        current.subject = subjectName;
+      }
       teacherMap.set(mapKey, current);
     }
 
@@ -508,10 +994,11 @@ router.get("/reports", auth, checkRole("admin"), async (req, res) => {
     let enrollmentCountBySession = {};
 
     if (completedSessionIds.length > 0) {
-      const { data: enrollments } = await supabase
+      const { data: enrollments, error: enrollmentsError } = await supabase
         .from("session_enrollments")
         .select("session_id")
         .in("session_id", completedSessionIds);
+      if (enrollmentsError) throw enrollmentsError;
 
       for (const row of enrollments || []) {
         enrollmentCountBySession[row.session_id] =
@@ -538,11 +1025,18 @@ router.get("/reports", auth, checkRole("admin"), async (req, res) => {
       .map((item, index) => ({ rank: index + 1, ...item }));
 
     return success(res, {
-      period,
+      period: resolvedPeriod,
+      period_label: periodLabel,
+      range: {
+        from: startIso,
+        to: endIso
+      },
       summary: {
         platform_revenue: platformRevenue,
+        total_withdrawn: totalWithdrawn,
         new_students: studentsRes.count || 0,
         completed_sessions: sessionsRes.count || 0,
+        reviews_count: ratings.length,
         avg_rating: avgRating
       },
       monthly_revenue: monthly,
@@ -554,14 +1048,154 @@ router.get("/reports", auth, checkRole("admin"), async (req, res) => {
   }
 });
 
-router.get("/plans", auth, checkRole("admin"), async (_req, res) => {
+function sanitizeSearchTerm(value) {
+  return String(value || "")
+    .trim()
+    .replace(/[%_,]/g, "")
+    .slice(0, 100);
+}
+
+function validatePlanBody(body, { partial = false } = {}) {
+  const errors = [];
+  const data = {};
+
+  if (!partial || body.name !== undefined) {
+    const name = String(body.name ?? "").trim();
+    if (!name) errors.push("اسم الخطة مطلوب");
+    else if (name.length > 80) errors.push("اسم الخطة طويل جداً (80 حرفاً كحد أقصى)");
+    else data.name = name;
+  }
+
+  if (!partial || body.price !== undefined) {
+    const price = Number(body.price);
+    if (!Number.isFinite(price) || price < 0) errors.push("السعر غير صالح");
+    else if (price > 999999) errors.push("السعر كبير جداً");
+    else data.price = Math.round(price * 100) / 100;
+  }
+
+  if (!partial || body.sessions_per_month !== undefined) {
+    const sessions = Number(body.sessions_per_month);
+    if (!Number.isInteger(sessions) || sessions < 1) {
+      errors.push("عدد الحصص يجب أن يكون عدداً صحيحاً أكبر من صفر");
+    } else if (sessions > 500) {
+      errors.push("عدد الحصص كبير جداً");
+    } else {
+      data.sessions_per_month = sessions;
+    }
+  }
+
+  if (body.features !== undefined) {
+    const raw = Array.isArray(body.features) ? body.features : [];
+    const features = raw
+      .map((item) => String(item).trim())
+      .filter(Boolean)
+      .slice(0, 20);
+    if (features.some((item) => item.length > 200)) {
+      errors.push("إحدى المميزات طويلة جداً");
+    } else {
+      data.features = features;
+    }
+  }
+
+  if (body.description !== undefined) {
+    const description = body.description ? String(body.description).trim().slice(0, 500) : null;
+    data.description = description || null;
+  }
+
+  if (body.featured_label !== undefined) {
+    data.featured_label = body.featured_label
+      ? String(body.featured_label).trim().slice(0, 40)
+      : null;
+  }
+
+  if (body.sort_order !== undefined) {
+    const sortOrder = Number(body.sort_order);
+    if (!Number.isInteger(sortOrder) || sortOrder < 0 || sortOrder > 999) {
+      errors.push("ترتيب العرض غير صالح");
+    } else {
+      data.sort_order = sortOrder;
+    }
+  }
+
+  if (body.is_active !== undefined) data.is_active = Boolean(body.is_active);
+  if (body.is_featured !== undefined) data.is_featured = Boolean(body.is_featured);
+
+  return { ok: errors.length === 0, errors, data };
+}
+
+async function attachActiveSubscriberCounts(plans) {
+  const planIds = (plans || []).map((plan) => plan.id).filter(Boolean);
+  if (!planIds.length) {
+    return (plans || []).map((plan) => ({ ...plan, active_subscribers: 0 }));
+  }
+
+  const { data: subscriptions, error: subsError } = await supabase
+    .from("student_subscriptions")
+    .select("plan_id")
+    .eq("status", "active")
+    .in("plan_id", planIds);
+
+  if (subsError) throw subsError;
+
+  const countsByPlan = {};
+  for (const row of subscriptions || []) {
+    countsByPlan[row.plan_id] = (countsByPlan[row.plan_id] || 0) + 1;
+  }
+
+  return (plans || []).map((plan) => ({
+    ...plan,
+    active_subscribers: countsByPlan[plan.id] || 0
+  }));
+}
+router.get("/plans/stats", auth, checkRole("admin"), async (_req, res) => {
   try {
-    const { data, error: dbError } = await supabase
-      .from("subscription_plans")
-      .select("*")
-      .order("sort_order", { ascending: true });
+    const [total, active, inactive, featured, activeSubs] = await Promise.all([
+      supabase.from("subscription_plans").select("id", { count: "exact", head: true }),
+      supabase.from("subscription_plans").select("id", { count: "exact", head: true }).eq("is_active", true),
+      supabase.from("subscription_plans").select("id", { count: "exact", head: true }).eq("is_active", false),
+      supabase.from("subscription_plans").select("id", { count: "exact", head: true }).eq("is_featured", true),
+      supabase
+        .from("student_subscriptions")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "active")
+    ]);
+
+    assertSupabaseResults([total, active, inactive, featured, activeSubs]);
+
+    return success(res, {
+      total: total.count || 0,
+      active: active.count || 0,
+      inactive: inactive.count || 0,
+      featured: featured.count || 0,
+      active_subscriptions: activeSubs.count || 0
+    });
+  } catch (_err) {
+    return error(res, "تعذر تحميل إحصائيات الخطط", 500);
+  }
+});
+
+router.get("/plans", auth, checkRole("admin"), async (req, res) => {
+  try {
+    const status = String(req.query.status || "all");
+    const search = sanitizeSearchTerm(req.query.search);
+    const validStatuses = new Set(["all", "active", "inactive", "featured"]);
+    const safeStatus = validStatuses.has(status) ? status : "all";
+
+    let query = supabase.from("subscription_plans").select("*").order("sort_order", { ascending: true });
+
+    if (safeStatus === "active") query = query.eq("is_active", true);
+    if (safeStatus === "inactive") query = query.eq("is_active", false);
+    if (safeStatus === "featured") query = query.eq("is_featured", true);
+
+    if (search) {
+      query = query.or(`name.ilike.%${search}%,description.ilike.%${search}%`);
+    }
+
+    const { data, error: dbError } = await query;
     if (dbError) throw dbError;
-    return success(res, data || []);
+
+    const plans = await attachActiveSubscriberCounts(data || []);
+    return success(res, plans);
   } catch (_err) {
     return error(res, "تعذر تحميل الخطط", 500);
   }
@@ -569,35 +1203,22 @@ router.get("/plans", auth, checkRole("admin"), async (_req, res) => {
 
 router.post("/plans", auth, checkRole("admin"), async (req, res) => {
   try {
-    const {
-      name,
-      price,
-      sessions_per_month,
-      features,
-      is_active,
-      is_featured,
-      featured_label,
-      sort_order,
-      description
-    } = req.body || {};
-
-    if (!name || price === undefined || !sessions_per_month) {
-      return error(res, "الاسم والسعر وعدد الحصص مطلوبة", 400);
+    const validated = validatePlanBody(req.body || {});
+    if (!validated.ok) {
+      return error(res, validated.errors[0], 400);
     }
+
+    const payload = {
+      ...validated.data,
+      features: validated.data.features ?? [],
+      is_active: validated.data.is_active ?? true,
+      is_featured: validated.data.is_featured ?? false,
+      sort_order: validated.data.sort_order ?? 0
+    };
 
     const { data, error: dbError } = await supabase
       .from("subscription_plans")
-      .insert({
-        name,
-        price: Number(price),
-        sessions_per_month: Number(sessions_per_month),
-        features: features || [],
-        is_active: is_active ?? true,
-        is_featured: is_featured ?? false,
-        featured_label: featured_label || null,
-        sort_order: sort_order ?? 0,
-        description: description || null
-      })
+      .insert(payload)
       .select("*")
       .single();
 
@@ -611,32 +1232,40 @@ router.post("/plans", auth, checkRole("admin"), async (req, res) => {
 
 router.put("/plans/:id", auth, checkRole("admin"), async (req, res) => {
   try {
-    const updates = {};
-    const fields = [
-      "name",
-      "price",
-      "sessions_per_month",
-      "features",
-      "is_active",
-      "is_featured",
-      "featured_label",
-      "sort_order",
-      "description"
-    ];
-    for (const field of fields) {
-      if (req.body[field] !== undefined) updates[field] = req.body[field];
+    const planId = req.params.id;
+    if (!UUID_RE.test(planId)) {
+      return error(res, "معرّف الخطة غير صالح", 400);
     }
-    if (updates.price !== undefined) updates.price = Number(updates.price);
-    if (updates.sessions_per_month !== undefined) {
-      updates.sessions_per_month = Number(updates.sessions_per_month);
+
+    const validated = validatePlanBody(req.body || {}, { partial: true });
+    if (!validated.ok) {
+      return error(res, validated.errors[0], 400);
     }
-    if (updates.sort_order !== undefined) updates.sort_order = Number(updates.sort_order);
-    updates.updated_at = new Date().toISOString();
+
+    if (!Object.keys(validated.data).length) {
+      return error(res, "لا توجد بيانات للتحديث", 400);
+    }
+
+    const { data: existing, error: existingError } = await supabase
+      .from("subscription_plans")
+      .select("id")
+      .eq("id", planId)
+      .maybeSingle();
+
+    if (existingError) throw existingError;
+    if (!existing) {
+      return error(res, "الخطة غير موجودة", 404);
+    }
+
+    const updates = {
+      ...validated.data,
+      updated_at: new Date().toISOString()
+    };
 
     const { data, error: dbError } = await supabase
       .from("subscription_plans")
       .update(updates)
-      .eq("id", req.params.id)
+      .eq("id", planId)
       .select("*")
       .single();
 
@@ -650,64 +1279,181 @@ router.put("/plans/:id", auth, checkRole("admin"), async (req, res) => {
 
 router.delete("/plans/:id", auth, checkRole("admin"), async (req, res) => {
   try {
+    const planId = req.params.id;
+    if (!UUID_RE.test(planId)) {
+      return error(res, "معرّف الخطة غير صالح", 400);
+    }
+
+    const { data: existing, error: existingError } = await supabase
+      .from("subscription_plans")
+      .select("id, name")
+      .eq("id", planId)
+      .maybeSingle();
+
+    if (existingError) throw existingError;
+    if (!existing) {
+      return error(res, "الخطة غير موجودة", 404);
+    }
+
     const { count, error: countError } = await supabase
       .from("student_subscriptions")
       .select("id", { count: "exact", head: true })
-      .eq("plan_id", req.params.id)
+      .eq("plan_id", planId)
       .eq("status", "active");
 
     if (countError) throw countError;
     if ((count || 0) > 0) {
-      return error(res, `لا يمكن حذف الخطة — ${count} اشتراك نشط`, 409);
+      return error(res, `لا يمكن إيقاف الخطة — ${count} اشتراك نشط`, 409);
     }
 
     const { error: dbError } = await supabase
       .from("subscription_plans")
       .update({ is_active: false, updated_at: new Date().toISOString() })
-      .eq("id", req.params.id);
+      .eq("id", planId);
 
     if (dbError) throw dbError;
     await Promise.all([invalidate("public:landing"), invalidate(CACHE.subscriptionPlans())]);
     return success(res, null, "تم إيقاف الخطة");
   } catch (_err) {
-    return error(res, "تعذر حذف الخطة", 500);
+    return error(res, "تعذر إيقاف الخطة", 500);
   }
 });
 
-router.get("/landing-stats", auth, checkRole("admin"), async (_req, res) => {
+router.get("/landing-stats/overview", auth, checkRole("admin"), async (_req, res) => {
   try {
-    const { data, error: dbError } = await supabase
-      .from("platform_stats")
-      .select("*")
-      .order("sort_order", { ascending: true });
+    const nowIso = new Date().toISOString();
+
+    const [total, visible, hidden, plans, promos] = await Promise.all([
+      supabase.from("platform_stats").select("id", { count: "exact", head: true }),
+      supabase.from("platform_stats").select("id", { count: "exact", head: true }).eq("is_visible", true),
+      supabase.from("platform_stats").select("id", { count: "exact", head: true }).eq("is_visible", false),
+      supabase.from("subscription_plans").select("id", { count: "exact", head: true }).eq("is_active", true),
+      supabase
+        .from("promotions")
+        .select("id", { count: "exact", head: true })
+        .eq("is_active", true)
+        .or(`expires_at.is.null,expires_at.gt.${nowIso}`)
+    ]);
+
+    assertSupabaseResults([total, visible, hidden, plans, promos]);
+
+    return success(res, {
+      total_stats: total.count || 0,
+      visible_stats: visible.count || 0,
+      hidden_stats: hidden.count || 0,
+      active_plans: plans.count || 0,
+      active_promos: promos.count || 0
+    });
+  } catch (_err) {
+    return error(res, "تعذر تحميل ملخص صفحة الهبوط", 500);
+  }
+});
+
+router.get("/landing-stats", auth, checkRole("admin"), async (req, res) => {
+  try {
+    const visibility = String(req.query.visibility || "all");
+    const search = sanitizeSearchTerm(req.query.search);
+    const validVisibility = new Set(["all", "visible", "hidden"]);
+    const safeVisibility = validVisibility.has(visibility) ? visibility : "all";
+
+    let query = supabase.from("platform_stats").select("*").order("sort_order", { ascending: true });
+
+    if (safeVisibility === "visible") query = query.eq("is_visible", true);
+    if (safeVisibility === "hidden") query = query.eq("is_visible", false);
+
+    if (search) {
+      query = query.or(`label.ilike.%${search}%,key.ilike.%${search}%,hint.ilike.%${search}%`);
+    }
+
+    const { data, error: dbError } = await query;
     if (dbError) throw dbError;
     return success(res, data || []);
   } catch (_err) {
-    return error(res, "تعذر تحميل الإحصائيات", 500);
+    return error(res, "تعذر تحميل إحصائيات الهبوط", 500);
   }
 });
 
+function validateLandingStatUpdate(body) {
+  const errors = [];
+  const updates = {};
+
+  if (body.value !== undefined) {
+    const value = String(body.value).trim().slice(0, 40);
+    if (!value) errors.push("القيمة الظاهرة مطلوبة");
+    else updates.value = value;
+  }
+
+  if (body.label !== undefined) {
+    const label = String(body.label).trim().slice(0, 80);
+    if (!label) errors.push("العنوان مطلوب");
+    else updates.label = label;
+  }
+
+  if (body.hint !== undefined) {
+    updates.hint = body.hint ? String(body.hint).trim().slice(0, 120) : null;
+  }
+
+  if (body.is_visible !== undefined) {
+    updates.is_visible = Boolean(body.is_visible);
+  }
+
+  if (body.sort_order !== undefined) {
+    const sortOrder = Number(body.sort_order);
+    if (!Number.isInteger(sortOrder) || sortOrder < 0 || sortOrder > 999) {
+      errors.push("ترتيب العرض غير صالح");
+    } else {
+      updates.sort_order = sortOrder;
+    }
+  }
+
+  return { ok: errors.length === 0, errors, updates };
+}
+
 router.put("/landing-stats/:id", auth, checkRole("admin"), async (req, res) => {
   try {
-    const { value, label, hint, is_visible } = req.body || {};
-    const updates = { updated_at: new Date().toISOString() };
-    if (value !== undefined) updates.value = value;
-    if (label !== undefined) updates.label = label;
-    if (hint !== undefined) updates.hint = hint;
-    if (is_visible !== undefined) updates.is_visible = is_visible;
+    const statId = req.params.id;
+    if (!UUID_RE.test(statId)) {
+      return error(res, "معرّف الإحصائية غير صالح", 400);
+    }
+
+    const validated = validateLandingStatUpdate(req.body || {});
+    if (!validated.ok) {
+      return error(res, validated.errors[0], 400);
+    }
+
+    if (!Object.keys(validated.updates).length) {
+      return error(res, "لا توجد بيانات للتحديث", 400);
+    }
+
+    const { data: existing, error: existingError } = await supabase
+      .from("platform_stats")
+      .select("id")
+      .eq("id", statId)
+      .maybeSingle();
+
+    if (existingError) throw existingError;
+    if (!existing) {
+      return error(res, "الإحصائية غير موجودة", 404);
+    }
+
+    const updates = {
+      ...validated.updates,
+      updated_at: new Date().toISOString()
+    };
 
     const { data, error: dbError } = await supabase
       .from("platform_stats")
       .update(updates)
-      .eq("id", req.params.id)
+      .eq("id", statId)
       .select("*")
       .single();
+
     if (dbError) throw dbError;
 
     await invalidate("public:landing");
-    return success(res, data);
+    return success(res, data, "تم تحديث الإحصائية");
   } catch (_err) {
-    return error(res, "تعذر التحديث", 500);
+    return error(res, "تعذر تحديث الإحصائية", 500);
   }
 });
 

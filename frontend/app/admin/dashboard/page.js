@@ -1,58 +1,92 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import StatsCard from "@/components/admin/StatsCard";
-import DataTable from "@/components/admin/DataTable";
+import { toast } from "sonner";
+import AdminActionsMenu from "@/components/admin/AdminActionsMenu";
+import AdminConfirmDialog from "@/components/admin/AdminConfirmDialog";
+import AdminUserDetailsModal from "@/components/admin/AdminUserDetailsModal";
+import SessionDetailsModal from "@/components/admin/SessionDetailsModal";
 import StatusBadge from "@/components/admin/StatusBadge";
-import { Button } from "@/components/ui/button";
+import AdminDashboardView from "@/components/admin/AdminDashboardPage";
+import { useAuth } from "@/hooks/useAuth";
 import { dashboardApi, sessionsApi } from "@/lib/api";
-import { formatCurrencyEgp, formatDateAr, formatDateTimeAr } from "@/lib/format";
+import {
+  formatCurrencyEgp,
+  formatDateAr,
+  formatDateTimeAr,
+  formatGradeAr,
+  formatSchoolLevelAr
+} from "@/lib/format";
+import { ROLE_LABELS_AR } from "@/lib/profile-form";
 import { cn } from "@/lib/utils";
-
-const roleLabels = {
-  student: "طالب",
-  teacher: "مدرس",
-  parent: "ولي أمر",
-  admin: "مشرف"
-};
+import { useSidebarProfile } from "@/hooks/useSidebarProfile";
 
 const roleBadgeClass = {
   student: "bg-accent-blue/10 text-accent-blue",
   teacher: "bg-accent/10 text-accent",
-  parent: "bg-purple-100 text-purple-700",
-  admin: "bg-primary/10 text-primary"
+  parent: "bg-secondary-container/30 text-secondary",
+  admin: "bg-primary-container/20 text-md-primary"
 };
 
 function RoleBadge({ role }) {
   return (
-    <span className={cn("rounded-full px-2.5 py-1 text-xs font-bold", roleBadgeClass[role] || "bg-slate-100 text-slate-600")}>
-      {roleLabels[role] || role || "—"}
+    <span
+      className={cn(
+        "rounded-full px-2.5 py-1 text-xs font-bold",
+        roleBadgeClass[role] || "bg-surface-container-highest text-on-surface-variant"
+      )}
+    >
+      {ROLE_LABELS_AR[role] || role || "—"}
     </span>
   );
 }
 
+function getEnrollmentCount(session) {
+  return session?.enrollments?.[0]?.count ?? session?.enrollment_count ?? 0;
+}
+
+function canCancelSession(session) {
+  return session?.status === "scheduled" || session?.status === "live";
+}
+
+function canModifyUser(user, currentUserId) {
+  if (!user) return false;
+  if (user.id === currentUserId) return false;
+  if (user.role === "admin") return false;
+  return true;
+}
+
 export default function AdminDashboardPage() {
+  const profile = useSidebarProfile();
+  const { user: authUser } = useAuth();
+  const currentUserId = authUser?.id || "";
+
   const [stats, setStats] = useState(null);
   const [recentUsers, setRecentUsers] = useState([]);
   const [recentSessions, setRecentSessions] = useState([]);
+  const [chartData, setChartData] = useState([]);
+  const [chartPeriod, setChartPeriod] = useState("6months");
   const [loading, setLoading] = useState(true);
+  const [chartLoading, setChartLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
+  const [mutatingId, setMutatingId] = useState("");
+
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [selectedSession, setSelectedSession] = useState(null);
+  const [cancelTarget, setCancelTarget] = useState(null);
+  const [confirmAction, setConfirmAction] = useState(null);
 
   const loadDashboard = useCallback(async () => {
     setLoading(true);
     setError("");
 
     try {
-      const [statsRes, usersRes, sessionsRes] = await Promise.all([
-        dashboardApi.adminStats(),
-        dashboardApi.adminUsers("limit=5"),
-        sessionsApi.list("limit=5&status=scheduled")
-      ]);
-
-      setStats(statsRes?.data || null);
-      setRecentUsers(usersRes?.data || []);
-      setRecentSessions(sessionsRes?.data || []);
+      const res = await dashboardApi.adminDashboard();
+      const payload = res?.data || {};
+      setStats(payload.stats || null);
+      setRecentUsers(payload.recent_users || []);
+      setRecentSessions(payload.recent_sessions || []);
     } catch (err) {
       setStats(null);
       setRecentUsers([]);
@@ -63,149 +97,348 @@ export default function AdminDashboardPage() {
     }
   }, []);
 
+  const loadChart = useCallback(async () => {
+    setChartLoading(true);
+    try {
+      const res = await dashboardApi.adminReports(chartPeriod);
+      setChartData(res?.data?.monthly_revenue || []);
+    } catch {
+      setChartData([]);
+    } finally {
+      setChartLoading(false);
+    }
+  }, [chartPeriod]);
+
   useEffect(() => {
     loadDashboard();
   }, [loadDashboard]);
 
+  useEffect(() => {
+    loadChart();
+  }, [loadChart]);
+
+  const refreshAll = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([loadDashboard(), loadChart()]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadDashboard, loadChart]);
+
+  const patchUser = useCallback((userId, patch) => {
+    setRecentUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, ...patch } : u)));
+    setSelectedUser((prev) => (prev?.id === userId ? { ...prev, ...patch } : prev));
+  }, []);
+
+  const handleVerify = async (user) => {
+    if (user.role !== "teacher" || user.is_verified === true) return;
+    setMutatingId(user.id);
+    try {
+      await dashboardApi.adminVerifyUser(user.id);
+      patchUser(user.id, { is_verified: true });
+      toast.success("تم توثيق المدرس بنجاح");
+      setConfirmAction(null);
+    } catch (err) {
+      toast.error(err.message || "فشل توثيق المدرس");
+    } finally {
+      setMutatingId("");
+    }
+  };
+
+  const executeSuspendToggle = async (user) => {
+    if (!canModifyUser(user, currentUserId)) {
+      toast.error("لا يمكن تنفيذ هذا الإجراء على هذا الحساب");
+      return;
+    }
+
+    const isSuspended = user.is_active === false;
+    setMutatingId(user.id);
+    const updater = isSuspended ? dashboardApi.adminActivateUser : dashboardApi.adminSuspendUser;
+
+    try {
+      await updater(user.id);
+      patchUser(user.id, { is_active: isSuspended });
+      toast.success(isSuspended ? "تم تفعيل الحساب بنجاح" : "تم تعليق الحساب بنجاح");
+    } catch (err) {
+      toast.error(err.message || "فشل تحديث حالة الحساب");
+    } finally {
+      setMutatingId("");
+      setConfirmAction(null);
+    }
+  };
+
+  const handleCancelSession = async (session) => {
+    setMutatingId(session.id);
+    try {
+      await sessionsApi.cancel(session.id);
+      setRecentSessions((prev) => prev.filter((s) => s.id !== session.id));
+      setSelectedSession((prev) => (prev?.id === session.id ? null : prev));
+      toast.success("تم إلغاء الجلسة بنجاح");
+      setCancelTarget(null);
+      await loadDashboard();
+    } catch (err) {
+      toast.error(err.message || "فشل إلغاء الجلسة");
+    } finally {
+      setMutatingId("");
+    }
+  };
+
   const sessionColumns = useMemo(
     () => [
-      { key: "title", label: "العنوان", render: (row) => <span className="font-bold">{row.title}</span> },
+      {
+        key: "title",
+        label: "الجلسة",
+        render: (row) => (
+          <button type="button" className="min-w-[160px] text-start" onClick={() => setSelectedSession(row)}>
+            <p className="font-bold text-on-surface hover:text-md-primary">{row.title}</p>
+            <p className="mt-0.5 text-xs text-on-surface-variant">
+              {row.subject?.icon ? `${row.subject.icon} ` : ""}
+              {row.subject?.name_ar || row.subject || "مادة عامة"}
+            </p>
+          </button>
+        )
+      },
       {
         key: "teacher",
         label: "المدرس",
-        render: (row) => row.teacher?.full_name || "—"
+        render: (row) => (
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-md-primary/15 text-xs font-black text-md-primary">
+              {(row.teacher?.full_name || "?").slice(0, 1)}
+            </div>
+            <span className="text-on-surface">{row.teacher?.full_name || "—"}</span>
+          </div>
+        )
       },
       {
-        key: "subject",
-        label: "المادة",
-        render: (row) => row.subject?.name_ar || row.subject || "—"
+        key: "level",
+        label: "المرحلة",
+        render: (row) => (
+          <div className="text-xs">
+            <p className="font-bold text-on-surface">{formatSchoolLevelAr(row.school_level)}</p>
+            <p className="text-on-surface-variant">{formatGradeAr(row.grade)}</p>
+          </div>
+        )
       },
       {
         key: "scheduled_at",
         label: "الموعد",
-        render: (row) => formatDateTimeAr(row.scheduled_at)
+        render: (row) => <span className="text-on-surface">{formatDateTimeAr(row.scheduled_at)}</span>
+      },
+      {
+        key: "students",
+        label: "الطلاب",
+        render: (row) => {
+          const enrolled = getEnrollmentCount(row);
+          const max = row.max_students || 0;
+          return (
+            <span className={cn("font-bold", max > 0 && enrolled >= max ? "text-danger" : "text-on-surface")}>
+              {enrolled}/{max || "—"}
+            </span>
+          );
+        }
+      },
+      {
+        key: "price",
+        label: "السعر",
+        render: (row) => (
+          <span className="font-bold text-md-primary">{formatCurrencyEgp(row.price_per_student)}</span>
+        )
       },
       {
         key: "status",
         label: "الحالة",
-        render: (row) => <StatusBadge status={row.status || "scheduled"} />
+        render: (row) => <StatusBadge status={row.status || "scheduled"} variant="session" />
+      },
+      {
+        key: "actions",
+        label: "الإجراءات",
+        render: (row) => {
+          const busy = mutatingId === row.id;
+          const cancellable = canCancelSession(row);
+
+          const items = [
+            {
+              label: "عرض التفاصيل",
+              icon: "video",
+              onClick: () => setSelectedSession(row)
+            },
+            {
+              label: "صفحة الجلسات",
+              icon: "arrowRight",
+              onClick: () => window.open("/admin/sessions", "_self")
+            },
+            cancellable
+              ? {
+                  label: "إلغاء الجلسة",
+                  icon: "close",
+                  tone: "danger",
+                  disabled: busy,
+                  onClick: () => setCancelTarget(row)
+                }
+              : null
+          ].filter(Boolean);
+
+          return <AdminActionsMenu items={items} disabled={busy} label={busy ? "جاري..." : "إجراءات"} />;
+        }
       }
     ],
-    []
+    [mutatingId]
   );
 
   const userColumns = useMemo(
     () => [
-      { key: "full_name", label: "الاسم", render: (row) => <span className="font-bold">{row.full_name || "—"}</span> },
-      { key: "role", label: "الدور", render: (row) => <RoleBadge role={row.role} /> },
       {
-        key: "created_at",
-        label: "تاريخ التسجيل",
-        render: (row) => formatDateAr(row.created_at)
+        key: "full_name",
+        label: "المستخدم",
+        render: (row) => (
+          <button
+            type="button"
+            className="flex w-full items-center gap-3 text-start"
+            onClick={() => setSelectedUser(row)}
+          >
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-md-primary/15 text-sm font-black text-md-primary">
+              {row.avatar_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={row.avatar_url} alt="" className="h-full w-full object-cover" />
+              ) : (
+                (row.full_name || "?").slice(0, 1)
+              )}
+            </div>
+            <div className="min-w-0">
+              <p className="truncate font-bold text-on-surface">{row.full_name || "—"}</p>
+              <p className="truncate text-xs text-on-surface-variant" dir="ltr">
+                {row.email || "—"}
+              </p>
+            </div>
+          </button>
+        )
       },
+      { key: "role", label: "الدور", render: (row) => <RoleBadge role={row.role} /> },
+      { key: "created_at", label: "التسجيل", render: (row) => formatDateAr(row.created_at) },
       {
         key: "status",
         label: "الحالة",
         render: (row) => <StatusBadge status={row.is_active === false ? "suspended" : "active"} />
+      },
+      {
+        key: "actions",
+        label: "الإجراءات",
+        render: (row) => {
+          const busy = mutatingId === row.id;
+          const canVerify = row.role === "teacher" && row.is_verified !== true;
+          const modifiable = canModifyUser(row, currentUserId);
+
+          const items = [
+            {
+              label: "عرض الملف",
+              icon: "user",
+              onClick: () => setSelectedUser(row)
+            },
+            {
+              label: "صفحة المستخدمين",
+              icon: "arrowRight",
+              onClick: () => window.open("/admin/users", "_self")
+            },
+            canVerify
+              ? {
+                  label: "توثيق المدرس",
+                  icon: "check",
+                  tone: "primary",
+                  disabled: busy,
+                  onClick: () => setConfirmAction({ type: "verify", user: row })
+                }
+              : null,
+            modifiable
+              ? {
+                  label: row.is_active === false ? "تفعيل الحساب" : "تعليق الحساب",
+                  icon: row.is_active === false ? "unlock" : "lock",
+                  tone: row.is_active === false ? "success" : "danger",
+                  disabled: busy,
+                  onClick: () => setConfirmAction({ type: "suspend", user: row })
+                }
+              : null
+          ].filter(Boolean);
+
+          return <AdminActionsMenu items={items} disabled={busy} label={busy ? "جاري..." : "إجراءات"} />;
+        }
       }
     ],
-    []
+    [currentUserId, mutatingId]
   );
 
+  const confirmUser = confirmAction?.user;
+  const confirmType = confirmAction?.type;
+  const isSuspend = confirmType === "suspend" && confirmUser?.is_active !== false;
+  const isVerify = confirmType === "verify";
+
   return (
-    <div className="space-y-6">
-      <section className="rounded-3xl bg-gradient-to-l from-primary to-[#0f1117] p-6 text-white shadow-lg">
-        <p className="text-sm text-white/70">مرحبًا بك في لوحة الإدارة</p>
-        <h2 className="mt-1 text-2xl font-black">متابعة المنصة في مكان واحد</h2>
-        <p className="mt-2 max-w-2xl text-sm text-white/75">
-          راقب الإيرادات، المستخدمين، الجلسات المباشرة، وطلبات السحب بشكل لحظي.
-        </p>
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Button href="/admin/users" className="rounded-xl bg-accent text-white hover:bg-orange-600">
-            إدارة المستخدمين
-          </Button>
-          <Button
-            href="/admin/withdrawals"
-            variant="outline"
-            className="rounded-xl border-white/30 bg-white/10 text-white hover:bg-white/20"
-          >
-            طلبات السحب
-          </Button>
-        </div>
-      </section>
+    <>
+      <AdminDashboardView
+        adminName={profile.full_name || "مشرف"}
+        stats={stats}
+        recentUsers={recentUsers}
+        recentSessions={recentSessions}
+        chartData={chartData}
+        chartPeriod={chartPeriod}
+        onChartPeriodChange={setChartPeriod}
+        userColumns={userColumns}
+        sessionColumns={sessionColumns}
+        loading={loading}
+        chartLoading={chartLoading}
+        refreshing={refreshing}
+        error={error}
+        onRefresh={refreshAll}
+      />
 
-      {error ? (
-        <div className="rounded-2xl border border-danger/30 bg-danger/10 p-4">
-          <p className="text-sm font-bold text-danger">⚠️ {error}</p>
-          <Button type="button" onClick={loadDashboard} className="mt-3 rounded-xl bg-danger text-white hover:bg-red-500">
-            إعادة المحاولة
-          </Button>
-        </div>
-      ) : null}
+      <AdminUserDetailsModal
+        user={selectedUser}
+        busy={mutatingId === selectedUser?.id}
+        currentUserId={currentUserId}
+        onClose={() => setSelectedUser(null)}
+        onVerify={(user) => setConfirmAction({ type: "verify", user })}
+        onSuspendToggle={(user) => setConfirmAction({ type: "suspend", user })}
+      />
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatsCard
-          title="إجمالي إيرادات المنصة"
-          value={loading ? "..." : formatCurrencyEgp(stats?.total_revenue)}
-          iconName="money"
-          tone="success"
-          hint="من بداية تشغيل المنصة"
-        />
-        <StatsCard
-          title="إجمالي المستخدمين"
-          value={loading ? "..." : String(stats?.total_users ?? 0)}
-          iconName="users"
-          tone="blue"
-        />
-        <StatsCard
-          title="جلسات مباشرة الآن"
-          value={loading ? "..." : String(stats?.live_sessions ?? 0)}
-          iconName="video"
-          tone="accent"
-          hint="جلسات بحالة Live"
-        />
-        <StatsCard
-          title="سحوبات معلّقة"
-          value={loading ? "..." : String(stats?.pending_withdrawals ?? 0)}
-          iconName="creditCard"
-          tone="warning"
-          hint="تحتاج مراجعة"
-        />
-      </section>
+      <SessionDetailsModal
+        session={selectedSession}
+        busy={mutatingId === selectedSession?.id}
+        canCancel={canCancelSession(selectedSession)}
+        onClose={() => setSelectedSession(null)}
+        onCancel={(session) => setCancelTarget(session)}
+      />
 
-      <section className="grid gap-4 xl:grid-cols-2">
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-black text-primary">أحدث الجلسات</h3>
-            <Link href="/admin/sessions" className="text-sm font-bold text-accent hover:underline">
-              عرض الكل
-            </Link>
-          </div>
-          <DataTable
-            columns={sessionColumns}
-            data={recentSessions}
-            loading={loading}
-            emptyMessage="لا توجد جلسات حالياً"
-            emptyDescription="ستظهر هنا آخر الجلسات المجدولة على المنصة."
-          />
-        </div>
+      <AdminConfirmDialog
+        open={Boolean(cancelTarget)}
+        title="إلغاء الجلسة"
+        description={`هل تريد إلغاء جلسة «${cancelTarget?.title || ""}»؟`}
+        confirmLabel="إلغاء الجلسة"
+        tone="danger"
+        loading={Boolean(cancelTarget && mutatingId === cancelTarget.id)}
+        onConfirm={() => cancelTarget && handleCancelSession(cancelTarget)}
+        onCancel={() => setCancelTarget(null)}
+      />
 
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-black text-primary">أحدث التسجيلات</h3>
-            <Link href="/admin/users" className="text-sm font-bold text-accent hover:underline">
-              عرض الكل
-            </Link>
-          </div>
-          <DataTable
-            columns={userColumns}
-            data={recentUsers}
-            loading={loading}
-            emptyMessage="لا يوجد مستخدمون جدد"
-            emptyDescription="ستظهر هنا آخر الحسابات المسجّلة."
-          />
-        </div>
-      </section>
-    </div>
+      <AdminConfirmDialog
+        open={Boolean(confirmUser)}
+        title={isVerify ? "توثيق المدرس" : isSuspend ? "تعليق الحساب" : "تفعيل الحساب"}
+        description={
+          isVerify
+            ? `تأكيد توثيق حساب المدرس «${confirmUser?.full_name || ""}»؟`
+            : isSuspend
+              ? `تعليق حساب «${confirmUser?.full_name || ""}»؟ لن يتمكن من استخدام المنصة.`
+              : `تفعيل حساب «${confirmUser?.full_name || ""}»؟`
+        }
+        confirmLabel={isVerify ? "توثيق" : isSuspend ? "تعليق" : "تفعيل"}
+        tone={isSuspend ? "danger" : "primary"}
+        loading={Boolean(confirmUser && mutatingId === confirmUser.id)}
+        onConfirm={() => {
+          if (isVerify && confirmUser) handleVerify(confirmUser);
+          else if (confirmUser) executeSuspendToggle(confirmUser);
+        }}
+        onCancel={() => setConfirmAction(null)}
+      />
+    </>
   );
 }

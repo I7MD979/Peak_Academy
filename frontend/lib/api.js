@@ -146,6 +146,9 @@ export const sessionsApi = {
   list: (query = "") => apiRequest(withQuery("/sessions", query)),
   closeOpen: async () => {
     clearApiCache("/sessions");
+    clearApiCache("/admin/sessions");
+    clearApiCache("/admin/dashboard");
+    clearApiCache("/admin/stats");
     return apiRequest("/sessions/close-open", { method: "POST" });
   },
   purgeDailyRooms: async () => {
@@ -154,6 +157,9 @@ export const sessionsApi = {
   },
   cancel: async (sessionId) => {
     clearApiCache("/sessions");
+    clearApiCache("/admin/sessions");
+    clearApiCache("/admin/dashboard");
+    clearApiCache("/admin/stats");
     return apiRequest(`/sessions/${sessionId}/cancel`, { method: "PATCH" });
   },
   start: (sessionId) => apiRequest(`/sessions/${sessionId}/start`, { method: "POST" }),
@@ -163,11 +169,15 @@ export const sessionsApi = {
     return apiRequest(`/sessions/${sessionId}/end`, { method: "POST" });
   },
   get: (sessionId) => apiRequest(`/sessions/${sessionId}`),
-  create: (body) =>
-    apiRequest("/sessions", {
+  create: async (body) => {
+    clearApiCache("/sessions");
+    clearApiCache("/admin/sessions");
+    clearApiCache("/admin/dashboard");
+    return apiRequest("/sessions", {
       method: "POST",
       body: JSON.stringify(body)
-    }),
+    });
+  },
   enroll: (sessionId, body = {}) =>
     apiRequest(`/sessions/${sessionId}/enroll`, {
       method: "POST",
@@ -228,7 +238,16 @@ export function logApiError(context, err) {
 
 export const teacherApi = {
   dashboard: () => apiRequest("/teacher/dashboard"),
-  analytics: () => apiRequest("/teacher/analytics"),
+  analytics: (query = "") => {
+    if (typeof query === "string") {
+      return apiRequest(withQuery("/teacher/analytics", query));
+    }
+    const params = new URLSearchParams();
+    if (query.period) params.set("period", query.period);
+    if (query.from) params.set("from", query.from);
+    if (query.to) params.set("to", query.to);
+    return apiRequest(withQuery("/teacher/analytics", params.toString()));
+  },
   reviews: (limit = 5) => apiRequest(`/teacher/reviews?limit=${limit}`),
   sessionCounts: () => apiRequest("/teacher/session-counts")
 };
@@ -252,7 +271,7 @@ export const studentApi = {
       method: "POST",
       body: JSON.stringify(body)
     }),
-  studyRooms: () => apiRequest("/study-rooms"),
+  studyRooms: (query = "") => apiRequest(withQuery("/study-rooms", query)),
   joinStudyRoom: (roomId) =>
     apiRequest(`/study-rooms/${roomId}/join`, {
       method: "POST",
@@ -340,13 +359,15 @@ export const studyRoomsApi = {
 };
 
 export const adminApi = {
-  getLandingStats: () => apiRequest("/admin/landing-stats"),
+  getLandingStats: (query = "") => apiRequest(withQuery("/admin/landing-stats", query)),
+  landingStatsOverview: () => apiRequest("/admin/landing-stats/overview"),
   updateLandingStat: (id, data) =>
     apiRequest(`/admin/landing-stats/${id}`, {
       method: "PUT",
       body: JSON.stringify(data)
     }),
-  getPlans: () => apiRequest("/admin/plans"),
+  getPlans: (query = "") => apiRequest(withQuery("/admin/plans", query)),
+  plansStats: () => apiRequest("/admin/plans/stats"),
   createPlan: (body) =>
     apiRequest("/admin/plans", {
       method: "POST",
@@ -362,26 +383,41 @@ export const adminApi = {
 
 export const dashboardApi = {
   adminStats: () => apiRequest("/admin/stats"),
+  adminDashboard: () => apiRequest("/admin/dashboard"),
   adminUsers: (query = "") => apiRequest(withQuery("/admin/users", query)),
+  adminUsersStats: () => apiRequest("/admin/users/stats"),
+  adminSessionsStats: () => apiRequest("/admin/sessions/stats"),
+  adminSessions: (query = "") => apiRequest(withQuery("/admin/sessions", query)),
   adminVerifyUser: (userId) => apiRequest(`/admin/users/${userId}/verify`, { method: "PUT" }),
   adminSuspendUser: (userId) => apiRequest(`/admin/users/${userId}/suspend`, { method: "PUT" }),
   adminActivateUser: (userId) => apiRequest(`/admin/users/${userId}/activate`, { method: "PUT" }),
   adminWithdrawals: (query = "") => apiRequest(withQuery("/admin/withdrawals", query)),
+  adminWithdrawalsStats: () => apiRequest("/admin/withdrawals/stats"),
   adminUpdateWithdrawal: (id, body) =>
     apiRequest(`/admin/withdrawals/${id}`, {
       method: "PUT",
       body: JSON.stringify(body)
     }),
-  adminReports: (period = "month") =>
-    apiRequest(`/admin/reports?period=${encodeURIComponent(period)}`),
+  adminReports: (query = "month") => {
+    if (typeof query === "string") {
+      return apiRequest(`/admin/reports?period=${encodeURIComponent(query)}`);
+    }
+    const params = new URLSearchParams();
+    if (query.period) params.set("period", query.period);
+    if (query.from) params.set("from", query.from);
+    if (query.to) params.set("to", query.to);
+    return apiRequest(withQuery("/admin/reports", params.toString()));
+  },
   teacherEarningsSummary: () => apiRequest("/earnings/summary"),
   teacherEarnings: (query = "") => apiRequest(withQuery("/earnings", query)),
   teacherWithdrawals: (query = "") => apiRequest(withQuery("/earnings/withdrawals", query)),
-  teacherRequestWithdrawal: (body) =>
-    apiRequest("/earnings/withdraw", {
+  teacherRequestWithdrawal: async (body) => {
+    clearApiCache("/earnings");
+    return apiRequest("/earnings/withdraw", {
       method: "POST",
       body: JSON.stringify(body)
-    }),
+    });
+  },
   parentReport: (studentId) => apiRequest(`/parent/report/${studentId}`),
   myProfile: () => fetchMe(),
   updateMyProfile: (body) => authApi.updateProfile(body)
@@ -403,7 +439,17 @@ export const parentApi = {
       method: "POST",
       body: JSON.stringify({ student_code: studentCode })
     }),
-  report: (studentId) => apiRequest(`/parent/report/${studentId}`),
+  report: (studentId, query = "") => {
+    let qs = query;
+    if (query && typeof query === "object") {
+      const params = new URLSearchParams();
+      if (query.period) params.set("period", query.period);
+      if (query.from) params.set("from", query.from);
+      if (query.to) params.set("to", query.to);
+      qs = params.toString();
+    }
+    return apiRequest(withQuery(`/parent/report/${encodeURIComponent(studentId)}`, qs));
+  },
   downloadReport: async (studentId, token) => {
     const authToken = token ?? (await getAuthToken());
     const res = await fetch(`${getApiBaseUrl()}/parent/report/${studentId}/pdf`, {

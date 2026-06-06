@@ -12,6 +12,7 @@ import {
   normalizeRole
 } from "../utils/ensure-user-profile.js";
 import { ensureReferralCode } from "../services/referralService.js";
+import { isValidGrade } from "../lib/grades.js";
 
 const router = Router();
 
@@ -107,6 +108,10 @@ router.post("/setup-profile", auth, async (req, res) => {
 
     if (role === "student" && grade && !["first", "second", "third"].includes(grade)) {
       return error(res, "الصف الدراسي غير صالح", 400);
+    }
+
+    if (role === "student" && !grade) {
+      return error(res, "الصف الدراسي مطلوب للطلاب", 400);
     }
 
     if (phone && phone.length < 8) {
@@ -234,12 +239,20 @@ router.put("/profile", auth, async (req, res) => {
       return error(res, "الاسم يجب أن يكون حرفين على الأقل", 400);
     }
 
+    if (fullName.length > 80) {
+      return error(res, "الاسم طويل جداً (80 حرفاً كحد أقصى)", 400);
+    }
+
     if (bio.length > 1000) {
       return error(res, "النبذة المهنية طويلة جدًا (الحد الأقصى 1000 حرف)", 400);
     }
 
     if (phone && phone.length < 8) {
       return error(res, "رقم الهاتف غير صالح", 400);
+    }
+
+    if (phone && phone.length > 20) {
+      return error(res, "رقم الهاتف طويل جداً", 400);
     }
 
     let subjects = [];
@@ -265,7 +278,12 @@ router.put("/profile", auth, async (req, res) => {
       if (!/^https?:\/\/.+/i.test(avatarUrl)) {
         return error(res, "رابط الصورة الشخصية غير صالح", 400);
       }
+      if (avatarUrl.length > 500) {
+        return error(res, "رابط الصورة الشخصية طويل جداً", 400);
+      }
       userUpdate.avatar_url = avatarUrl;
+    } else if (req.body.avatar_url === "") {
+      userUpdate.avatar_url = null;
     }
 
     const { error: userError } = await supabase.from("users").update(userUpdate).eq("id", req.user.id);
@@ -283,7 +301,17 @@ router.put("/profile", auth, async (req, res) => {
       const teacherUpdate = { bio: bio || null, subjects };
       const gradesInput = req.body.grades;
       if (Array.isArray(gradesInput)) {
-        teacherUpdate.grades = gradesInput.map((g) => String(g).trim()).filter(Boolean).slice(0, 6);
+        const uniqueGrades = [];
+        for (const raw of gradesInput) {
+          const grade = String(raw || "").trim();
+          if (!grade || uniqueGrades.includes(grade)) continue;
+          if (!isValidGrade(grade)) {
+            return error(res, "الصف الدراسي غير صالح", 400);
+          }
+          uniqueGrades.push(grade);
+          if (uniqueGrades.length >= 6) break;
+        }
+        teacherUpdate.grades = uniqueGrades;
       }
       const experienceYears = req.body.experience_years;
       if (experienceYears !== undefined && experienceYears !== null && experienceYears !== "") {

@@ -19,7 +19,7 @@ export default function StudentBottomNav({ className }) {
   return (
     <nav
       className={cn(
-        "fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-card/95 shadow-[0_-4px_24px_rgba(15,23,42,0.08)] backdrop-blur-md supports-[backdrop-filter]:bg-card/85",
+        "fixed bottom-0 left-0 right-0 z-40 border-t border-auth-outline-variant/40 bg-auth-surface-high/95 shadow-[0_-4px_24px_rgba(0,0,0,0.35)] backdrop-blur-md supports-[backdrop-filter]:bg-auth-surface-high/85",
         className
       )}
       aria-label="تنقل سفلي للطالب"
@@ -32,8 +32,8 @@ export default function StudentBottomNav({ className }) {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex flex-1 flex-col items-center justify-center gap-0.5 py-2.5 text-[11px] font-bold text-text-muted transition-colors",
-                active && "text-accent"
+                "flex flex-1 flex-col items-center justify-center gap-0.5 py-2.5 text-[11px] font-bold text-auth-on-surface-variant transition-colors",
+                active && "text-peak-orange"
               )}
             >
               <NavIcon name={item.icon} active={active} variant="bottom" />

@@ -87,14 +87,14 @@ export default function LiveSessionRoom({ sessionId, isTeacher, sessionStart }) 
   if (loading) return <SectionLoader message="جاري تحميل غرفة البث..." />;
   if (error) {
     return (
-      <main className="bg-bg p-4 md:p-6">
+      <main className="bg-auth-surface-low p-4 md:p-6">
         <EmptyState title={error} />
       </main>
     );
   }
   if (!roomUrl) {
     return (
-      <main className="bg-bg p-4 md:p-6">
+      <main className="bg-auth-surface-low p-4 md:p-6">
         <EmptyState title="رابط الغرفة غير متاح" />
       </main>
     );

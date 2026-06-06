@@ -31,7 +31,7 @@ export default function StartSessionButton({
       >
         {loading ? "جاري بدء الجلسة..." : "ابدأ الجلسة ▶"}
       </Button>
-      {hint ? <p className="text-center text-xs text-text-muted">{hint}</p> : null}
+      {hint ? <p className="text-center text-xs text-auth-on-surface-variant">{hint}</p> : null}
     </div>
   );
 }

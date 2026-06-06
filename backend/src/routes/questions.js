@@ -4,6 +4,7 @@ import { auth } from "../middleware/auth.js";
 import { checkRole } from "../middleware/checkRole.js";
 import { success, error } from "../utils/response.js";
 import { supabase } from "../lib/supabase.js";
+import { isValidGrade } from "../lib/grades.js";
 import {
   createQuestion,
   getQuestionsOverview,
@@ -11,13 +12,16 @@ import {
   getStudentGrade,
   getStudentQuestion,
   listStudentQuestions,
+  SUBJECT_LABELS,
   verifyQuestionPayment
 } from "../services/questionsService.js";
 
 const router = Router();
 
+const VALID_SUBJECT_KEYS = Object.keys(SUBJECT_LABELS).filter((k) => k !== "general");
+
 const submitSchema = z.object({
-  subject: z.string().min(2),
+  subject: z.string().min(1).max(32),
   content: z.string().min(10, "اكتب سؤالك بشكل أوضح (10 أحرف على الأقل)").max(2000),
   payment_id: z.string().optional()
 });
@@ -37,20 +41,35 @@ router.get("/overview", auth, checkRole("student"), async (req, res) => {
 
 router.get("/", auth, checkRole("student"), async (req, res) => {
   try {
-    const { tab = "all", page = 1, limit = 10 } = req.query;
-    const result = await listStudentQuestions(req.user.id, { tab, page, limit });
+    const { tab = "all", page = 1, limit = 10, subject = "", from = "", to = "" } = req.query;
+    const result = await listStudentQuestions(req.user.id, {
+      tab,
+      page,
+      limit,
+      subject: subject || null,
+      from: from || null,
+      to: to || null
+    });
     return success(res, result);
-  } catch (_err) {
+  } catch (err) {
+    if (err.status === 400) return error(res, err.message, 400);
+    if (process.env.NODE_ENV !== "production") console.error("GET /questions", err);
     return error(res, "تعذر تحميل أسئلتك", 500);
   }
 });
 
 router.get("/:id", auth, checkRole("student"), async (req, res) => {
+  const questionId = String(req.params.id || "").trim();
+  if (!questionId || questionId.length > 64) {
+    return error(res, "معرّف السؤال غير صالح", 400);
+  }
+
   try {
-    const question = await getStudentQuestion(req.user.id, req.params.id);
+    const question = await getStudentQuestion(req.user.id, questionId);
     if (!question) return error(res, "السؤال غير موجود", 404);
     return success(res, question);
-  } catch (_err) {
+  } catch (err) {
+    if (process.env.NODE_ENV !== "production") console.error("GET /questions/:id", err);
     return error(res, "تعذر تحميل السؤال", 500);
   }
 });
@@ -62,12 +81,19 @@ router.post("/", auth, checkRole("student"), async (req, res) => {
     return error(res, msg, 400);
   }
 
+  const subjectKey = String(parsed.data.subject).trim().toLowerCase();
+  if (!VALID_SUBJECT_KEYS.includes(subjectKey)) {
+    return error(res, "المادة غير صالحة", 400);
+  }
+
   try {
     const grade = await getStudentGrade(req.user.id);
-    if (!grade) return error(res, "حدد صفك الدراسي في الملف الشخصي أولاً", 400);
+    if (!grade || !isValidGrade(grade)) {
+      return error(res, "حدد صفك الدراسي في الملف الشخصي أولاً", 400);
+    }
 
-    const { subject, content, payment_id } = parsed.data;
-    const pricing = await getQuestionPricing(subject, grade);
+    const { content, payment_id } = parsed.data;
+    const pricing = await getQuestionPricing(subjectKey, grade);
     const amount = Number(pricing?.amount || 0);
 
     if (amount > 0) {
@@ -79,9 +105,9 @@ router.post("/", auth, checkRole("student"), async (req, res) => {
           {
             requires_payment: true,
             amount,
-            subject,
+            subject: subjectKey,
             grade,
-            subject_label: subject
+            subject_label: SUBJECT_LABELS[subjectKey] || subjectKey
           },
           "PAYMENT_REQUIRED"
         );
@@ -100,11 +126,14 @@ router.post("/", auth, checkRole("student"), async (req, res) => {
       }
 
       const meta = tx.metadata || {};
-      if (meta.subject !== subject || meta.content !== content) {
+      if (meta.subject !== subjectKey || meta.content !== content.trim()) {
         return error(res, "بيانات الدفع لا تطابق السؤال الحالي", 400);
       }
 
-      const paid = await verifyQuestionPayment(req.user.id, payment_id, { subject, content });
+      const paid = await verifyQuestionPayment(req.user.id, payment_id, {
+        subject: subjectKey,
+        content: content.trim()
+      });
       if (!paid) {
         return error(res, "لم يتم التحقق من الدفع. أكمل الدفع ثم أعد الإرسال", 402, null, "PAYMENT_REQUIRED");
       }
@@ -112,13 +141,14 @@ router.post("/", auth, checkRole("student"), async (req, res) => {
 
     const question = await createQuestion({
       userId: req.user.id,
-      subject,
-      content,
+      subject: subjectKey,
+      content: content.trim(),
       paymentId: payment_id || null
     });
 
     return success(res, question, "تم إرسال سؤالك للمدرسين", 201);
-  } catch (_err) {
+  } catch (err) {
+    if (process.env.NODE_ENV !== "production") console.error("POST /questions", err);
     return error(res, "تعذر إرسال السؤال", 500);
   }
 });

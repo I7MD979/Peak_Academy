@@ -30,7 +30,7 @@ export default function WaitingRoom({ session, sessionId, onStart }) {
       <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-black text-primary">غرفة الانتظار</h1>
-          <p className="text-sm text-text-muted">راجع الإعدادات ثم ابدأ الجلسة عندما يكون الطلاب جاهزين</p>
+          <p className="text-sm text-auth-on-surface-variant">راجع الإعدادات ثم ابدأ الجلسة عندما يكون الطلاب جاهزين</p>
         </div>
         <Link href={`/teacher/sessions/${sessionId}`} className="text-sm font-bold text-accent">
           تفاصيل الجلسة

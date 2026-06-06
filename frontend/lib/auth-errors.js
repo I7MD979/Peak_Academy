@@ -2,7 +2,10 @@ const AUTH_ERROR_MESSAGES = {
   invalid_credentials: "البريد الإلكتروني أو كلمة المرور غير صحيحة",
   email_not_confirmed: "يجب تأكيد البريد الإلكتروني أولاً. راجع بريدك أو تواصل مع الدعم.",
   user_not_found: "لا يوجد حساب بهذا البريد الإلكتروني",
-  too_many_requests: "محاولات كثيرة. انتظر قليلاً ثم حاول مرة أخرى"
+  too_many_requests: "محاولات كثيرة. انتظر قليلاً ثم حاول مرة أخرى",
+  weak_password: "كلمة المرور ضعيفة. استخدم 8 أحرف على الأقل.",
+  email_exists: "هذا البريد مسجّل مسبقاً. جرّب تسجيل الدخول.",
+  oauth_failed: "تعذر تسجيل الدخول عبر Google. حاول مرة أخرى."
 };
 
 export function getAuthErrorMessage(error) {
@@ -17,6 +20,12 @@ export function getAuthErrorMessage(error) {
   }
   if (message.toLowerCase().includes("email not confirmed")) {
     return AUTH_ERROR_MESSAGES.email_not_confirmed;
+  }
+  if (message.toLowerCase().includes("user already registered")) {
+    return AUTH_ERROR_MESSAGES.email_exists;
+  }
+  if (message.toLowerCase().includes("password should be at least")) {
+    return AUTH_ERROR_MESSAGES.weak_password;
   }
   return message;
 }

@@ -2,14 +2,14 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import Icon from "@/components/shared/Icon";
 import LandingReveal from "@/components/landing/LandingReveal";
+
 export default function LandingPromoStrip({ promoCodes = {} }) {
   const [code, setCode] = useState("");
   const codesList = Object.keys(promoCodes);
 
-  function applyPromo(e) {
-    e.preventDefault();
+  function applyPromo(event) {
+    event.preventDefault();
     const key = code.trim().toUpperCase();
     if (!key) {
       toast.error("أدخل كود الخصم أولاً");
@@ -19,55 +19,53 @@ export default function LandingPromoStrip({ promoCodes = {} }) {
     if (message) {
       toast.success(message);
       setCode("");
-    } else {
-      toast.info("سجّل حسابك أولاً لتفعيل أكواد الخصم داخل المنصة");
+      return;
     }
+    toast.info("سجّل حسابك أولاً لتفعيل أكواد الخصم داخل المنصة");
   }
 
+  if (!codesList.length) return null;
+
   return (
-    <section className="bg-slate-50 px-4 pb-4 md:px-8" aria-label="تجربة أكواد الخصم">
+    <section className="landing-section-cream px-4 py-10 md:px-8" aria-label="أكواد الخصم">
       <LandingReveal>
-        <div className="mx-auto max-w-3xl rounded-2xl border border-dashed border-accent/40 bg-white px-4 py-5 shadow-sm md:px-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="landing-card-light mx-auto max-w-3xl rounded-2xl border-dashed border-landing-orange/35 px-5 py-6 md:px-8">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-3">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
-                <Icon name="tag" size={20} />
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-landing-orange/10 text-landing-orange">
+                <span className="material-symbols-outlined text-xl">sell</span>
               </span>
               <div>
-                <p className="font-bold text-primary">جرّب كود خصم</p>
-                <p className="mt-0.5 text-sm text-text-muted">
-                  {codesList.length ? (
-                    <>
-                      أكواد نشطة:{" "}
-                      {codesList.map((promoCode, index) => (
-                        <span key={promoCode}>
-                          {index > 0 ? "، " : null}
-                          <span dir="ltr" lang="en" className="font-semibold text-accent">
-                            {promoCode}
-                          </span>
-                        </span>
-                      ))}
-                    </>
-                  ) : (
-                    "سجّل حسابك لتفعيل أكواد الخصم داخل المنصة"
-                  )}
+                <p className="font-bold text-landing-ink">جرّب كود خصم</p>
+                <p className="mt-1 text-sm text-landing-ink-muted">
+                  أكواد نشطة:{" "}
+                  {codesList.map((promoCode, index) => (
+                    <span key={promoCode}>
+                      {index > 0 ? "، " : null}
+                      <span dir="ltr" lang="en" className="font-semibold text-landing-orange">
+                        {promoCode}
+                      </span>
+                    </span>
+                  ))}
                 </p>
               </div>
             </div>
-            <form onSubmit={applyPromo} className="flex w-full gap-2 sm:max-w-xs">
+
+            <form onSubmit={applyPromo} className="flex w-full gap-2 sm:max-w-sm">
               <input
                 type="text"
                 value={code}
-                onChange={(e) => setCode(e.target.value)}
+                onChange={(event) => setCode(event.target.value)}
                 placeholder="أدخل الكود"
                 dir="ltr"
                 lang="en"
-                className="min-w-0 flex-1 rounded-xl border border-border bg-white px-3 py-2.5 text-sm text-primary placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+                maxLength={32}
+                className="min-w-0 flex-1 rounded-xl border border-landing-ink/10 bg-white px-3 py-3 text-sm text-landing-ink placeholder:text-landing-ink-muted/60 focus:border-landing-orange/50 focus:outline-none focus:ring-2 focus:ring-landing-orange/15"
                 aria-label="كود الخصم"
               />
               <button
                 type="submit"
-                className="shrink-0 rounded-xl bg-accent px-4 py-2.5 text-sm font-bold text-white transition hover:bg-orange-500"
+                className="shrink-0 rounded-xl bg-landing-orange px-5 py-3 text-sm font-bold text-white transition hover:opacity-90"
               >
                 تطبيق
               </button>

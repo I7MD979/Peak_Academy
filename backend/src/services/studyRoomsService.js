@@ -1,5 +1,6 @@
 import { supabase } from "../lib/supabase.js";
 import { isMissingTableError } from "../utils/db-errors.js";
+import { GRADE_LABELS as EXTENDED_GRADE_LABELS } from "../lib/grades.js";
 
 function warnMissingStudyRooms(err) {
   if (process.env.NODE_ENV !== "production" && isMissingTableError(err)) {
@@ -24,8 +25,27 @@ export const SUBJECT_LABELS = {
 export const GRADE_LABELS = {
   first: "الأول الثانوي",
   second: "الثاني الثانوي",
-  third: "الثالث الثانوي"
+  third: "الثالث الثانوي",
+  ...EXTENDED_GRADE_LABELS
 };
+
+/** study_rooms table stores legacy first/second/third — map modern grades. */
+export function normalizeStudyRoomGrade(grade) {
+  const g = String(grade || "").trim();
+  const map = {
+    sec_first: "first",
+    sec_second: "second",
+    sec_third: "third",
+    prep_first: "first",
+    prep_second: "second",
+    prep_third: "third"
+  };
+  return map[g] || g;
+}
+
+export function gradesMatchForStudyRoom(a, b) {
+  return normalizeStudyRoomGrade(a) === normalizeStudyRoomGrade(b);
+}
 
 export const ROOM_STATUS_LABELS = {
   open: "متاحة",
@@ -69,11 +89,12 @@ export async function countActiveRoomMembers(roomId) {
 }
 
 export async function findOpenStudyRoom(subject, grade) {
+  const roomGrade = normalizeStudyRoomGrade(grade);
   const { data, error } = await supabase
     .from("study_rooms")
     .select("*")
     .eq("subject", subject)
-    .eq("grade", grade)
+    .eq("grade", roomGrade)
     .in("status", ["open", "active"])
     .order("created_at", { ascending: true })
     .limit(1)
@@ -146,10 +167,11 @@ export async function findStudentActiveMembership(userId) {
 }
 
 export async function listOpenRooms(grade, subject = null) {
+  const roomGrade = normalizeStudyRoomGrade(grade);
   let query = supabase
     .from("study_rooms")
     .select("*")
-    .eq("grade", grade)
+    .eq("grade", roomGrade)
     .in("status", ["open", "active"])
     .order("created_at", { ascending: false })
     .limit(20);
@@ -212,16 +234,22 @@ export async function joinStudyRoom({ userId, subject, grade, roomId = null }) {
     const { data, error } = await supabase.from("study_rooms").select("*").eq("id", roomId).single();
     if (error || !data) throw Object.assign(new Error("الغرفة غير موجودة"), { status: 404 });
     if (data.status === "closed") throw Object.assign(new Error("هذه الغرفة مغلقة"), { status: 400 });
-    if (data.grade !== grade) throw Object.assign(new Error("هذه الغرفة ليست لصفك"), { status: 403 });
+    if (!gradesMatchForStudyRoom(data.grade, grade)) {
+      throw Object.assign(new Error("هذه الغرفة ليست لصفك"), { status: 403 });
+    }
     room = data;
   } else {
     if (!subject) throw Object.assign(new Error("اختر المادة أولاً"), { status: 400 });
-    room = await findOpenStudyRoom(subject, grade);
+    const subjectKey = String(subject).trim().toLowerCase();
+    if (!SUBJECT_LABELS[subjectKey]) {
+      throw Object.assign(new Error("المادة غير صالحة"), { status: 400 });
+    }
+    room = await findOpenStudyRoom(subjectKey, grade);
     if (!room) {
       room = await createStudyRoom({
         id: `sr-${Date.now()}`,
-        subject,
-        grade,
+        subject: subjectKey,
+        grade: normalizeStudyRoomGrade(grade),
         status: "open",
         capacity: 6
       });
@@ -248,7 +276,7 @@ export async function joinStudyRoom({ userId, subject, grade, roomId = null }) {
   };
 }
 
-export async function getStudyRoomsOverview(userId, grade) {
+export async function getStudyRoomsOverview(userId, grade, { subject = null } = {}) {
   const membership = await findStudentActiveMembership(userId);
   let activeRoom = null;
 
@@ -263,7 +291,8 @@ export async function getStudyRoomsOverview(userId, grade) {
     };
   }
 
-  const openRooms = grade ? await listOpenRooms(grade) : [];
+  const subjectFilter = subject ? String(subject).trim().toLowerCase() : null;
+  const openRooms = grade ? await listOpenRooms(grade, subjectFilter) : [];
 
   return {
     grade_label: GRADE_LABELS[grade] || grade,
@@ -272,7 +301,8 @@ export async function getStudyRoomsOverview(userId, grade) {
     open_rooms: openRooms,
     stats: {
       open_rooms_count: openRooms.length,
-      in_room: Boolean(activeRoom)
+      in_room: Boolean(activeRoom),
+      active_members: activeRoom?.member_count ?? 0
     }
   };
 }

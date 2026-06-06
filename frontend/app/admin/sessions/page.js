@@ -1,42 +1,124 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import DataTable from "@/components/admin/DataTable";
-import StatusBadge from "@/components/admin/StatusBadge";
+import AdminActionsMenu from "@/components/admin/AdminActionsMenu";
+import AdminConfirmDialog from "@/components/admin/AdminConfirmDialog";
 import SessionDetailsModal from "@/components/admin/SessionDetailsModal";
-import { sessionsApi } from "@/lib/api";
-import { formatCurrencyEgp, formatDateTimeAr } from "@/lib/format";
+import AdminSessionsView from "@/components/admin/AdminSessionsPage";
+import StatusBadge from "@/components/admin/StatusBadge";
+import { SectionLoader } from "@/components/shared/LoadingSkeleton";
+import { dashboardApi, sessionsApi } from "@/lib/api";
+import {
+  formatCurrencyEgp,
+  formatDateTimeAr,
+  formatGradeAr,
+  formatSchoolLevelAr
+} from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 const statusTabs = [
   { key: "all", label: "الكل" },
   { key: "scheduled", label: "قادمة" },
-  { key: "live", label: "مباشرة الآن" },
+  { key: "live", label: "مباشرة" },
   { key: "completed", label: "منتهية" },
   { key: "cancelled", label: "ملغاة" }
 ];
 
+const VALID_STATUSES = new Set(statusTabs.map((t) => t.key));
+const VALID_SCHOOL_LEVELS = new Set(["preparatory", "secondary"]);
+const VALID_GRADES = new Set([
+  "prep_first",
+  "prep_second",
+  "prep_third",
+  "sec_first",
+  "sec_second",
+  "sec_third"
+]);
+
 function getEnrollmentCount(session) {
-  return session?.enrollments?.[0]?.count ?? 0;
+  return session?.enrollments?.[0]?.count ?? session?.enrollment_count ?? 0;
 }
 
-export default function AdminSessionsPage() {
+function canCancelSession(session) {
+  return session?.status === "scheduled" || session?.status === "live";
+}
+
+function readFiltersFromParams(searchParams) {
+  const status = searchParams.get("status");
+  return {
+    statusFilter: VALID_STATUSES.has(status) ? status : "all",
+    schoolLevelFilter: VALID_SCHOOL_LEVELS.has(searchParams.get("school_level"))
+      ? searchParams.get("school_level")
+      : "",
+    gradeFilter: VALID_GRADES.has(searchParams.get("grade")) ? searchParams.get("grade") : "",
+    scheduledFrom: searchParams.get("from") || "",
+    scheduledTo: searchParams.get("to") || "",
+    search: searchParams.get("q") || "",
+    page: Math.max(Number(searchParams.get("page")) || 1, 1)
+  };
+}
+
+function AdminSessionsRoute() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const initial = useMemo(() => readFiltersFromParams(searchParams), [searchParams]);
+
   const [sessions, setSessions] = useState([]);
+  const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [closingOpen, setClosingOpen] = useState(false);
   const [error, setError] = useState("");
   const [mutatingId, setMutatingId] = useState("");
 
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(initial.page);
   const [totalPages, setTotalPages] = useState(1);
   const [totalSessions, setTotalSessions] = useState(0);
 
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [searchInput, setSearchInput] = useState("");
-  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState(initial.statusFilter);
+  const [schoolLevelFilter, setSchoolLevelFilter] = useState(initial.schoolLevelFilter);
+  const [gradeFilter, setGradeFilter] = useState(initial.gradeFilter);
+  const [scheduledFrom, setScheduledFrom] = useState(initial.scheduledFrom);
+  const [scheduledTo, setScheduledTo] = useState(initial.scheduledTo);
+  const [searchInput, setSearchInput] = useState(initial.search);
+  const [search, setSearch] = useState(initial.search);
 
   const [selectedSession, setSelectedSession] = useState(null);
+  const [cancelTarget, setCancelTarget] = useState(null);
+  const [confirmCloseOpen, setConfirmCloseOpen] = useState(false);
+
+  const syncUrl = useCallback(
+    (next) => {
+      const params = new URLSearchParams();
+      if (next.statusFilter && next.statusFilter !== "all") params.set("status", next.statusFilter);
+      if (next.schoolLevelFilter) params.set("school_level", next.schoolLevelFilter);
+      if (next.gradeFilter) params.set("grade", next.gradeFilter);
+      if (next.scheduledFrom) params.set("from", next.scheduledFrom);
+      if (next.scheduledTo) params.set("to", next.scheduledTo);
+      if (next.search) params.set("q", next.search);
+      if (next.page > 1) params.set("page", String(next.page));
+
+      const qs = params.toString();
+      router.replace(qs ? `/admin/sessions?${qs}` : "/admin/sessions", { scroll: false });
+    },
+    [router]
+  );
+
+  const filterSnapshot = useCallback(
+    () => ({
+      statusFilter,
+      schoolLevelFilter,
+      gradeFilter,
+      scheduledFrom,
+      scheduledTo,
+      search,
+      page
+    }),
+    [statusFilter, schoolLevelFilter, gradeFilter, scheduledFrom, scheduledTo, search, page]
+  );
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -46,19 +128,35 @@ export default function AdminSessionsPage() {
     return () => clearTimeout(timeout);
   }, [searchInput]);
 
+  useEffect(() => {
+    syncUrl(filterSnapshot());
+  }, [filterSnapshot, syncUrl]);
+
+  const loadStats = useCallback(async () => {
+    setStatsLoading(true);
+    try {
+      const res = await dashboardApi.adminSessionsStats();
+      setStats(res?.data || null);
+    } catch {
+      setStats(null);
+    } finally {
+      setStatsLoading(false);
+    }
+  }, []);
+
   const loadSessions = useCallback(async () => {
     setLoading(true);
     setError("");
 
     try {
-      const params = new URLSearchParams({
-        page: String(page),
-        limit: "20",
-        status: statusFilter
-      });
+      const params = new URLSearchParams({ page: String(page), limit: "20", status: statusFilter });
       if (search) params.set("search", search);
+      if (schoolLevelFilter) params.set("school_level", schoolLevelFilter);
+      if (gradeFilter) params.set("grade", gradeFilter);
+      if (scheduledFrom) params.set("scheduled_from", scheduledFrom);
+      if (scheduledTo) params.set("scheduled_to", scheduledTo);
 
-      const payload = await sessionsApi.list(params.toString());
+      const payload = await dashboardApi.adminSessions(params.toString());
       setSessions(payload?.data || []);
       setTotalPages(payload?.pagination?.totalPages || 1);
       setTotalSessions(payload?.pagination?.total || 0);
@@ -70,23 +168,34 @@ export default function AdminSessionsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, search, statusFilter]);
+  }, [page, search, statusFilter, schoolLevelFilter, gradeFilter, scheduledFrom, scheduledTo]);
+
+  useEffect(() => {
+    loadStats();
+  }, [loadStats]);
 
   useEffect(() => {
     loadSessions();
   }, [loadSessions]);
 
+  const refreshAll = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([loadStats(), loadSessions()]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadStats, loadSessions]);
+
   const handleCancel = async (session) => {
-    if (session.status === "completed" || session.status === "cancelled") return;
-
-    const confirmed = window.confirm(`هل تريد إلغاء الجلسة "${session.title}"؟`);
-    if (!confirmed) return;
-
     setMutatingId(session.id);
     try {
       await sessionsApi.cancel(session.id);
       setSessions((prev) => prev.map((s) => (s.id === session.id ? { ...s, status: "cancelled" } : s)));
+      setSelectedSession((prev) => (prev?.id === session.id ? { ...prev, status: "cancelled" } : prev));
       toast.success("تم إلغاء الجلسة بنجاح");
+      setCancelTarget(null);
+      await loadStats();
     } catch (err) {
       toast.error(err.message || "فشل إلغاء الجلسة");
     } finally {
@@ -94,19 +203,58 @@ export default function AdminSessionsPage() {
     }
   };
 
+  const handleCloseOpenSessions = async () => {
+    setClosingOpen(true);
+    try {
+      const res = await sessionsApi.closeOpen();
+      const payload = res?.data || {};
+      toast.success(res?.message || `تم إغلاق ${payload.total ?? 0} جلسة مفتوحة`);
+      setConfirmCloseOpen(false);
+      await refreshAll();
+    } catch (err) {
+      toast.error(err.message || "تعذر إغلاق الجلسات المفتوحة");
+    } finally {
+      setClosingOpen(false);
+    }
+  };
+
+  const handleSchoolLevelChange = (value) => {
+    setPage(1);
+    setSchoolLevelFilter(value);
+    if (gradeFilter) {
+      const prep = gradeFilter.startsWith("prep_");
+      const sec = gradeFilter.startsWith("sec_");
+      if ((value === "preparatory" && sec) || (value === "secondary" && prep)) {
+        setGradeFilter("");
+      }
+    }
+  };
+
+  const clearAllFilters = () => {
+    setPage(1);
+    setSchoolLevelFilter("");
+    setGradeFilter("");
+    setScheduledFrom("");
+    setScheduledTo("");
+    setSearchInput("");
+    setSearch("");
+  };
+
+  const openSession = (row) => setSelectedSession(row);
+
   const columns = useMemo(
     () => [
       {
         key: "title",
-        label: "العنوان",
+        label: "الجلسة",
         render: (row) => (
-          <div className="min-w-[180px]">
-            <p className="font-bold text-text">{row.title}</p>
-            <p className="mt-0.5 text-xs text-text-muted">
+          <button type="button" className="min-w-[180px] text-start" onClick={() => openSession(row)}>
+            <p className="font-bold text-on-surface hover:text-md-primary">{row.title}</p>
+            <p className="mt-0.5 text-xs text-on-surface-variant">
               {row.subject?.icon ? `${row.subject.icon} ` : ""}
               {row.subject?.name_ar || row.subject || "مادة عامة"}
             </p>
-          </div>
+          </button>
         )
       },
       {
@@ -114,17 +262,27 @@ export default function AdminSessionsPage() {
         label: "المدرس",
         render: (row) => (
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-black text-primary">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-md-primary/15 text-xs font-black text-md-primary">
               {(row.teacher?.full_name || "?").slice(0, 1)}
             </div>
-            <span>{row.teacher?.full_name || "—"}</span>
+            <span className="text-on-surface">{row.teacher?.full_name || "—"}</span>
+          </div>
+        )
+      },
+      {
+        key: "level",
+        label: "المرحلة / الصف",
+        render: (row) => (
+          <div className="text-xs">
+            <p className="font-bold text-on-surface">{formatSchoolLevelAr(row.school_level)}</p>
+            <p className="text-on-surface-variant">{formatGradeAr(row.grade)}</p>
           </div>
         )
       },
       {
         key: "scheduled_at",
         label: "الموعد",
-        render: (row) => formatDateTimeAr(row.scheduled_at)
+        render: (row) => <span className="text-on-surface">{formatDateTimeAr(row.scheduled_at)}</span>
       },
       {
         key: "students",
@@ -133,152 +291,160 @@ export default function AdminSessionsPage() {
           const enrolled = getEnrollmentCount(row);
           const max = row.max_students || 0;
           const full = max > 0 && enrolled >= max;
-          return <span className={cn("font-bold", full ? "text-danger" : "text-text")}>{enrolled}/{max || "—"}</span>;
+          return (
+            <span className={cn("font-bold", full ? "text-danger" : "text-on-surface")}>
+              {enrolled}/{max || "—"}
+            </span>
+          );
         }
       },
       {
         key: "price",
         label: "السعر",
-        render: (row) => <span className="font-bold text-accent">{formatCurrencyEgp(row.price_per_student)}</span>
+        render: (row) => (
+          <span className="font-bold text-md-primary">{formatCurrencyEgp(row.price_per_student)}</span>
+        )
       },
       {
         key: "status",
         label: "الحالة",
-        render: (row) => <StatusBadge status={row.status} />
+        render: (row) => <StatusBadge status={row.status} variant="session" />
       },
       {
         key: "actions",
         label: "الإجراءات",
         render: (row) => {
           const busy = mutatingId === row.id;
-          const canCancel = row.status === "scheduled" || row.status === "live";
+          const cancellable = canCancelSession(row);
 
-          return (
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="rounded-lg"
-                onClick={() => setSelectedSession(row)}
-              >
-                عرض التفاصيل
-              </Button>
+          const items = [
+            {
+              label: "عرض التفاصيل",
+              icon: "video",
+              onClick: () => openSession(row)
+            },
+            cancellable
+              ? {
+                  label: row.status === "live" ? "إيقاف وإلغاء البث" : "إلغاء الجلسة",
+                  icon: "close",
+                  tone: "danger",
+                  disabled: busy,
+                  onClick: () => setCancelTarget(row)
+                }
+              : null
+          ].filter(Boolean);
 
-              {canCancel ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="destructive"
-                  className="rounded-lg"
-                  disabled={busy}
-                  onClick={() => handleCancel(row)}
-                >
-                  {busy ? "جاري..." : "إلغاء الجلسة"}
-                </Button>
-              ) : null}
-            </div>
-          );
+          if (items.length === 0) {
+            return <span className="text-xs text-on-surface-variant">—</span>;
+          }
+
+          return <AdminActionsMenu items={items} disabled={busy} label={busy ? "جاري..." : "إجراءات"} />;
         }
       }
     ],
     [mutatingId]
   );
 
+  const liveTab = stats?.live > 0 ? { badge: stats.live } : undefined;
+  const tabsWithBadge = statusTabs.map((tab) =>
+    tab.key === "live" && liveTab ? { ...tab, ...liveTab } : tab
+  );
+
   return (
-    <div className="space-y-5">
-      <section className="rounded-3xl bg-gradient-to-l from-primary to-[#0f1117] p-6 text-white shadow-lg">
-        <p className="text-sm text-white/70">إدارة الجلسات</p>
-        <h1 className="mt-1 text-2xl font-black">متابعة كل الجلسات على المنصة</h1>
-        <p className="mt-2 text-sm text-white/75">
-          راقب الجلسات القادمة والمباشرة والمنتهية، ونفّذ إجراءات الإدارة بسرعة وبوضوح.
-        </p>
-      </section>
-
-      <section className="rounded-2xl border border-border bg-card p-4 shadow-sm">
-        <div className="mb-3 flex flex-wrap gap-2">
-          {statusTabs.map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => {
-                setPage(1);
-                setStatusFilter(tab.key);
-              }}
-              className={cn(
-                "rounded-full px-4 py-2 text-sm font-bold transition-colors",
-                statusFilter === tab.key
-                  ? "bg-accent text-white"
-                  : "border border-border bg-bg text-text-muted hover:text-text"
-              )}
-            >
-              {tab.label}
-              {tab.key === "live" ? <span className="mr-1 inline-block h-2 w-2 animate-pulse rounded-full bg-success align-middle" /> : null}
-            </button>
-          ))}
-        </div>
-
-        <input
-          value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
-          placeholder="ابحث بعنوان الجلسة..."
-          className="h-11 w-full rounded-xl border border-border px-4 text-sm font-cairo focus:border-accent focus:outline-none"
-        />
-      </section>
-
-      {error ? (
-        <div className="rounded-xl border border-danger/30 bg-danger/10 p-3">
-          <p className="text-sm font-bold text-danger">⚠️ {error}</p>
-          <Button type="button" onClick={loadSessions} className="mt-3 rounded-xl bg-danger text-white hover:bg-red-500">
-            إعادة المحاولة
-          </Button>
-        </div>
-      ) : null}
-
-      <DataTable
+    <>
+      <AdminSessionsView
+        sessions={sessions}
         columns={columns}
-        data={sessions}
         loading={loading}
-        emptyMessage="لا توجد جلسات مطابقة"
-        emptyDescription="جرّب تغيير الفلاتر أو البحث لعرض نتائج أخرى."
-        getRowClassName={(row) =>
-          row.status === "live" ? "border-r-4 border-r-success bg-success/5" : ""
-        }
+        error={error}
+        stats={stats}
+        statsLoading={statsLoading}
+        refreshing={refreshing}
+        statusFilter={statusFilter}
+        onStatusFilterChange={(v) => {
+          setPage(1);
+          setStatusFilter(v);
+        }}
+        statusTabs={tabsWithBadge}
+        searchInput={searchInput}
+        onSearchChange={setSearchInput}
+        schoolLevelFilter={schoolLevelFilter}
+        onSchoolLevelFilterChange={handleSchoolLevelChange}
+        gradeFilter={gradeFilter}
+        onGradeFilterChange={(v) => {
+          setPage(1);
+          setGradeFilter(v);
+        }}
+        scheduledFrom={scheduledFrom}
+        onScheduledFromChange={(v) => {
+          setPage(1);
+          setScheduledFrom(v);
+        }}
+        scheduledTo={scheduledTo}
+        onScheduledToChange={(v) => {
+          setPage(1);
+          setScheduledTo(v);
+        }}
+        onClearDates={() => {
+          setPage(1);
+          setScheduledFrom("");
+          setScheduledTo("");
+        }}
+        onClearFilters={clearAllFilters}
+        page={page}
+        totalPages={totalPages}
+        totalSessions={totalSessions}
+        onPageChange={setPage}
+        onRefresh={refreshAll}
+        onCloseOpenSessions={() => setConfirmCloseOpen(true)}
+        closingOpen={closingOpen}
+        onStatFilter={(filter) => {
+          setPage(1);
+          setStatusFilter(filter);
+        }}
       />
 
-      <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4 text-sm">
-        <p className="text-text-muted">
-          إجمالي الجلسات: <span className="font-bold text-text">{totalSessions}</span>
-        </p>
+      <SessionDetailsModal
+        session={selectedSession}
+        busy={mutatingId === selectedSession?.id}
+        canCancel={canCancelSession(selectedSession)}
+        onClose={() => setSelectedSession(null)}
+        onCancel={(session) => setCancelTarget(session)}
+      />
 
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="rounded-lg"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page <= 1 || loading}
-          >
-            السابق
-          </Button>
-          <span className="min-w-24 text-center font-semibold text-text-muted">
-            صفحة {page} من {Math.max(1, totalPages)}
-          </span>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="rounded-lg"
-            onClick={() => setPage((p) => (p < totalPages ? p + 1 : p))}
-            disabled={page >= totalPages || loading}
-          >
-            التالي
-          </Button>
-        </div>
-      </section>
+      <AdminConfirmDialog
+        open={Boolean(cancelTarget)}
+        title={cancelTarget?.status === "live" ? "إيقاف الجلسة المباشرة" : "إلغاء الجلسة"}
+        description={
+          cancelTarget?.status === "live"
+            ? `هل تريد إيقاف وإلغاء الجلسة المباشرة «${cancelTarget?.title || ""}»؟ سيتم إيقاف البث وإعادة المبالغ للطلاب.`
+            : `هل تريد إلغاء الجلسة «${cancelTarget?.title || ""}»؟ سيتم إشعار المسجلين وإعادة المبالغ.`
+        }
+        confirmLabel={cancelTarget?.status === "live" ? "إيقاف وإلغاء" : "إلغاء الجلسة"}
+        tone="danger"
+        loading={mutatingId === cancelTarget?.id}
+        onClose={() => setCancelTarget(null)}
+        onConfirm={() => cancelTarget && handleCancel(cancelTarget)}
+      />
 
-      <SessionDetailsModal session={selectedSession} onClose={() => setSelectedSession(null)} />
-    </div>
+      <AdminConfirmDialog
+        open={confirmCloseOpen}
+        title="إغلاق الجلسات المفتوحة"
+        description="سيتم إغلاق جميع الجلسات المجدولة أو المباشرة التي لم تُنهَ بشكل صحيح، وتنظيف غرف الفيديو اليتيمة. استخدم هذا عند وجود جلسات عالقة."
+        confirmLabel="تأكيد الإغلاق"
+        tone="primary"
+        loading={closingOpen}
+        onClose={() => setConfirmCloseOpen(false)}
+        onConfirm={handleCloseOpenSessions}
+      />
+    </>
+  );
+}
+
+export default function AdminSessionsPage() {
+  return (
+    <Suspense fallback={<SectionLoader message="جاري تحميل الجلسات..." />}>
+      <AdminSessionsRoute />
+    </Suspense>
   );
 }

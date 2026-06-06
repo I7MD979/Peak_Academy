@@ -1,7 +1,7 @@
 import { supabase } from "../lib/supabase.js";
 import { reconcileCompletedTransaction } from "../utils/payments-fulfillment.js";
 import { isMissingTableError } from "../utils/db-errors.js";
-import { SUBJECT_LABELS, GRADE_LABELS, SUBJECT_OPTIONS } from "./studyRoomsService.js";
+import { SUBJECT_LABELS, GRADE_LABELS, SUBJECT_OPTIONS, normalizeStudyRoomGrade } from "./studyRoomsService.js";
 
 export { SUBJECT_OPTIONS, SUBJECT_LABELS, GRADE_LABELS };
 
@@ -37,11 +37,13 @@ export async function getStudentGrade(userId) {
 }
 
 export async function getQuestionPricing(subject, grade) {
+  const subjectKey = String(subject || "").trim().toLowerCase();
+  const roomGrade = normalizeStudyRoomGrade(grade);
   const { data, error } = await supabase
     .from("question_pricing")
     .select("*")
-    .eq("subject", subject)
-    .eq("grade", grade)
+    .eq("subject", subjectKey)
+    .eq("grade", roomGrade)
     .eq("is_active", true)
     .order("created_at", { ascending: false })
     .limit(1)
@@ -57,10 +59,11 @@ export async function getQuestionPricing(subject, grade) {
 export async function getPricingForSubjects(grade) {
   if (!grade) return {};
 
+  const roomGrade = normalizeStudyRoomGrade(grade);
   const { data, error } = await supabase
     .from("question_pricing")
     .select("subject, amount, is_active")
-    .eq("grade", grade)
+    .eq("grade", roomGrade)
     .eq("is_active", true);
 
   if (error) {
@@ -128,9 +131,55 @@ export async function getQuestionsOverview(userId) {
   };
 }
 
-export async function listStudentQuestions(userId, { tab = "all", page = 1, limit = 10 } = {}) {
-  const pageNum = Math.max(1, parseInt(page, 10));
-  const limitNum = Math.min(50, Math.max(1, parseInt(limit, 10)));
+const VALID_QUESTION_TABS = new Set(["all", "unanswered", "answered"]);
+const VALID_SUBJECT_KEYS = Object.keys(SUBJECT_LABELS).filter((k) => k !== "general");
+
+function parseQuestionDateRange(fromRaw, toRaw) {
+  const result = { from: null, to: null, invalid: false };
+  if (fromRaw) {
+    const fromDate = new Date(String(fromRaw));
+    if (Number.isNaN(fromDate.getTime())) {
+      result.invalid = true;
+      return result;
+    }
+    result.from = fromDate.toISOString();
+  }
+  if (toRaw) {
+    const toDate = new Date(String(toRaw));
+    if (Number.isNaN(toDate.getTime())) {
+      result.invalid = true;
+      return result;
+    }
+    toDate.setHours(23, 59, 59, 999);
+    result.to = toDate.toISOString();
+  }
+  if (result.from && result.to && result.from > result.to) {
+    result.invalid = true;
+  }
+  return result;
+}
+
+export async function listStudentQuestions(
+  userId,
+  { tab = "all", page = 1, limit = 10, subject = null, from: fromRaw = null, to: toRaw = null } = {}
+) {
+  const tabKey = String(tab);
+  if (!VALID_QUESTION_TABS.has(tabKey)) {
+    throw Object.assign(new Error("تبويب غير صالح"), { status: 400 });
+  }
+
+  const subjectKey = subject ? String(subject).trim().toLowerCase() : null;
+  if (subjectKey && !VALID_SUBJECT_KEYS.includes(subjectKey)) {
+    throw Object.assign(new Error("المادة غير صالحة"), { status: 400 });
+  }
+
+  const dateRange = parseQuestionDateRange(fromRaw, toRaw);
+  if (dateRange.invalid) {
+    throw Object.assign(new Error("نطاق التاريخ غير صالح"), { status: 400 });
+  }
+
+  const pageNum = Math.max(1, Math.min(100, parseInt(page, 10) || 1));
+  const limitNum = Math.min(50, Math.max(1, parseInt(limit, 10) || 10));
   const from = (pageNum - 1) * limitNum;
   const to = from + limitNum - 1;
 
@@ -143,8 +192,11 @@ export async function listStudentQuestions(userId, { tab = "all", page = 1, limi
     .eq("student_id", userId)
     .order("created_at", { ascending: false });
 
-  if (tab === "unanswered") query = query.eq("status", "unanswered");
-  if (tab === "answered") query = query.eq("status", "answered");
+  if (tabKey === "unanswered") query = query.eq("status", "unanswered");
+  if (tabKey === "answered") query = query.eq("status", "answered");
+  if (subjectKey) query = query.eq("subject", subjectKey);
+  if (dateRange.from) query = query.gte("created_at", dateRange.from);
+  if (dateRange.to) query = query.lte("created_at", dateRange.to);
 
   query = query.range(from, to);
 

@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import Icon from "@/components/shared/Icon";
 import GoogleIcon from "@/components/auth/GoogleIcon";
 import AuthField, { authInputClass } from "@/components/auth/AuthField";
-import { Button } from "@/components/ui/button";
+import AuthStepIndicator from "@/components/auth/AuthStepIndicator";
+import PasswordStrength from "@/components/auth/PasswordStrength";
 import { Select } from "@/components/ui/Select";
 import { useAuth } from "@/hooks/useAuth";
 import { authApi } from "@/lib/api";
@@ -17,11 +17,18 @@ import { GRADE_OPTIONS } from "@/lib/profile-form";
 import { isProfileComplete, resolvePostAuthPathClient, ROLE_HOME } from "@/lib/role-routes";
 import { createClient } from "@/lib/supabase/client";
 import {
-  REGISTER_ROLES,
+  defaultGradeFromLevelParam,
   registerStep1Schema,
-  registerStep2Schema
+  registerStep2Schema,
+  ROLE_SELECT_OPTIONS
 } from "@/lib/register-form";
 import { buildPlanCheckoutPath } from "@/lib/checkout-redirect";
+import {
+  authBtnGoogleClass,
+  authBtnPrimaryClass,
+  authDividerClass,
+  authErrorClass
+} from "@/components/auth/auth-styles";
 import { cn } from "@/lib/utils";
 
 const STEPS = [
@@ -29,7 +36,7 @@ const STEPS = [
   { id: 2, title: "الملف الشخصي" }
 ];
 
-export default function RegisterForm() {
+export default function RegisterForm({ redirectTo = null, levelParam = null }) {
   const router = useRouter();
   const { signUpWithEmail, signInWithGoogle } = useAuth();
   const [step, setStep] = useState(1);
@@ -40,25 +47,52 @@ export default function RegisterForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
-  const [accountData, setAccountData] = useState({ email: "", password: "", confirmPassword: "" });
+  const [accountData, setAccountData] = useState({
+    email: "",
+    password: "",
+    confirmPassword: "",
+    acceptedTerms: false
+  });
 
   const step1Form = useForm({
     resolver: zodResolver(registerStep1Schema),
     defaultValues: accountData
   });
 
+  const passwordValue = step1Form.watch("password");
+
   const step2Form = useForm({
     resolver: zodResolver(registerStep2Schema),
-    defaultValues: { full_name: "", role: "student", grade: "third", phone: "" }
+    defaultValues: {
+      full_name: "",
+      role: "student",
+      grade: defaultGradeFromLevelParam(levelParam),
+      phone: ""
+    }
   });
 
   const selectedRole = step2Form.watch("role");
+
+  const resolveNextPath = async (sessionToken, createdUser, role) => {
+    let nextPath = redirectTo;
+    if (!nextPath) {
+      nextPath =
+        createdUser && isProfileComplete(createdUser)
+          ? ROLE_HOME[createdUser.role] || "/onboarding"
+          : await resolvePostAuthPathClient(sessionToken);
+
+      if (nextPath === "/onboarding" && role && ROLE_HOME[role]) {
+        nextPath = ROLE_HOME[role];
+      }
+    }
+    return nextPath;
+  };
 
   const handleGoogle = async () => {
     setGoogleLoading(true);
     setError("");
     try {
-      const { error: oauthError } = await signInWithGoogle();
+      const { error: oauthError } = await signInWithGoogle({ returnTo: redirectTo });
       if (oauthError) {
         setError(getAuthErrorMessage(oauthError) || "تعذر المتابعة عبر Google");
       }
@@ -73,6 +107,7 @@ export default function RegisterForm() {
     setAccountData(values);
     setError("");
     setStep(2);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   });
 
   const finishRegistration = step2Form.handleSubmit(async (profileValues) => {
@@ -84,7 +119,7 @@ export default function RegisterForm() {
     const password = accountData.password;
 
     try {
-      const { data, error: signUpError } = await signUpWithEmail(email, password);
+      const { error: signUpError } = await signUpWithEmail(email, password);
       if (signUpError) {
         setError(getAuthErrorMessage(signUpError));
         setStep(1);
@@ -108,32 +143,18 @@ export default function RegisterForm() {
         phone: profileValues.phone?.trim() || undefined
       });
 
-      const createdUser = res?.data;
-      const checkoutParams =
-        typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
-      const planCheckout = buildPlanCheckoutPath(
-        checkoutParams?.get("redirect"),
-        checkoutParams?.get("plan")
-      );
-
-      let nextPath = planCheckout;
-      if (!nextPath) {
-        nextPath =
-          createdUser && isProfileComplete(createdUser)
-            ? ROLE_HOME[createdUser.role] || "/onboarding"
-            : await resolvePostAuthPathClient(session?.access_token);
-
-        if (nextPath === "/onboarding" && res?.success && ROLE_HOME[profileValues.role]) {
-          nextPath = ROLE_HOME[profileValues.role];
-        }
-      }
-
+      const nextPath = await resolveNextPath(session.access_token, res?.data, profileValues.role);
       router.replace(nextPath);
     } catch (err) {
       const needsOnboarding =
-        err?.status === 403 || String(err?.message || "").includes("ملفك الشخصي");
+        err?.status === 403 ||
+        err?.status === 400 ||
+        String(err?.message || "").includes("ملفك الشخصي");
       if (needsOnboarding) {
-        router.replace("/onboarding");
+        const onboardingPath = redirectTo
+          ? `/onboarding?next=${encodeURIComponent(redirectTo)}`
+          : "/onboarding";
+        router.replace(onboardingPath);
         return;
       }
       setError(err.message || "تعذر إنشاء الحساب. حاول مرة أخرى.");
@@ -144,83 +165,52 @@ export default function RegisterForm() {
 
   const isBusy = loading || googleLoading;
 
+  const loginHref = redirectTo
+    ? `/auth/login?redirect=${encodeURIComponent(redirectTo)}`
+    : "/auth/login";
+
   if (pendingEmailConfirm) {
     return (
       <div className="space-y-4 text-center">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-success/10 text-success">
-          <Icon name="check" size={28} />
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-success/15 text-success">
+          <span className="material-symbols-outlined text-3xl">mark_email_read</span>
         </div>
-        <h2 className="text-xl font-black text-text">تحقق من بريدك الإلكتروني</h2>
-        <p className="text-sm leading-relaxed text-text-muted">
+        <h2 className="text-xl font-bold text-on-surface">تحقق من بريدك الإلكتروني</h2>
+        <p className="text-sm leading-relaxed text-on-surface-variant">
           أرسلنا رابط تأكيد إلى{" "}
-          <span dir="ltr" className="font-semibold text-text">
+          <span dir="ltr" className="font-semibold text-md-primary">
             {accountData.email}
           </span>
           . بعد التأكيد سجّل الدخول لإكمال ملفك على المنصة.
         </p>
-        <Button href="/auth/login" variant="accent" className="mt-2 w-full">
+        <Link href={loginHref} className={cn(authBtnPrimaryClass, "inline-flex no-underline")}>
           الانتقال لتسجيل الدخول
-        </Button>
+        </Link>
       </div>
     );
   }
 
   return (
     <div className="space-y-5">
-      <nav aria-label="خطوات التسجيل" className="flex gap-2">
-        {STEPS.map((s) => {
-          const active = step === s.id;
-          const done = step > s.id;
-          return (
-            <div
-              key={s.id}
-              className={cn(
-                "flex flex-1 flex-col items-center rounded-xl border px-2 py-2 text-center transition",
-                active && "border-accent bg-accent/5",
-                done && "border-success/40 bg-success/5",
-                !active && !done && "border-border bg-bg"
-              )}
-            >
-              <span
-                className={cn(
-                  "flex h-7 w-7 items-center justify-center rounded-full text-xs font-black",
-                  active && "bg-accent text-white",
-                  done && "bg-success text-white",
-                  !active && !done && "bg-border text-text-muted"
-                )}
-              >
-                {done ? "✓" : s.id}
-              </span>
-              <span className="mt-1 text-[11px] font-bold text-text">{s.title}</span>
-            </div>
-          );
-        })}
-      </nav>
+      <AuthStepIndicator steps={STEPS} currentStep={step} />
 
-      {error ? (
-        <div className="rounded-xl bg-danger/10 px-3 py-2.5 text-sm font-bold text-danger">⚠️ {error}</div>
-      ) : null}
+      {error ? <div className={authErrorClass}>{error}</div> : null}
 
       {step === 1 ? (
         <>
-          <p className="text-sm leading-relaxed text-text-muted">
-            الخطوة 1 من 2: أنشئ بيانات الدخول، ثم اختر نوع حسابك (طالب، معلّم، أو وليّ أمر).
+          <p className="text-sm leading-relaxed text-on-surface-variant">
+            الخطوة 1 من 2: أنشئ بيانات الدخول. كلمة المرور 8 أحرف على الأقل.
           </p>
 
-          <button
-            type="button"
-            onClick={handleGoogle}
-            disabled={isBusy}
-            className="flex w-full items-center justify-center gap-3 rounded-xl border-2 border-border bg-white px-4 py-3 font-bold text-text transition hover:border-accent disabled:opacity-50"
-          >
+          <button type="button" onClick={handleGoogle} disabled={isBusy} className={authBtnGoogleClass}>
             <GoogleIcon />
-            {googleLoading ? "جاري التحويل..." : "التسجيل عبر Google"}
+            <span>{googleLoading ? "جاري التحويل..." : "التسجيل عبر Google"}</span>
           </button>
 
-          <div className="flex items-center gap-3">
-            <div className="h-px flex-1 bg-border" />
-            <span className="text-sm text-text-muted">أو بالبريد</span>
-            <div className="h-px flex-1 bg-border" />
+          <div className="relative my-2 flex items-center">
+            <div className={authDividerClass} />
+            <span className="mx-4 text-xs uppercase tracking-widest text-on-surface-variant">أو</span>
+            <div className={authDividerClass} />
           </div>
 
           <form onSubmit={goToStep2} className="space-y-4">
@@ -236,7 +226,12 @@ export default function RegisterForm() {
               />
             </AuthField>
 
-            <AuthField id="password" label="كلمة المرور" hint="6 أحرف على الأقل" error={step1Form.formState.errors.password?.message}>
+            <AuthField
+              id="password"
+              label="كلمة المرور"
+              hint="8 أحرف على الأقل"
+              error={step1Form.formState.errors.password?.message}
+            >
               <div className="relative">
                 <input
                   id="password"
@@ -244,17 +239,21 @@ export default function RegisterForm() {
                   autoComplete="new-password"
                   placeholder="••••••••"
                   dir="ltr"
-                  className={cn(authInputClass, "pl-16 text-start")}
+                  className={cn(authInputClass, "pl-12 text-start")}
                   {...step1Form.register("password")}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-text-muted hover:text-primary"
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant transition-colors hover:text-on-surface"
+                  aria-label={showPassword ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"}
                 >
-                  {showPassword ? "إخفاء" : "إظهار"}
+                  <span className="material-symbols-outlined text-lg">
+                    {showPassword ? "visibility_off" : "visibility"}
+                  </span>
                 </button>
               </div>
+              <PasswordStrength password={passwordValue} className="mt-2" />
             </AuthField>
 
             <AuthField
@@ -269,29 +268,56 @@ export default function RegisterForm() {
                   autoComplete="new-password"
                   placeholder="••••••••"
                   dir="ltr"
-                  className={cn(authInputClass, "pl-16 text-start")}
+                  className={cn(authInputClass, "pl-12 text-start")}
                   {...step1Form.register("confirmPassword")}
                 />
                 <button
                   type="button"
                   onClick={() => setShowConfirm((v) => !v)}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-text-muted hover:text-primary"
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant transition-colors hover:text-on-surface"
+                  aria-label={showConfirm ? "إخفاء التأكيد" : "إظهار التأكيد"}
                 >
-                  {showConfirm ? "إخفاء" : "إظهار"}
+                  <span className="material-symbols-outlined text-lg">
+                    {showConfirm ? "visibility_off" : "visibility"}
+                  </span>
                 </button>
               </div>
             </AuthField>
 
-            <Button type="submit" variant="accent" disabled={isBusy} className="h-12 w-full text-base font-black">
-              التالي: نوع الحساب
-              <Icon name="arrowRight" size={18} className="rotate-180" />
-            </Button>
+            <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-outline-variant bg-surface-container/50 p-3">
+              <input
+                type="checkbox"
+                className="mt-1 h-4 w-4 shrink-0 accent-primary-container"
+                {...step1Form.register("acceptedTerms")}
+              />
+              <span className="text-xs leading-relaxed text-on-surface-variant">
+                أوافق على{" "}
+                <Link href="/terms" className="font-bold text-md-primary hover:underline" target="_blank">
+                  شروط الاستخدام
+                </Link>{" "}
+                و{" "}
+                <Link href="/privacy" className="font-bold text-md-primary hover:underline" target="_blank">
+                  سياسة الخصوصية
+                </Link>
+              </span>
+            </label>
+            {step1Form.formState.errors.acceptedTerms ? (
+              <p className="text-xs font-semibold text-error">
+                {step1Form.formState.errors.acceptedTerms.message}
+              </p>
+            ) : null}
+
+            <button type="submit" disabled={isBusy} className={authBtnPrimaryClass}>
+              <span>التالي: نوع الحساب</span>
+              <span className="material-symbols-outlined">arrow_back</span>
+            </button>
           </form>
         </>
       ) : (
         <>
-          <p className="text-sm leading-relaxed text-text-muted">
-            الخطوة 2 من 2: حدّد دورك على المنصة وبياناتك الأساسية. بعد الحفظ نوجّهك للوحة المناسبة.
+          <p className="text-sm leading-relaxed text-on-surface-variant">
+            الخطوة 2 من 2: حدّد دورك وبياناتك. بعد الحفظ نوجّهك مباشرة للوحة المناسبة
+            {redirectTo ? " أو لإتمام الاشتراك." : "."}
           </p>
 
           <form onSubmit={finishRegistration} className="space-y-4">
@@ -306,48 +332,39 @@ export default function RegisterForm() {
               />
             </AuthField>
 
-            <div className="space-y-2">
-              <p className="text-sm font-bold text-text">نوع الحساب</p>
-              <div className="grid gap-2 sm:grid-cols-3">
-                {REGISTER_ROLES.map((role) => {
-                  const selected = selectedRole === role.value;
-                  return (
-                    <label
-                      key={role.value}
-                      className={cn(
-                        "cursor-pointer rounded-xl border-2 p-3 transition",
-                        selected ? "border-accent bg-accent/5 shadow-sm" : "border-border bg-white hover:border-accent/40"
-                      )}
-                    >
-                      <input
-                        type="radio"
-                        value={role.value}
-                        className="sr-only"
-                        {...step2Form.register("role")}
-                      />
-                      <span className="mb-2 flex h-9 w-9 items-center justify-center rounded-lg bg-primary/5 text-primary">
-                        <Icon name={role.icon} size={18} />
-                      </span>
-                      <span className="block text-sm font-black text-text">{role.label}</span>
-                      <span className="mt-1 block text-[11px] leading-snug text-text-muted">{role.description}</span>
-                    </label>
-                  );
-                })}
-              </div>
-              {step2Form.formState.errors.role ? (
-                <p className="text-xs font-semibold text-danger">{step2Form.formState.errors.role.message}</p>
-              ) : null}
-            </div>
+            <AuthField id="role" label="نوع الحساب" error={step2Form.formState.errors.role?.message}>
+              <Controller
+                name="role"
+                control={step2Form.control}
+                render={({ field }) => (
+                  <Select
+                    id="role"
+                    variant="dark"
+                    placeholder="اختر نوع الحساب"
+                    options={ROLE_SELECT_OPTIONS}
+                    showError={false}
+                    {...field}
+                  />
+                )}
+              />
+            </AuthField>
 
             {selectedRole === "student" ? (
               <AuthField id="grade" label="الصف الدراسي" error={step2Form.formState.errors.grade?.message}>
-                <Select id="grade" className={authInputClass} {...step2Form.register("grade")}>
-                  {GRADE_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </Select>
+                <Controller
+                  name="grade"
+                  control={step2Form.control}
+                  render={({ field }) => (
+                    <Select
+                      id="grade"
+                      variant="dark"
+                      placeholder="اختر الصف"
+                      options={GRADE_OPTIONS}
+                      showError={false}
+                      {...field}
+                    />
+                  )}
+                />
               </AuthField>
             ) : null}
 
@@ -369,14 +386,23 @@ export default function RegisterForm() {
             </AuthField>
 
             <div className="flex flex-col gap-2 sm:flex-row-reverse">
-              <Button type="submit" variant="accent" disabled={isBusy} className="h-12 flex-1 text-base font-black">
-                {loading ? "جاري إنشاء الحساب..." : "إنشاء الحساب والمتابعة"}
-              </Button>
-              <Button
+              <button type="submit" disabled={isBusy} className={cn(authBtnPrimaryClass, "flex-1")}>
+                {loading ? (
+                  <>
+                    <span className="material-symbols-outlined animate-spin">sync</span>
+                    <span>جاري إنشاء الحساب...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>إنشاء الحساب والمتابعة</span>
+                    <span className="material-symbols-outlined">arrow_back</span>
+                  </>
+                )}
+              </button>
+              <button
                 type="button"
-                variant="outline"
                 disabled={isBusy}
-                className="h-12 flex-1"
+                className="flex h-12 flex-1 items-center justify-center rounded-lg border border-outline-variant bg-surface-container text-sm font-semibold text-on-surface transition hover:bg-surface-container-high disabled:opacity-60 sm:min-h-[3rem]"
                 onClick={() => {
                   setError("");
                   step1Form.reset(accountData);
@@ -384,7 +410,7 @@ export default function RegisterForm() {
                 }}
               >
                 رجوع
-              </Button>
+              </button>
             </div>
           </form>
         </>

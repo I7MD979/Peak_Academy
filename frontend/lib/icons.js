@@ -31,7 +31,13 @@ import {
   Gift,
   Globe,
   PenLine,
-  Tag
+  Tag,
+  RefreshCw,
+  Lock,
+  Unlock,
+  Download,
+  FileText,
+  Eye
 } from "lucide-react";
 
 /** @type {Record<string, import('lucide-react').LucideIcon>} */
@@ -69,7 +75,13 @@ export const iconMap = {
   gift: Gift,
   edit: PenLine,
   tag: Tag,
-  globe: Globe
+  globe: Globe,
+  refresh: RefreshCw,
+  lock: Lock,
+  unlock: Unlock,
+  download: Download,
+  description: FileText,
+  visibility: Eye
 };
 
 export function resolveIcon(name) {

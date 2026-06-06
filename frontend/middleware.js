@@ -1,9 +1,16 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse } from "next/server";
-import { ROLE_HOME } from "./lib/role-routes-edge.js";
+import {
+  fetchAuthProfile,
+  isProfileComplete,
+  resolvePostAuthPath,
+  ROLE_HOME
+} from "./lib/role-routes-edge.js";
 
 const PUBLIC_PATHS = [
   "/",
+  "/privacy",
+  "/terms",
   "/auth/login",
   "/auth/register",
   "/auth/callback",
@@ -36,7 +43,6 @@ function getRoleForPath(path) {
   return null;
 }
 
-/** Copy refreshed Supabase cookies from `res` onto a redirect response. */
 function redirectWithCookies(url, res) {
   const redirect = NextResponse.redirect(url);
   res.cookies.getAll().forEach(({ name, value }) => {
@@ -49,9 +55,7 @@ export async function middleware(request) {
   const { pathname } = request.nextUrl;
 
   let res = NextResponse.next({
-    request: {
-      headers: request.headers
-    }
+    request: { headers: request.headers }
   });
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -79,7 +83,6 @@ export async function middleware(request) {
     }
   });
 
-  // Refresh session and write updated auth cookies onto `res`
   await supabase.auth.getUser();
   const {
     data: { session }
@@ -87,56 +90,53 @@ export async function middleware(request) {
 
   if (!session && !isPublicPath(pathname)) {
     const loginUrl = new URL("/auth/login", request.url);
-    loginUrl.searchParams.set("redirect", pathname);
+    const redirectTarget =
+      isOnboardingPath(pathname) && request.nextUrl.searchParams.get("next")
+        ? `/onboarding?next=${encodeURIComponent(request.nextUrl.searchParams.get("next"))}`
+        : pathname;
+    loginUrl.searchParams.set("redirect", redirectTarget);
     return redirectWithCookies(loginUrl, res);
   }
 
   if (isPublicPath(pathname)) {
-    if (session?.user && AUTH_ENTRY_PATHS.has(pathname)) {
-      const { data: profile } = await supabase
-        .from("users")
-        .select("role")
-        .eq("id", session.user.id)
-        .maybeSingle();
-
-      if (profile?.role && ROLE_HOME[profile.role]) {
-        return redirectWithCookies(new URL(ROLE_HOME[profile.role], request.url), res);
+    if (session?.access_token && AUTH_ENTRY_PATHS.has(pathname)) {
+      const nextPath = await resolvePostAuthPath(session.access_token, request);
+      if (nextPath && nextPath !== "/auth/login") {
+        return redirectWithCookies(new URL(nextPath, request.url), res);
       }
     }
     return res;
   }
 
-  // /onboarding — session required, no role prefix check
   if (isOnboardingPath(pathname)) {
+    if (session?.access_token) {
+      const user = await fetchAuthProfile(session.access_token, request);
+      if (user && isProfileComplete(user) && ROLE_HOME[user.role]) {
+        return redirectWithCookies(new URL(ROLE_HOME[user.role], request.url), res);
+      }
+    }
     return res;
   }
 
   const requiredRole = getRoleForPath(pathname);
 
-  if (session && requiredRole) {
-    const { data: profile } = await supabase
-      .from("users")
-      .select("role")
-      .eq("id", session.user.id)
-      .maybeSingle();
+  if (session?.access_token && requiredRole) {
+    const user = await fetchAuthProfile(session.access_token, request);
 
-    if (profile?.role !== requiredRole) {
-      const dest = ROLE_HOME[profile?.role] || "/auth/login";
+    if (!user?.role || !isProfileComplete(user)) {
+      return redirectWithCookies(new URL("/onboarding", request.url), res);
+    }
+
+    if (user.role !== requiredRole) {
+      const dest = ROLE_HOME[user.role] || "/auth/login";
       return redirectWithCookies(new URL(dest, request.url), res);
     }
   }
 
-  if (pathname === "/dashboard" && session?.user) {
-    const { data: profile } = await supabase
-      .from("users")
-      .select("role")
-      .eq("id", session.user.id)
-      .maybeSingle();
-
-    if (profile?.role && ROLE_HOME[profile.role]) {
-      return redirectWithCookies(new URL(ROLE_HOME[profile.role], request.url), res);
-    }
-    return redirectWithCookies(new URL("/onboarding", request.url), res);
+  if (pathname === "/dashboard" && session?.access_token) {
+    const nextPath =
+      (await resolvePostAuthPath(session.access_token, request)) ?? "/onboarding";
+    return redirectWithCookies(new URL(nextPath, request.url), res);
   }
 
   return res;

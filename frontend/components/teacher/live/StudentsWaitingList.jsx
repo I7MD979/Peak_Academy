@@ -8,12 +8,12 @@ import { sessionsApi } from "@/lib/api";
 function StudentAvatar({ name, url }) {
   const initial = (name || "ط").trim().slice(0, 1);
   return (
-    <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-muted">
+    <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-auth-outline-variant/40 bg-muted">
       {url ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={url} alt="" className="h-full w-full object-cover" />
       ) : (
-        <span className="text-xs font-bold text-text-muted">{initial}</span>
+        <span className="text-xs font-bold text-auth-on-surface-variant">{initial}</span>
       )}
     </div>
   );
@@ -59,7 +59,7 @@ export default function StudentsWaitingList({ sessionId, onAllReady, onCount }) 
   const connected = students.filter((s) => s.isConnected).length;
 
   return (
-    <Card className="flex h-full flex-col rounded-xl border-border">
+    <Card className="flex h-full flex-col rounded-xl border-auth-outline-variant/40">
       <CardHeader className="pb-2">
         <CardTitle className="text-lg text-primary">الطلاب المنتظرين</CardTitle>
       </CardHeader>
@@ -67,20 +67,20 @@ export default function StudentsWaitingList({ sessionId, onAllReady, onCount }) 
         {loading ? (
           <SectionLoader message="جاري التحميل..." />
         ) : students.length === 0 ? (
-          <p className="text-sm text-text-muted">لا يوجد طلاب مسجلون بعد</p>
+          <p className="text-sm text-auth-on-surface-variant">لا يوجد طلاب مسجلون بعد</p>
         ) : (
           <ul className="space-y-2">
             {students.map((student) => (
               <li
                 key={student.studentId}
-                className="flex items-center justify-between gap-2 rounded-lg border border-border bg-bg px-3 py-2"
+                className="flex items-center justify-between gap-2 rounded-lg border border-auth-outline-variant/40 bg-auth-surface-low px-3 py-2"
               >
                 <div className="flex items-center gap-2">
                   <StudentAvatar name={student.name} url={student.avatar} />
                   <span className="text-sm font-bold">{student.name}</span>
                 </div>
                 <span
-                  className={`text-xs font-bold ${student.isConnected ? "text-success" : "text-text-muted"}`}
+                  className={`text-xs font-bold ${student.isConnected ? "text-success" : "text-auth-on-surface-variant"}`}
                 >
                   {student.isConnected ? "✓ جاهز" : "⏳ لسه"}
                 </span>
@@ -88,7 +88,7 @@ export default function StudentsWaitingList({ sessionId, onAllReady, onCount }) 
             ))}
           </ul>
         )}
-        <p className="mt-auto border-t border-border pt-3 text-center text-sm text-text-muted">
+        <p className="mt-auto border-t border-auth-outline-variant/40 pt-3 text-center text-sm text-auth-on-surface-variant">
           <strong className="text-primary">{connected}</strong> من {students.length} طلاب جاهزين
         </p>
       </CardContent>

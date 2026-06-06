@@ -57,7 +57,7 @@ export default function QuickTestModal({ open, sessionId, onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-xl" dir="rtl">
+      <div className="relative z-10 w-full max-w-lg rounded-2xl border border-auth-outline-variant/40 bg-auth-surface-high p-6 shadow-xl" dir="rtl">
         <h2 className="text-lg font-black text-primary">اختبار سريع</h2>
         <div className="mt-4 space-y-3">
           <Input

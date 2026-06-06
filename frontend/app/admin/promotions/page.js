@@ -1,152 +1,400 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { PageLoader } from "@/components/shared/LoadingSkeleton";
-import { Select } from "@/components/ui/Select";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
+import AdminActionsMenu from "@/components/admin/AdminActionsMenu";
+import AdminConfirmDialog from "@/components/admin/AdminConfirmDialog";
+import AdminPromotionDetailsModal from "@/components/admin/AdminPromotionDetailsModal";
+import AdminPromotionFormModal from "@/components/admin/AdminPromotionFormModal";
+import AdminCouponsView, {
+  APPLIES_LABELS,
+  DISCOUNT_LABELS,
+  PromoCodeCell,
+  PromoStatusCell,
+  PromoUsageCell,
+  TYPE_LABELS,
+  formatDiscountValue,
+  isPromoExpired
+} from "@/components/admin/AdminCouponsPage";
 import { adminPromotionsApi } from "@/lib/api";
+import { formatDateAr } from "@/lib/format";
+
+const EMPTY_FORM = {
+  code: "",
+  type: "coupon",
+  discount_type: "percent",
+  discount_value: 10,
+  applies_to: "per_session",
+  min_sessions: "",
+  bonus_sessions: "",
+  max_uses: "",
+  per_user_limit: "",
+  expires_at: ""
+};
+
+const statusTabs = [
+  { key: "all", label: "الكل" },
+  { key: "active", label: "نشطة" },
+  { key: "inactive", label: "موقوفة" },
+  { key: "expired", label: "منتهية" }
+];
 
 export default function AdminPromotionsPage() {
   const [promos, setPromos] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState({
-    code: "",
-    type: "coupon",
-    discount_type: "percent",
-    discount_value: 10,
-    applies_to: "per_session"
-  });
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [filter, setFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
+  const [mutatingId, setMutatingId] = useState("");
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editId, setEditId] = useState(null);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [saving, setSaving] = useState(false);
+
+  const [detailsPromo, setDetailsPromo] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [toggleTarget, setToggleTarget] = useState(null);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setPage(1);
+      setSearch(searchInput.trim().toUpperCase());
+    }, 350);
+    return () => clearTimeout(timeout);
+  }, [searchInput]);
+
+  const loadStats = useCallback(async () => {
+    setStatsLoading(true);
     try {
-      const [listRes, statsRes] = await Promise.all([
-        adminPromotionsApi.list("limit=50"),
-        adminPromotionsApi.stats()
-      ]);
-      setPromos(listRes?.data || []);
+      const statsRes = await adminPromotionsApi.stats();
       setStats(statsRes?.data || null);
+    } catch {
+      setStats(null);
     } finally {
-      setLoading(false);
+      setStatsLoading(false);
     }
   }, []);
 
+  const loadPromos = useCallback(async () => {
+    setLoading(true);
+    setError("");
+
+    try {
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: "20",
+        status: filter
+      });
+      if (typeFilter) params.set("type", typeFilter);
+      if (search) params.set("search", search);
+
+      const listRes = await adminPromotionsApi.list(params.toString());
+      setPromos(listRes?.data || []);
+      setTotalPages(listRes?.pagination?.totalPages || 1);
+      setTotalCount(listRes?.pagination?.total || 0);
+    } catch (err) {
+      setPromos([]);
+      setTotalPages(1);
+      setTotalCount(0);
+      setError(err.message || "تعذر تحميل العروض");
+    } finally {
+      setLoading(false);
+    }
+  }, [page, filter, typeFilter, search]);
+
   useEffect(() => {
-    load();
-  }, [load]);
+    loadStats();
+  }, [loadStats]);
 
-  const handleCreate = async (e) => {
-    e.preventDefault();
-    await adminPromotionsApi.create(form);
-    setForm({ ...form, code: "" });
-    load();
+  useEffect(() => {
+    loadPromos();
+  }, [loadPromos]);
+
+  const refreshAll = useCallback(async () => {
+    await Promise.all([loadStats(), loadPromos()]);
+  }, [loadStats, loadPromos]);
+
+  const copyCode = async (row) => {
+    try {
+      await navigator.clipboard.writeText(row.code);
+      toast.success("تم نسخ الكود");
+    } catch {
+      toast.error("تعذر نسخ الكود");
+    }
   };
 
-  const toggleActive = async (row) => {
-    await adminPromotionsApi.update(row.id, { is_active: !row.is_active });
-    load();
-  };
-
-  if (loading) {
-    return <PageLoader />;
+  function openNew() {
+    setForm(EMPTY_FORM);
+    setEditId(null);
+    setShowForm(true);
   }
 
+  function openEdit(row) {
+    setForm({
+      code: row.code || "",
+      type: row.type || "coupon",
+      discount_type: row.discount_type || "percent",
+      discount_value: row.discount_value ?? 10,
+      applies_to: row.applies_to || "per_session",
+      min_sessions: row.min_sessions ?? "",
+      bonus_sessions: row.bonus_sessions ?? "",
+      max_uses: row.max_uses ?? "",
+      per_user_limit: row.per_user_limit ?? "",
+      expires_at: row.expires_at ? row.expires_at.slice(0, 16) : ""
+    });
+    setEditId(row.id);
+    setShowForm(true);
+    setDetailsPromo(null);
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+
+    if (!form.code.trim()) {
+      toast.error("كود العرض مطلوب");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const body = {
+        code: form.code.trim().toUpperCase(),
+        type: form.type,
+        discount_type: form.discount_type,
+        discount_value: Number(form.discount_value),
+        applies_to: form.applies_to,
+        min_sessions: form.min_sessions ? Number(form.min_sessions) : undefined,
+        bonus_sessions: form.bonus_sessions ? Number(form.bonus_sessions) : undefined,
+        max_uses: form.max_uses ? Number(form.max_uses) : null,
+        per_user_limit: form.per_user_limit ? Number(form.per_user_limit) : undefined,
+        expires_at: form.expires_at ? new Date(form.expires_at).toISOString() : null
+      };
+
+      if (editId) {
+        await adminPromotionsApi.update(editId, body);
+        toast.success("تم تحديث العرض");
+      } else {
+        await adminPromotionsApi.create(body);
+        toast.success("تم إنشاء العرض");
+      }
+
+      setShowForm(false);
+      await refreshAll();
+    } catch (err) {
+      toast.error(err.message || "تعذر حفظ العرض");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleToggle(row) {
+    setMutatingId(row.id);
+    try {
+      await adminPromotionsApi.update(row.id, { is_active: !row.is_active });
+      toast.success(row.is_active ? "تم إيقاف العرض" : "تم تفعيل العرض");
+      setToggleTarget(null);
+      await refreshAll();
+    } catch (err) {
+      toast.error(err.message || "تعذر تحديث العرض");
+    } finally {
+      setMutatingId("");
+    }
+  }
+
+  async function handleDelete(row) {
+    setMutatingId(row.id);
+    try {
+      await adminPromotionsApi.remove(row.id);
+      toast.success("تم إيقاف العرض");
+      setDeleteTarget(null);
+      await refreshAll();
+    } catch (err) {
+      toast.error(err.message || "تعذر إيقاف العرض");
+    } finally {
+      setMutatingId("");
+    }
+  }
+
+  const columns = useMemo(
+    () => [
+      {
+        key: "code",
+        label: "كود العرض",
+        render: (row) => (
+          <PromoCodeCell row={row} onCopy={copyCode} onView={setDetailsPromo} />
+        )
+      },
+      {
+        key: "type",
+        label: "النوع",
+        render: (row) => TYPE_LABELS[row.type] || row.type
+      },
+      {
+        key: "discount",
+        label: "الخصم",
+        render: (row) => (
+          <div>
+            <p className="font-bold text-on-surface">{formatDiscountValue(row)}</p>
+            <p className="text-xs text-on-surface-variant">{DISCOUNT_LABELS[row.discount_type]}</p>
+          </div>
+        )
+      },
+      {
+        key: "usage",
+        label: "الاستخدام",
+        render: (row) => <PromoUsageCell row={row} />
+      },
+      {
+        key: "expires_at",
+        label: "تاريخ الانتهاء",
+        render: (row) => (
+          <span className="text-sm text-on-surface-variant">
+            {row.expires_at ? formatDateAr(row.expires_at) : "بدون انتهاء"}
+          </span>
+        )
+      },
+      {
+        key: "status",
+        label: "الحالة",
+        render: (row) => <PromoStatusCell row={row} />
+      },
+      {
+        key: "actions",
+        label: "",
+        render: (row) => {
+          const busy = mutatingId === row.id;
+          const expired = isPromoExpired(row);
+
+          return (
+            <AdminActionsMenu
+              disabled={busy}
+              items={[
+                { label: "عرض التفاصيل", icon: "visibility", onClick: () => setDetailsPromo(row) },
+                { label: "نسخ الكود", icon: "tag", onClick: () => copyCode(row) },
+                { label: "تعديل", icon: "edit", onClick: () => openEdit(row) },
+                {
+                  label: row.is_active ? "إيقاف العرض" : "تفعيل العرض",
+                  icon: row.is_active ? "lock" : "unlock",
+                  onClick: () => setToggleTarget(row),
+                  disabled: expired && row.is_active
+                },
+                {
+                  label: "إيقاف نهائي",
+                  icon: "close",
+                  tone: "danger",
+                  onClick: () => setDeleteTarget(row)
+                }
+              ]}
+            />
+          );
+        }
+      }
+    ],
+    [mutatingId]
+  );
+
+  const detailsPromoLabels = detailsPromo
+    ? {
+        typeLabel: TYPE_LABELS[detailsPromo.type] || detailsPromo.type,
+        discountLabel: formatDiscountValue(detailsPromo),
+        appliesLabel: APPLIES_LABELS[detailsPromo.applies_to] || detailsPromo.applies_to,
+        expired: isPromoExpired(detailsPromo)
+      }
+    : null;
+
   return (
-    <main className="space-y-6 p-4 md:p-6">
-      <h1 className="text-2xl font-black text-text">إدارة العروض والخصومات</h1>
-
-      {stats ? (
-        <div className="grid gap-3 sm:grid-cols-3">
-          <div className="rounded-xl border border-border bg-card p-4">
-            <p className="text-xs text-text-muted">عروض نشطة</p>
-            <p className="text-2xl font-black">{stats.active_promotions}</p>
-          </div>
-          <div className="rounded-xl border border-border bg-card p-4">
-            <p className="text-xs text-text-muted">مرات الاستخدام</p>
-            <p className="text-2xl font-black">{stats.total_uses}</p>
-          </div>
-          <div className="rounded-xl border border-border bg-card p-4">
-            <p className="text-xs text-text-muted">إجمالي الخصم</p>
-            <p className="text-2xl font-black">{stats.total_discount_given?.toLocaleString("ar-EG")} ج.م</p>
-          </div>
-        </div>
-      ) : null}
-
-      <form onSubmit={handleCreate} className="grid gap-3 rounded-2xl border border-border bg-card p-4 md:grid-cols-3">
-        <Input
-          placeholder="كود العرض"
-          value={form.code}
-          onChange={(e) => setForm({ ...form, code: e.target.value })}
-          required
-        />
-        <Select
-          value={form.discount_type}
-          onChange={(e) => setForm({ ...form, discount_type: e.target.value })}
-        >
-          <option value="percent">نسبة مئوية</option>
-          <option value="fixed">مبلغ ثابت</option>
-          <option value="free_session">حصة مجانية</option>
-        </Select>
-        <Input
-          type="number"
-          placeholder="قيمة الخصم"
-          value={form.discount_value}
-          onChange={(e) => setForm({ ...form, discount_value: Number(e.target.value) })}
-        />
-        <Button type="submit" variant="accent" className="rounded-xl md:col-span-3">
-          إنشاء عرض
-        </Button>
-      </form>
-
-      <Button
-        variant="outline"
-        className="rounded-xl"
-        onClick={async () => {
-          await adminPromotionsApi.activateEarlyBird({ discount_percent: 20, hours: 72 });
-          load();
+    <>
+      <AdminCouponsView
+        promos={promos}
+        stats={stats}
+        loading={loading}
+        statsLoading={statsLoading}
+        error={error}
+        filter={filter}
+        onFilterChange={(value) => {
+          setPage(1);
+          setFilter(value);
         }}
-      >
-        تفعيل Early Bird (72 ساعة)
-      </Button>
+        statusTabs={statusTabs}
+        typeFilter={typeFilter}
+        onTypeFilterChange={(value) => {
+          setPage(1);
+          setTypeFilter(value);
+        }}
+        searchInput={searchInput}
+        onSearchChange={setSearchInput}
+        page={page}
+        totalPages={totalPages}
+        totalCount={totalCount}
+        onPageChange={setPage}
+        onRefresh={refreshAll}
+        onAddPromo={openNew}
+        onViewPromo={setDetailsPromo}
+        onEditPromo={openEdit}
+        onTogglePromo={setToggleTarget}
+        onDeletePromo={setDeleteTarget}
+        onCopyPromo={copyCode}
+        onStatFilter={(value) => {
+          setPage(1);
+          setFilter(value);
+        }}
+        mutatingId={mutatingId}
+        columns={columns}
+      />
 
-      <div className="overflow-x-auto rounded-2xl border border-border bg-card">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border text-right text-text-muted">
-              <th className="p-3">الكود</th>
-              <th className="p-3">النوع</th>
-              <th className="p-3">الخصم</th>
-              <th className="p-3">الاستخدام</th>
-              <th className="p-3">نشط</th>
-              <th className="p-3" />
-            </tr>
-          </thead>
-          <tbody>
-            {promos.map((row) => (
-              <tr key={row.id} className="border-b border-border/60">
-                <td className="p-3 font-bold">{row.code}</td>
-                <td className="p-3">{row.type}</td>
-                <td className="p-3">
-                  {row.discount_value}
-                  {row.discount_type === "percent" ? "%" : " ج.م"}
-                </td>
-                <td className="p-3">
-                  {row.used_count}
-                  {row.max_uses ? ` / ${row.max_uses}` : ""}
-                </td>
-                <td className="p-3">{row.is_active ? "نعم" : "لا"}</td>
-                <td className="p-3">
-                  <Button size="sm" variant="outline" onClick={() => toggleActive(row)}>
-                    {row.is_active ? "إيقاف" : "تفعيل"}
-                  </Button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </main>
+      <AdminPromotionFormModal
+        open={showForm}
+        editId={editId}
+        form={form}
+        saving={saving}
+        onChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
+        onClose={() => setShowForm(false)}
+        onSubmit={handleSubmit}
+      />
+
+      <AdminPromotionDetailsModal
+        open={Boolean(detailsPromo)}
+        promo={detailsPromo}
+        typeLabel={detailsPromoLabels?.typeLabel}
+        discountLabel={detailsPromoLabels?.discountLabel}
+        appliesLabel={detailsPromoLabels?.appliesLabel}
+        expired={detailsPromoLabels?.expired}
+        onClose={() => setDetailsPromo(null)}
+        onEdit={openEdit}
+        onToggle={setToggleTarget}
+      />
+
+      <AdminConfirmDialog
+        open={Boolean(toggleTarget)}
+        title={toggleTarget?.is_active ? "إيقاف العرض" : "تفعيل العرض"}
+        description={
+          toggleTarget?.is_active
+            ? `هل تريد إيقاف كود "${toggleTarget?.code || ""}"؟`
+            : `هل تريد تفعيل كود "${toggleTarget?.code || ""}"؟`
+        }
+        confirmLabel={toggleTarget?.is_active ? "إيقاف" : "تفعيل"}
+        tone={toggleTarget?.is_active ? "danger" : "primary"}
+        onClose={() => setToggleTarget(null)}
+        onConfirm={() => toggleTarget && handleToggle(toggleTarget)}
+      />
+
+      <AdminConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="إيقاف العرض"
+        description={`هل تريد إيقاف كود "${deleteTarget?.code || ""}"؟ لن يُحذف من السجل بل يُوقَف عن الاستخدام.`}
+        confirmLabel="إيقاف العرض"
+        tone="danger"
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => deleteTarget && handleDelete(deleteTarget)}
+      />
+    </>
   );
 }

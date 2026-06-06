@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { getAuthErrorMessage } from "@/lib/auth-errors";
@@ -8,8 +9,16 @@ import { createClient } from "@/lib/supabase/client";
 import { resolvePostAuthPathClient } from "@/lib/role-routes";
 import { sanitizeRedirectPath } from "@/lib/safe-redirect";
 import GoogleIcon from "@/components/auth/GoogleIcon";
+import { cn } from "@/lib/utils";
+import {
+  authInputClass,
+  authBtnGoogleClass,
+  authBtnPrimaryClass,
+  authDividerClass,
+  authErrorClass
+} from "@/components/auth/auth-styles";
 
-export default function LoginForm({ redirectTo: redirectToProp = null }) {
+export default function LoginForm({ redirectTo: redirectToProp = null, oauthError = false }) {
   const router = useRouter();
   const { signInWithGoogle, signInWithEmail } = useAuth();
 
@@ -19,13 +28,19 @@ export default function LoginForm({ redirectTo: redirectToProp = null }) {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(oauthError ? "تعذر تسجيل الدخول عبر Google. حاول مرة أخرى." : "");
+
+  useEffect(() => {
+    if (oauthError) {
+      setError("تعذر تسجيل الدخول عبر Google. حاول مرة أخرى.");
+    }
+  }, [oauthError]);
 
   const handleGoogle = async () => {
     setGoogleLoading(true);
     setError("");
     try {
-      const { error: oauthError } = await signInWithGoogle();
+      const { error: oauthError } = await signInWithGoogle({ returnTo: redirectToProp });
       if (oauthError) {
         setError(getAuthErrorMessage(oauthError) || "تعذر تسجيل الدخول عبر Google");
         return;
@@ -62,8 +77,7 @@ export default function LoginForm({ redirectTo: redirectToProp = null }) {
         data: { session }
       } = await supabase.auth.getSession();
       const safeRedirect = sanitizeRedirectPath(redirectToProp);
-      const nextPath =
-        safeRedirect || (await resolvePostAuthPathClient(session?.access_token));
+      const nextPath = safeRedirect || (await resolvePostAuthPathClient(session?.access_token));
       setRedirecting(true);
       router.replace(nextPath);
     } catch {
@@ -76,30 +90,28 @@ export default function LoginForm({ redirectTo: redirectToProp = null }) {
   const isBusy = loading || googleLoading || redirecting;
 
   return (
-    <div className="space-y-4">
+    <>
       <button
         type="button"
         onClick={handleGoogle}
         disabled={isBusy}
-        className="flex w-full items-center justify-center gap-3 rounded-xl border-2 border-border bg-white px-4 py-3 font-bold text-text transition-colors hover:border-accent disabled:opacity-50"
+        className={authBtnGoogleClass}
       >
         <GoogleIcon />
-        {googleLoading ? "جاري التحويل..." : "المتابعة عبر Google"}
+        <span className="font-medium">{googleLoading ? "جاري التحويل..." : "المتابعة عبر Google"}</span>
       </button>
 
-      <div className="flex items-center gap-3">
-        <div className="h-px flex-1 bg-border" />
-        <span className="text-sm text-text-muted">أو</span>
-        <div className="h-px flex-1 bg-border" />
+      <div className="relative my-5 flex items-center">
+        <div className={authDividerClass} />
+        <span className="mx-4 text-xs uppercase tracking-widest text-on-surface-variant">أو</span>
+        <div className={authDividerClass} />
       </div>
 
-      <form onSubmit={handleLogin} className="space-y-3">
-        {error ? (
-          <div className="rounded-xl bg-danger/10 p-3 text-sm font-bold text-danger">⚠️ {error}</div>
-        ) : null}
+      {error ? <div className={authErrorClass}>{error}</div> : null}
 
-        <div>
-          <label htmlFor="login-email" className="mb-1 block text-sm font-bold">
+      <form onSubmit={handleLogin} className="space-y-6">
+        <div className="space-y-2">
+          <label className="block text-xs font-semibold text-on-surface-variant" htmlFor="login-email">
             البريد الإلكتروني
           </label>
           <input
@@ -107,21 +119,21 @@ export default function LoginForm({ redirectTo: redirectToProp = null }) {
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="example@email.com"
+            placeholder="example@peakacademy.com"
             required
             autoComplete="email"
-            className="w-full rounded-xl border border-border p-3 font-cairo transition-colors focus:border-accent focus:outline-none"
+            className={authInputClass}
           />
         </div>
 
-        <div>
-          <div className="mb-1 flex justify-between">
-            <label htmlFor="login-password" className="text-sm font-bold">
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="block text-xs font-semibold text-on-surface-variant" htmlFor="login-password">
               كلمة المرور
             </label>
-            <a href="/auth/forgot-password" className="text-xs font-bold text-accent hover:underline">
+            <Link href="/auth/forgot-password" className="text-xs text-md-primary hover:underline">
               نسيت كلمة المرور؟
-            </a>
+            </Link>
           </div>
           <div className="relative">
             <input
@@ -132,26 +144,32 @@ export default function LoginForm({ redirectTo: redirectToProp = null }) {
               placeholder="••••••••"
               required
               autoComplete="current-password"
-              className="w-full rounded-xl border border-border p-3 pl-16 font-cairo transition-colors focus:border-accent focus:outline-none"
+              className={cn(authInputClass, "pl-12 text-start")}
             />
             <button
               type="button"
               onClick={() => setShowPassword((prev) => !prev)}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-text-muted hover:text-primary"
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant transition-colors hover:text-on-surface"
+              aria-label={showPassword ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"}
             >
-              {showPassword ? "إخفاء" : "إظهار"}
+              <span className="material-symbols-outlined text-lg">
+                {showPassword ? "visibility_off" : "visibility"}
+              </span>
             </button>
           </div>
         </div>
 
-        <button
-          type="submit"
-          disabled={isBusy}
-          className="w-full rounded-xl bg-accent py-3 font-black text-white transition-colors hover:bg-orange-600 disabled:opacity-50"
-        >
-          {redirecting ? "جاري التحويل..." : loading ? "جاري تسجيل الدخول..." : "تسجيل الدخول"}
+        <button type="submit" disabled={isBusy} className={authBtnPrimaryClass}>
+          {redirecting || loading ? (
+            <span className="material-symbols-outlined animate-spin">sync</span>
+          ) : (
+            <>
+              <span>{redirecting ? "جاري التحويل..." : loading ? "جاري تسجيل الدخول..." : "تسجيل الدخول"}</span>
+              <span className="material-symbols-outlined">login</span>
+            </>
+          )}
         </button>
       </form>
-    </div>
+    </>
   );
 }

@@ -1,4 +1,6 @@
-import AuthLogoHeader from "@/components/auth/AuthLogoHeader";
+import Link from "next/link";
+import AuthPageLayout from "@/components/auth/AuthPageLayout";
+import AuthFormCard from "@/components/auth/AuthFormCard";
 import ResetPasswordForm from "@/components/auth/ResetPasswordForm";
 
 export const metadata = {
@@ -8,18 +10,20 @@ export const metadata = {
 
 export default function ResetPasswordPage() {
   return (
-    <div
-      className="flex min-h-screen items-center justify-center bg-gradient-to-b from-bg via-bg to-white p-4 font-cairo"
-      dir="rtl"
-    >
-      <div className="w-full max-w-md">
-        <AuthLogoHeader />
-        <div className="rounded-3xl border border-border/80 bg-card p-8 shadow-[0_8px_35px_rgba(15,23,42,0.08)]">
-          <h1 className="mb-1 text-2xl font-black text-text">كلمة مرور جديدة</h1>
-          <p className="mb-6 text-sm text-text-muted">اختر كلمة مرور قوية لحسابك.</p>
-          <ResetPasswordForm />
-        </div>
-      </div>
-    </div>
+    <AuthPageLayout>
+      <AuthFormCard
+        title="كلمة مرور جديدة"
+        subtitle="اختر كلمة مرور قوية لحسابك"
+        footer={
+          <p className="text-sm text-on-surface-variant">
+            <Link href="/auth/login" className="font-bold text-md-primary hover:underline">
+              العودة لتسجيل الدخول
+            </Link>
+          </p>
+        }
+      >
+        <ResetPasswordForm />
+      </AuthFormCard>
+    </AuthPageLayout>
   );
 }

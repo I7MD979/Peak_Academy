@@ -1,60 +1,46 @@
-import Icon from "@/components/shared/Icon";
-import LandingReveal from "@/components/landing/LandingReveal";
-import LandingSectionHeader from "@/components/landing/LandingSectionHeader";
-import { landingSteps } from "@/lib/landing-content";
-import { cn } from "@/lib/utils";
+import LandingWaveDivider from "@/components/landing/LandingWaveDivider";
 
-function StepBadge({ badge, variant }) {
-  if (!badge) return null;
-  return (
-    <span
-      className={cn(
-        "mt-3 inline-block rounded-full px-3 py-1 text-xs font-bold",
-        variant === "free"
-          ? "bg-success/15 text-success"
-          : "bg-accent/15 text-accent"
-      )}
-    >
-      {badge}
-    </span>
-  );
-}
+const steps = [
+  { icon: "person_add", title: "سجّل حسابك", desc: "عملية تسجيل سريعة في ثوانٍ معدودة" },
+  { icon: "menu_book", title: "اختر مرحلتك", desc: "حدد المواد والأساتذة الذين تفضلهم" },
+  { icon: "event", title: "احجز حصتك", desc: "اختر الموعد المناسب لجدولك الدراسي" },
+  { icon: "rocket_launch", title: "انطلق للقمة", desc: "ابدأ التعلم التفاعلي وحقق أهدافك" }
+];
 
 export default function LandingHowItWorks() {
   return (
-    <section id="how" className="landing-section scroll-mt-20 bg-white px-4 md:px-8">
-      <LandingSectionHeader
-        theme="light"
-        align="center"
-        tag="كيف تبدأ"
-        title="من التسجيل إلى أول حصة لايف"
-        subtitle="أربع خطوات بسيطة — بدون تعقيد وبدون بطاقة في البداية."
-      />
+    <>
+      <LandingWaveDivider fill="cream" />
+      <section id="how" className="scroll-reveal landing-section-cream landing-pattern-light landing-section-y">
+        <div className="landing-container">
+          <div className="landing-section-head">
+            <span className="landing-section-tag-light mb-4 inline-block sm:mb-5">البداية</span>
+            <h2 className="landing-h2 text-landing-ink">
+              <span className="landing-title-mark ml-2 sm:ml-3">▲</span>
+              كيف تبدأ رحلة القمة؟
+            </h2>
+            <p className="landing-lead text-landing-ink-muted">خطوات بسيطة تفصلك عن أقوى تجربة تعليمية</p>
+          </div>
 
-      <ol className="mx-auto grid max-w-6xl gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {landingSteps.map((item, index) => (
-          <LandingReveal key={item.step} delay={index * 80}>
-            <li className="flex h-full flex-col rounded-2xl border border-border bg-white p-5 text-center shadow-sm transition hover:border-accent/30 hover:shadow-md">
-              <span
-                className="mx-auto mb-4 flex h-11 w-11 items-center justify-center rounded-full bg-accent text-sm font-black text-white shadow-lg shadow-accent/25"
-                aria-hidden="true"
-              >
-                {item.step}
-              </span>
-              <h3 className="text-base font-bold text-primary md:text-lg">{item.title}</h3>
-              <p className="mt-2 flex-1 text-sm leading-relaxed text-text-muted">{item.description}</p>
-              <StepBadge badge={item.badge} variant={item.badgeVariant} />
-            </li>
-          </LandingReveal>
-        ))}
-      </ol>
-
-      <LandingReveal className="mt-8 text-center" delay={200}>
-        <p className="inline-flex items-center gap-2 text-sm text-text-muted">
-          <Icon name="check" size={16} className="text-success" />
-          كل خطوة موضّحة داخل لوحتك بعد التسجيل
-        </p>
-      </LandingReveal>
-    </section>
+          <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 sm:gap-8 lg:grid-cols-4 lg:gap-6">
+            {steps.map((step) => (
+              <div key={step.title} className="group text-center">
+                <div className="relative mx-auto mb-6 h-24 w-24 sm:mb-8 sm:h-28 sm:w-28">
+                  <div className="absolute inset-0 rotate-12 rounded-3xl bg-landing-orange/8 transition-all duration-500 group-hover:rotate-0" />
+                  <div className="landing-card-light relative flex h-full w-full items-center justify-center rounded-3xl">
+                    <span className="material-symbols-outlined text-3xl text-landing-orange sm:text-4xl">
+                      {step.icon}
+                    </span>
+                  </div>
+                </div>
+                <h4 className="mb-2 text-lg font-bold text-landing-ink sm:mb-3 sm:text-xl">{step.title}</h4>
+                <p className="mx-auto max-w-[16rem] px-2 text-sm text-landing-ink-muted sm:px-4">{step.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+      <LandingWaveDivider fill="navy" flip />
+    </>
   );
 }

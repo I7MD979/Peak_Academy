@@ -1,37 +1,36 @@
 import Link from "next/link";
-import AuthLogoHeader from "@/components/auth/AuthLogoHeader";
+import AuthPageLayout from "@/components/auth/AuthPageLayout";
+import AuthFormCard from "@/components/auth/AuthFormCard";
 import LoginForm from "@/components/auth/LoginForm";
 import { buildPlanCheckoutPath } from "@/lib/checkout-redirect";
 import { sanitizeRedirectPath } from "@/lib/safe-redirect";
+
+export const metadata = {
+  title: "تسجيل الدخول | Peak Academy",
+  description: "سجّل دخولك لمتابعة الجلسات، الأداء، والتقارير على منصة Peak Academy"
+};
 
 export default function LoginPage({ searchParams }) {
   const redirectTo =
     buildPlanCheckoutPath(searchParams?.redirect, searchParams?.plan) ||
     sanitizeRedirectPath(searchParams?.redirect);
+
   return (
-    <div
-      className="flex min-h-screen items-center justify-center bg-gradient-to-b from-bg via-bg to-white p-4 font-cairo"
-      dir="rtl"
-    >
-      <div className="w-full max-w-md">
-        <AuthLogoHeader />
-
-        <div className="rounded-3xl border border-border/80 bg-card p-8 shadow-[0_8px_35px_rgba(15,23,42,0.08)]">
-          <h1 className="mb-1 text-2xl font-black text-text">أهلًا بك 👋</h1>
-          <p className="mb-6 text-sm leading-relaxed text-text-muted">
-            سجّل دخولك لمتابعة الجلسات، الأداء، والتقارير في لوحة Peak Academy.
+    <AuthPageLayout>
+      <AuthFormCard
+        title="أهلاً بك"
+        subtitle="سجّل دخولك لمتابعة الجلسات، الأداء، والتقارير"
+        footer={
+          <p className="text-sm text-on-surface-variant">
+            ليس لديك حساب؟{" "}
+            <Link href="/auth/register" className="font-bold text-md-primary hover:underline">
+              أنشئ حساباً الآن
+            </Link>
           </p>
-
-          <LoginForm redirectTo={redirectTo} />
-        </div>
-
-        <p className="mt-5 text-center text-sm text-text-muted">
-          ليس لديك حساب؟{" "}
-          <Link href="/auth/register" className="font-bold text-accent hover:underline">
-            أنشئ حسابًا الآن
-          </Link>
-        </p>
-      </div>
-    </div>
+        }
+      >
+        <LoginForm redirectTo={redirectTo} oauthError={searchParams?.error === "oauth_failed"} />
+      </AuthFormCard>
+    </AuthPageLayout>
   );
 }

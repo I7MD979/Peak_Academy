@@ -56,7 +56,7 @@ export default function LiveKitVideoRoom({ roomUrl, token, onCallReady, onPartic
 
   return (
     <div
-      className="lk-room-container relative h-full min-h-[320px] w-full overflow-hidden rounded-xl border border-border bg-black"
+      className="lk-room-container relative h-full min-h-[320px] w-full overflow-hidden rounded-xl border border-auth-outline-variant/40 bg-black"
       style={{ height: "100%", width: "100%", minHeight: "320px" }}
     >
       <LiveKitRoom

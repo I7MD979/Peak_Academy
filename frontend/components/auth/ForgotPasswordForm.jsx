@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { getAuthErrorMessage } from "@/lib/auth-errors";
+import { authInputClass, authBtnPrimaryClass, authErrorClass } from "@/components/auth/auth-styles";
 
 export default function ForgotPasswordForm() {
   const [email, setEmail] = useState("");
@@ -42,10 +43,13 @@ export default function ForgotPasswordForm() {
   if (sent) {
     return (
       <div className="space-y-4 text-center">
-        <p className="text-sm leading-relaxed text-text-muted">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-success/15">
+          <span className="material-symbols-outlined text-3xl text-success">mark_email_read</span>
+        </div>
+        <p className="text-sm leading-relaxed text-on-surface-variant">
           إذا كان البريد مسجّلًا لدينا، ستصلك رسالة برابط إعادة تعيين كلمة المرور.
         </p>
-        <Link href="/auth/login" className="font-bold text-accent hover:underline">
+        <Link href="/auth/login" className="font-bold text-md-primary hover:underline">
           العودة لتسجيل الدخول
         </Link>
       </div>
@@ -53,12 +57,11 @@ export default function ForgotPasswordForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      {error ? (
-        <div className="rounded-xl bg-danger/10 p-3 text-sm font-bold text-danger">⚠️ {error}</div>
-      ) : null}
-      <div>
-        <label htmlFor="forgot-email" className="mb-1 block text-sm font-bold">
+    <form onSubmit={handleSubmit} className="space-y-5">
+      {error ? <div className={authErrorClass}>{error}</div> : null}
+
+      <div className="space-y-2">
+        <label htmlFor="forgot-email" className="block text-xs font-semibold text-on-surface-variant">
           البريد الإلكتروني
         </label>
         <input
@@ -68,21 +71,25 @@ export default function ForgotPasswordForm() {
           onChange={(e) => setEmail(e.target.value)}
           required
           autoComplete="email"
-          className="w-full rounded-xl border border-border p-3 font-cairo focus:border-accent focus:outline-none"
+          placeholder="example@peakacademy.com"
+          dir="ltr"
+          className={authInputClass}
         />
       </div>
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full rounded-xl bg-accent py-3 font-black text-white hover:bg-orange-600 disabled:opacity-50"
-      >
-        {loading ? "جاري الإرسال..." : "إرسال رابط إعادة التعيين"}
+
+      <button type="submit" disabled={loading} className={authBtnPrimaryClass}>
+        {loading ? (
+          <>
+            <span className="material-symbols-outlined animate-spin">sync</span>
+            <span>جاري الإرسال...</span>
+          </>
+        ) : (
+          <>
+            <span>إرسال رابط إعادة التعيين</span>
+            <span className="material-symbols-outlined">send</span>
+          </>
+        )}
       </button>
-      <p className="text-center text-sm text-text-muted">
-        <Link href="/auth/login" className="font-bold text-accent hover:underline">
-          العودة لتسجيل الدخول
-        </Link>
-      </p>
     </form>
   );
 }

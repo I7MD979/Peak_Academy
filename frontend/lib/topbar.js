@@ -21,7 +21,10 @@ const ROUTES = {
     { prefix: "/admin/users", title: "المستخدمون", subtitle: "إدارة حسابات المنصة", icon: "users" },
     { prefix: "/admin/sessions", title: "الجلسات", subtitle: "متابعة الجلسات والحالات", icon: "video" },
     { prefix: "/admin/withdrawals", title: "طلبات السحب", subtitle: "مراجعة ومعالجة الطلبات", icon: "creditCard" },
-    { prefix: "/admin/reports", title: "التقارير", subtitle: "إحصائيات وتحليلات مالية", icon: "barChart" }
+    { prefix: "/admin/reports", title: "التقارير", subtitle: "إحصائيات وتحليلات مالية", icon: "barChart" },
+    { prefix: "/admin/subscriptions", title: "خطط الاشتراك", subtitle: "إدارة الباقات والأسعار", icon: "wallet" },
+    { prefix: "/admin/promotions", title: "العروض والخصومات", subtitle: "أكواد الخصم والحملات", icon: "tag" },
+    { prefix: "/admin/landing", title: "صفحة الهبوط", subtitle: "محتوى وإعدادات الموقع", icon: "globe" }
   ],
   teacher: [
     { prefix: "/teacher/dashboard", title: "لوحتي", subtitle: "ملخص يومك التعليمي", icon: "dashboard" },
@@ -37,6 +40,7 @@ const ROUTES = {
     { prefix: "/student/sessions", title: "الجلسات", subtitle: "جلساتك القادمة والمتاحة", icon: "book" },
     { prefix: "/student/study-rooms", title: "غرف المذاكرة", subtitle: "ذاكر مع زملائك", icon: "school" },
     { prefix: "/student/ask", title: "اسأل مدرس", subtitle: "اطرح سؤالك واحصل على إجابة", icon: "help" },
+    { prefix: "/student/subscription", title: "الاشتراك", subtitle: "خطتك وباقات المنصة", icon: "wallet" },
     { prefix: "/student/profile", title: "حسابي", subtitle: "إعدادات حسابك", icon: "user" },
     { prefix: "/student/live", title: "جلسة مباشرة", subtitle: "انضم للجلسة الآن", icon: "live" }
   ],

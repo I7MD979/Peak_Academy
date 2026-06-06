@@ -21,7 +21,7 @@ export default function LiveSessionHeader({
   }, [startedAt]);
 
   return (
-    <header className="flex flex-wrap items-center gap-3 border-b border-border bg-card px-4 py-3">
+    <header className="flex flex-wrap items-center gap-3 border-b border-auth-outline-variant/40 bg-auth-surface-high px-4 py-3">
       <span className="inline-flex items-center gap-2 rounded-full bg-danger/10 px-3 py-1 text-xs font-bold text-danger">
         <span className="h-2 w-2 animate-pulse rounded-full bg-danger" />
         LIVE
@@ -29,8 +29,8 @@ export default function LiveSessionHeader({
       <span className="font-bold text-primary">
         {session?.subject} — {session?.topic}
       </span>
-      <span className="text-sm text-text-muted">⏱ {formatSessionDuration(elapsed)}</span>
-      <span className="text-sm text-text-muted">{connectedCount}👥</span>
+      <span className="text-sm text-auth-on-surface-variant">⏱ {formatSessionDuration(elapsed)}</span>
+      <span className="text-sm text-auth-on-surface-variant">{connectedCount}👥</span>
       <Button
         type="button"
         size="sm"

@@ -16,6 +16,8 @@ import { getActiveSubscription } from "../services/enrollmentService.js";
 import { CACHE, invalidateStudentCaches, withCache } from "../lib/cache.js";
 import { isSchemaV2, SCHEMA } from "../lib/schema.js";
 import { getSessionJoinWindow } from "../utils/session-join.js";
+import { applyGradeFilter, isValidGrade } from "../lib/grades.js";
+import { SUBJECT_LABELS_AR } from "../lib/subjects.js";
 
 const SESSION_SELECT = "*";
 
@@ -157,12 +159,12 @@ function excludeEnrolledIds(query, enrolledIds) {
   return query.not("id", "in", formatIdInList(enrolledIds));
 }
 
-function applyAvailableFilters(query, { student, enrolledIds, onlyMyGrade, subject, maxPrice, schoolLevel }) {
+function applyAvailableFilters(query, { student, enrolledIds, onlyMyGrade, subject, maxPrice, schoolLevel, dateFrom, dateTo }) {
   const now = new Date().toISOString();
   query = query.eq("status", "scheduled").gte("scheduled_at", now).order("scheduled_at", { ascending: true });
 
   if (onlyMyGrade !== "false" && student.grade) {
-    query = query.eq("grade", student.grade);
+    query = applyGradeFilter(query, student.grade);
   }
 
   if (schoolLevel) {
@@ -177,10 +179,52 @@ function applyAvailableFilters(query, { student, enrolledIds, onlyMyGrade, subje
     query = query.lte("price_per_student", maxPrice);
   }
 
+  if (dateFrom) {
+    query = query.gte("scheduled_at", dateFrom);
+  }
+
+  if (dateTo) {
+    query = query.lte("scheduled_at", dateTo);
+  }
+
   if (enrolledIds.length > 0) {
     query = excludeEnrolledIds(query, enrolledIds);
   }
 
+  return query;
+}
+
+const VALID_SESSION_TABS = new Set(["available", "mine", "live", "completed"]);
+const VALID_SUBJECT_KEYS = Object.keys(SUBJECT_LABELS_AR);
+
+function parseScheduledDateRange(fromRaw, toRaw) {
+  const result = { from: null, to: null, invalid: false };
+  if (fromRaw) {
+    const fromDate = new Date(String(fromRaw));
+    if (Number.isNaN(fromDate.getTime())) {
+      result.invalid = true;
+      return result;
+    }
+    result.from = fromDate.toISOString();
+  }
+  if (toRaw) {
+    const toDate = new Date(String(toRaw));
+    if (Number.isNaN(toDate.getTime())) {
+      result.invalid = true;
+      return result;
+    }
+    toDate.setHours(23, 59, 59, 999);
+    result.to = toDate.toISOString();
+  }
+  if (result.from && result.to && result.from > result.to) {
+    result.invalid = true;
+  }
+  return result;
+}
+
+function applyScheduledDateRange(query, { from, to }) {
+  if (from) query = query.gte("scheduled_at", from);
+  if (to) query = query.lte("scheduled_at", to);
   return query;
 }
 
@@ -206,9 +250,12 @@ async function fetchAvailableSessionsPage(ctx, queryParams, userId) {
     only_my_grade = "true",
     subject = "",
     max_price = "",
-    school_level = ""
+    school_level = "",
+    from: fromRaw = "",
+    to: toRaw = ""
   } = queryParams;
   const maxPrice = max_price ? Number(max_price) : null;
+  const dateRange = parseScheduledDateRange(fromRaw, toRaw);
   const pageNum = Math.max(1, Number(page));
   const limitNum = Math.min(50, Math.max(1, Number(limit)));
   const skip = (pageNum - 1) * limitNum;
@@ -224,7 +271,9 @@ async function fetchAvailableSessionsPage(ctx, queryParams, userId) {
       onlyMyGrade: only_my_grade,
       subject: subject || null,
       maxPrice: maxPrice && maxPrice > 0 ? maxPrice : null,
-      schoolLevel: school_level || null
+      schoolLevel: school_level || null,
+      dateFrom: dateRange.from,
+      dateTo: dateRange.to
     });
 
     if (search) {
@@ -327,13 +376,22 @@ router.put("/profile", auth, checkRole("student"), async (req, res) => {
     if (full_name !== undefined) {
       const name = String(full_name || "").trim();
       if (name.length < 2) return error(res, "الاسم قصير جدًا", 400);
+      if (name.length > 80) return error(res, "الاسم طويل جداً (80 حرفاً كحد أقصى)", 400);
       userUpdates.full_name = name;
     }
     if (phone !== undefined) {
-      userUpdates.phone = String(phone || "").trim() || null;
+      const phoneValue = String(phone || "").trim();
+      if (phoneValue && phoneValue.length < 8) return error(res, "رقم الهاتف غير صالح", 400);
+      if (phoneValue && phoneValue.length > 20) return error(res, "رقم الهاتف طويل جداً", 400);
+      userUpdates.phone = phoneValue || null;
     }
     if (avatar_url !== undefined) {
-      userUpdates.avatar_url = String(avatar_url || "").trim() || null;
+      const url = String(avatar_url || "").trim();
+      if (url && !/^https?:\/\/.+/i.test(url)) {
+        return error(res, "رابط الصورة الشخصية غير صالح", 400);
+      }
+      if (url.length > 500) return error(res, "رابط الصورة الشخصية طويل جداً", 400);
+      userUpdates.avatar_url = url || null;
     }
 
     if (Object.keys(userUpdates).length > 0) {
@@ -343,10 +401,11 @@ router.put("/profile", auth, checkRole("student"), async (req, res) => {
 
     const studentUpdates = {};
     if (grade !== undefined && grade !== null && grade !== "") {
-      if (!["first", "second", "third"].includes(grade)) {
+      const gradeValue = String(grade).trim();
+      if (!isValidGrade(gradeValue)) {
         return error(res, "الصف الدراسي غير صالح", 400);
       }
-      studentUpdates.grade = grade;
+      studentUpdates.grade = gradeValue;
     }
     if (section !== undefined) {
       const sectionValue = String(section || "").trim();
@@ -388,6 +447,10 @@ router.put("/profile", auth, checkRole("student"), async (req, res) => {
         grade_label: GRADE_LABELS[ctx?.student?.grade || studentUpdates.grade] || null,
         section: ctx?.student?.section ?? studentUpdates.section ?? null,
         link_code: ctx?.student?.link_code || null,
+        profile_complete: isRoleProfileComplete("student", {
+          student_profile: ctx?.student,
+          teacher_profile: null
+        }),
         stats
       },
       "تم حفظ التغييرات"
@@ -422,7 +485,7 @@ router.get("/dashboard", auth, checkRole("student"), async (req, res) => {
           .order("scheduled_at", { ascending: true })
           .limit(8);
 
-        if (student.grade) recommendedQuery = recommendedQuery.eq("grade", student.grade);
+        if (student.grade) recommendedQuery = applyGradeFilter(recommendedQuery, student.grade);
         if (enrolledIds.length > 0) recommendedQuery = excludeEnrolledIds(recommendedQuery, enrolledIds);
 
         const [{ data: enrollmentDetails }, { data: recommendedRaw }, stats] = await Promise.all([
@@ -478,7 +541,10 @@ router.get("/dashboard", auth, checkRole("student"), async (req, res) => {
 
     if (!payload) return error(res, "ملف الطالب غير موجود", 404);
     return success(res, payload);
-  } catch (_err) {
+  } catch (err) {
+    if (process.env.NODE_ENV !== "production") {
+      console.error("GET /student/dashboard", err);
+    }
     return error(res, "تعذر تحميل لوحة الطالب", 500);
   }
 });
@@ -492,24 +558,57 @@ router.get("/sessions", auth, checkRole("student"), async (req, res) => {
     const {
       page = 1,
       limit = 12,
-      tab = "available",
+      tab: tabRaw = "available",
       search = "",
       only_my_grade = "true",
       subject = "",
       max_price = "",
-      school_level = ""
+      school_level = "",
+      from: fromRaw = "",
+      to: toRaw = ""
     } = req.query;
+
+    const tab = String(tabRaw);
+    if (!VALID_SESSION_TABS.has(tab)) {
+      return error(res, "تبويب غير صالح", 400);
+    }
+
+    const pageNum = Math.max(1, Math.min(100, Number(page) || 1));
+    const limitNum = Math.min(50, Math.max(1, Number(limit) || 12));
+    const searchTerm = String(search || "").trim();
+    if (searchTerm.length > 100) {
+      return error(res, "نص البحث طويل جدًا", 400);
+    }
+
     const maxPrice = max_price ? Number(max_price) : null;
+    if (max_price && (!Number.isFinite(maxPrice) || maxPrice < 0 || maxPrice > 100000)) {
+      return error(res, "الحد الأقصى للسعر غير صالح", 400);
+    }
+
+    const subjectKey = String(subject || "").trim().toLowerCase();
+    if (subjectKey && !VALID_SUBJECT_KEYS.includes(subjectKey)) {
+      return error(res, "المادة غير صالحة", 400);
+    }
+
     const schoolLevel =
       school_level === "preparatory" || school_level === "secondary" ? school_level : null;
-    const { from, to } = paginate(page, limit);
+    if (school_level && !schoolLevel) {
+      return error(res, "المرحلة الدراسية غير صالحة", 400);
+    }
+
+    const dateRange = parseScheduledDateRange(fromRaw, toRaw);
+    if (dateRange.invalid) {
+      return error(res, "نطاق التاريخ غير صالح", 400);
+    }
+
+    const { from, to } = paginate(pageNum, limitNum);
 
     let query = supabase.from("sessions").select(SESSION_SELECT, { count: "exact" });
 
     const emptyPayload = (tabCounts) =>
       success(res, {
         sessions: [],
-        pagination: paginationMeta(0, Number(page), Number(limit)),
+        pagination: paginationMeta(0, pageNum, limitNum),
         tab_counts: tabCounts,
         grade_label: GRADE_LABELS[student.grade] || student.grade
       });
@@ -536,9 +635,11 @@ router.get("/sessions", auth, checkRole("student"), async (req, res) => {
         student,
         enrolledIds,
         onlyMyGrade: only_my_grade,
-        subject: subject || null,
+        subject: subjectKey || null,
         maxPrice: maxPrice && maxPrice > 0 ? maxPrice : null,
-        schoolLevel
+        schoolLevel,
+        dateFrom: dateRange.from,
+        dateTo: dateRange.to
       });
     }
 
@@ -546,16 +647,19 @@ router.get("/sessions", auth, checkRole("student"), async (req, res) => {
       query = query.eq("school_level", schoolLevel);
     }
 
-    if (tab !== "available" && subject) {
-      query = query.eq("subject", subject);
+    if (tab !== "available" && subjectKey) {
+      query = query.eq("subject", subjectKey);
     }
     if (tab !== "available" && maxPrice && maxPrice > 0) {
       query = query.lte("price_per_student", maxPrice);
     }
 
-    if (search) {
-      const term = String(search).trim();
-      if (term) query = query.ilike("title", `%${term}%`);
+    if (tab !== "available" && (dateRange.from || dateRange.to)) {
+      query = applyScheduledDateRange(query, dateRange);
+    }
+
+    if (searchTerm) {
+      query = query.ilike("title", `%${searchTerm}%`);
     }
 
     let sessions = [];
@@ -620,11 +724,14 @@ router.get("/sessions", auth, checkRole("student"), async (req, res) => {
 
     return success(res, {
       sessions,
-      pagination: paginationMeta(totalForPagination, Number(page), Number(limit)),
+      pagination: paginationMeta(totalForPagination, pageNum, limitNum),
       tab_counts: tabCounts,
       grade_label: GRADE_LABELS[student.grade] || student.grade
     });
-  } catch (_err) {
+  } catch (err) {
+    if (process.env.NODE_ENV !== "production") {
+      console.error("GET /student/sessions", err);
+    }
     return error(res, "تعذر تحميل الجلسات", 500);
   }
 });

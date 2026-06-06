@@ -93,7 +93,7 @@ export function useAccountProfile({ autoLoad = true } = {}) {
       const res = await authApi.updateProfile({
         full_name: form.full_name.trim(),
         phone: form.phone.trim() || "",
-        avatar_url: form.avatar_url.trim() || undefined,
+        avatar_url: form.avatar_url.trim(),
         ...extraBody
       });
       const saved = res?.data || profile;

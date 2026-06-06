@@ -2,21 +2,63 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
+import ProfileSectionCard from "@/components/profile/ProfileSectionCard";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import Icon from "@/components/shared/Icon";
+import { getProfileStyles } from "@/lib/profile-component-styles";
 import { createClient } from "@/lib/supabase/client";
+import { cn } from "@/lib/utils";
 
-export default function ProfileSecuritySection({ disabled = false }) {
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [saving, setSaving] = useState(false);
+const DESCRIPTIONS = {
+  admin: "حدّث كلمة مرور تسجيل الدخول لحساب المشرف.",
+  parent: "حدّث كلمة مرور تسجيل الدخول لحسابك.",
+  student: "حدّث كلمة مرور تسجيل الدخول لحسابك.",
+  teacher: "حدّث كلمة مرور تسجيل الدخول لحسابك."
+};
 
-  const onSubmit = async (event) => {
+export default function ProfileSecuritySection({
+  variant = "admin",
+  disabled = false,
+  description,
+  password: controlledPassword,
+  confirmPassword: controlledConfirm,
+  onPasswordChange,
+  onConfirmPasswordChange,
+  onSubmit: controlledSubmit,
+  saving: controlledSaving = false,
+  idPrefix = "profile"
+}) {
+  const styles = getProfileStyles(variant);
+  const resolvedDescription = description || DESCRIPTIONS[variant] || DESCRIPTIONS.admin;
+  const isControlled = controlledSubmit != null;
+
+  const [internalPassword, setInternalPassword] = useState("");
+  const [internalConfirm, setInternalConfirm] = useState("");
+  const [internalSaving, setInternalSaving] = useState(false);
+
+  const password = isControlled ? controlledPassword : internalPassword;
+  const confirmPassword = isControlled ? controlledConfirm : internalConfirm;
+  const saving = isControlled ? controlledSaving : internalSaving;
+  const busy = disabled || saving;
+
+  const setPassword = (value) => {
+    if (isControlled) onPasswordChange?.({ target: { value } });
+    else setInternalPassword(value);
+  };
+
+  const setConfirmPassword = (value) => {
+    if (isControlled) onConfirmPasswordChange?.({ target: { value } });
+    else setInternalConfirm(value);
+  };
+
+  const handleSubmit = async (event) => {
     event.preventDefault();
-    if (password.length < 6) {
-      toast.error("كلمة المرور يجب أن تكون 6 أحرف على الأقل");
+    if (isControlled) {
+      controlledSubmit?.();
+      return;
+    }
+
+    if (password.length < 8) {
+      toast.error("كلمة المرور يجب أن تكون 8 أحرف على الأقل");
       return;
     }
     if (password !== confirmPassword) {
@@ -24,68 +66,94 @@ export default function ProfileSecuritySection({ disabled = false }) {
       return;
     }
 
-    setSaving(true);
+    setInternalSaving(true);
     try {
       const supabase = createClient();
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
       toast.success("تم تحديث كلمة المرور بنجاح");
-      setPassword("");
-      setConfirmPassword("");
+      setInternalPassword("");
+      setInternalConfirm("");
     } catch (err) {
       toast.error(err.message || "تعذر تحديث كلمة المرور");
     } finally {
-      setSaving(false);
+      setInternalSaving(false);
     }
   };
 
-  const busy = disabled || saving;
+  const useUiInput = variant === "admin";
+  const FieldInput = useUiInput ? Input : "input";
+  const fieldClass = cn(styles.input, !useUiInput && "text-start");
+
+  const formBody = (
+    <>
+      <div className="space-y-1.5">
+        <label htmlFor={`${idPrefix}_new_password`} className={styles.label}>
+          كلمة المرور الجديدة
+        </label>
+        <FieldInput
+          id={`${idPrefix}_new_password`}
+          type="password"
+          autoComplete="new-password"
+          value={password || ""}
+          onChange={(event) => setPassword(event.target.value)}
+          placeholder="••••••••"
+          disabled={busy}
+          minLength={8}
+          dir="ltr"
+          className={fieldClass}
+        />
+      </div>
+      <div className="space-y-1.5">
+        <label htmlFor={`${idPrefix}_confirm_password`} className={styles.label}>
+          تأكيد كلمة المرور
+        </label>
+        <FieldInput
+          id={`${idPrefix}_confirm_password`}
+          type="password"
+          autoComplete="new-password"
+          value={confirmPassword || ""}
+          onChange={(event) => setConfirmPassword(event.target.value)}
+          placeholder="••••••••"
+          disabled={busy}
+          minLength={8}
+          dir="ltr"
+          className={fieldClass}
+        />
+      </div>
+      <div className="md:col-span-2">
+        {isControlled ? (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={controlledSubmit}
+            className={cn(styles.btnSecondary, busy && "opacity-60")}
+          >
+            {saving ? "جاري التحديث…" : "تحديث كلمة المرور"}
+          </button>
+        ) : (
+          <button type="submit" className={cn(styles.btnPrimary, busy && "opacity-60")} disabled={busy}>
+            {saving ? "جارٍ التحديث…" : "تحديث كلمة المرور"}
+          </button>
+        )}
+      </div>
+    </>
+  );
 
   return (
-    <section className="glass-card space-y-4 p-5">
-      <div className="flex items-start gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-          <Icon name="shield" size={20} />
-        </div>
-        <div>
-          <h2 className="text-lg font-black text-text">الأمان وكلمة المرور</h2>
-          <p className="mt-1 text-sm text-text-muted">حدّث كلمة مرور تسجيل الدخول لحسابك.</p>
-        </div>
-      </div>
-
-      <form onSubmit={onSubmit} className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="new_password">كلمة المرور الجديدة</Label>
-          <Input
-            id="new_password"
-            type="password"
-            autoComplete="new-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="••••••••"
-            disabled={busy}
-            minLength={6}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="confirm_password">تأكيد كلمة المرور</Label>
-          <Input
-            id="confirm_password"
-            type="password"
-            autoComplete="new-password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            placeholder="••••••••"
-            disabled={busy}
-            minLength={6}
-          />
-        </div>
-        <div className="md:col-span-2">
-          <Button type="submit" variant="outline" className="rounded-xl" disabled={busy}>
-            {saving ? "جارٍ التحديث…" : "تحديث كلمة المرور"}
-          </Button>
-        </div>
-      </form>
-    </section>
+    <ProfileSectionCard
+      variant={variant}
+      title="الأمان وكلمة المرور"
+      description={resolvedDescription}
+      icon="shield"
+    >
+      {isControlled ? (
+        <div className="grid gap-4 md:grid-cols-2">{formBody}</div>
+      ) : (
+        <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2">
+          {formBody}
+        </form>
+      )}
+    </ProfileSectionCard>
   );
 }

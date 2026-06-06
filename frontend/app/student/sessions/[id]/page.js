@@ -1,22 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
 import PaymentModal from "@/components/shared/PaymentModal";
 import { PageLoader } from "@/components/shared/LoadingSkeleton";
-import EmptyState from "@/components/shared/EmptyState";
-import StatusBadge from "@/components/admin/StatusBadge";
-import SubjectBadge from "@/components/shared/SubjectBadge";
-import LiveBadge from "@/components/shared/LiveBadge";
-import Icon from "@/components/shared/Icon";
+import StudentSessionDetailView from "@/components/student/StudentSessionDetailPage";
 import { studentApi, sessionsApi } from "@/lib/api";
-import Link from "next/link";
 import { pollTransactionFulfillment } from "@/lib/paymob";
 import { mapSessionForCard } from "@/lib/session-mapper";
-import { formatCurrencyEgp, formatDateTimeAr } from "@/lib/format";
-import { cn } from "@/lib/utils";
+import { sessionDetailTxKey } from "@/lib/student-session-detail";
 
-export default function StudentSessionDetailsPage({ params }) {
+export default function StudentSessionDetailsRoute({ params }) {
   const [showPayment, setShowPayment] = useState(false);
   const [raw, setRaw] = useState(null);
   const [session, setSession] = useState(null);
@@ -48,7 +41,7 @@ export default function StudentSessionDetailsPage({ params }) {
     let active = true;
 
     async function verifyPendingPayment() {
-      const txId = sessionStorage.getItem(`peak-tx-${params.id}`);
+      const txId = sessionStorage.getItem(sessionDetailTxKey(params.id));
       if (!txId) return;
 
       try {
@@ -57,12 +50,10 @@ export default function StudentSessionDetailsPage({ params }) {
           sessionId: params.id
         });
         if (!active) return;
-        sessionStorage.removeItem(`peak-tx-${params.id}`);
-        if (fulfilled) {
-          await loadSession();
-        }
+        sessionStorage.removeItem(sessionDetailTxKey(params.id));
+        if (fulfilled) await loadSession();
       } catch {
-        sessionStorage.removeItem(`peak-tx-${params.id}`);
+        sessionStorage.removeItem(sessionDetailTxKey(params.id));
       }
     }
 
@@ -73,212 +64,45 @@ export default function StudentSessionDetailsPage({ params }) {
     };
   }, [params.id, loadSession]);
 
+  const handleCancelEnrollment = async () => {
+    if (!session || !confirm("هل تريد إلغاء التسجيل؟")) return;
+    try {
+      await sessionsApi.cancelEnrollment(session.id);
+      await loadSession();
+    } catch (err) {
+      alert(err.message || "تعذر الإلغاء");
+    }
+  };
+
   if (loading) {
     return <PageLoader />;
   }
 
-  if (error || !session) {
-    return (
-      <main className="space-y-4 bg-bg p-4 md:p-6">
-        <Link
-          href="/student/sessions"
-          className="inline-flex items-center gap-1 text-sm font-bold text-accent"
-        >
-          <Icon name="arrowRight" size={16} />
-          العودة للجلسات
-        </Link>
-        <EmptyState title={error || "الجلسة غير موجودة"} />
-      </main>
-    );
-  }
-
-  const isLive = raw?.status === "live";
-  const canEnroll = raw?.can_enroll;
-  const canJoinLive = raw?.can_join_live;
-  const isEnrolled = raw?.is_enrolled;
-  const isFull = raw?.is_full;
-  const isCompleted = raw?.status === "completed";
-  const isCancelled = raw?.status === "cancelled";
-
   return (
-    <main className="space-y-6 bg-bg p-4 md:p-6">
-      <Link
-        href="/student/sessions"
-        className="inline-flex items-center gap-1 text-sm font-bold text-accent hover:underline"
-      >
-        <Icon name="arrowRight" size={16} />
-        العودة للجلسات
-      </Link>
-
-      <section
-        className={cn(
-          "rounded-2xl border border-border bg-card p-5 shadow-sm",
-          isLive && "border-danger/30 bg-danger/5"
-        )}
-      >
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              {isLive ? <LiveBadge /> : <StatusBadge status={raw?.status} />}
-              {isEnrolled ? (
-                <span className="rounded-full bg-success/10 px-2.5 py-1 text-xs font-bold text-success">
-                  مسجّل في الجلسة
-                </span>
-              ) : null}
-              {raw?.free_trial_available && !isEnrolled ? (
-                <span className="rounded-full bg-accent/10 px-2.5 py-1 text-xs font-bold text-accent">
-                  أول حصة مجانية
-                </span>
-              ) : null}
-              {raw?.low_seats && !isEnrolled ? (
-                <span className="rounded-full bg-warning/10 px-2.5 py-1 text-xs font-bold text-warning">
-                  متاح {raw.seats_left} أماكن فقط
-                </span>
-              ) : null}
-              {isFull && !isEnrolled ? (
-                <span className="rounded-full bg-danger/10 px-2.5 py-1 text-xs font-bold text-danger">
-                  اكتمل العدد
-                </span>
-              ) : null}
-            </div>
-            <h1 className="mt-3 text-2xl font-black text-text">{session.title}</h1>
-            <p className="mt-1 text-sm text-text-muted">{session.teacher_name}</p>
-          </div>
-          <SubjectBadge name={session.subject_name} icon={session.subject_icon} />
-        </div>
-
-        {raw?.description ? (
-          <p className="mt-4 rounded-xl bg-bg px-4 py-3 text-sm leading-relaxed text-text">
-            {raw.description}
-          </p>
-        ) : null}
-
-        <dl className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-xl border border-border bg-bg/50 p-3">
-            <dt className="text-xs text-text-muted">الموعد</dt>
-            <dd className="mt-1 text-sm font-bold text-text">
-              {formatDateTimeAr(raw?.scheduled_at)}
-            </dd>
-          </div>
-          <div className="rounded-xl border border-border bg-bg/50 p-3">
-            <dt className="text-xs text-text-muted">السعر</dt>
-            <dd className="mt-1 text-sm font-bold text-accent">
-              {session.price_label || formatCurrencyEgp(session.price_per_student)}
-            </dd>
-          </div>
-          <div className="rounded-xl border border-border bg-bg/50 p-3">
-            <dt className="text-xs text-text-muted">المقاعد</dt>
-            <dd className="mt-1 text-sm font-bold text-text">{session.spots_label}</dd>
-          </div>
-          <div className="rounded-xl border border-border bg-bg/50 p-3">
-            <dt className="text-xs text-text-muted">الصف</dt>
-            <dd className="mt-1 text-sm font-bold text-text">{raw?.grade_label || "—"}</dd>
-          </div>
-          {raw?.duration_min ? (
-            <div className="rounded-xl border border-border bg-bg/50 p-3">
-              <dt className="text-xs text-text-muted">المدة</dt>
-              <dd className="mt-1 text-sm font-bold text-text">
-                {raw.duration_min.toLocaleString("ar-EG")} دقيقة
-              </dd>
-            </div>
-          ) : null}
-        </dl>
-
-        {raw?.show_subscription_cta ? (
-          <div className="mt-5 rounded-xl border border-accent/30 bg-accent/5 p-4">
-            <p className="text-sm font-bold text-text">وفّر مع الاشتراك الشهري</p>
-            <p className="mt-1 text-xs text-text-muted">
-              بعد {raw.paid_session_count} حصص مدفوعة، الاشتراك الشهري أوفر من الدفع لكل حصة على حدة.
-            </p>
-            <Link
-              href="/student/subscription"
-              className="mt-3 inline-block text-sm font-bold text-accent hover:underline"
-            >
-              مقارنة خطط Silver و Gold
-            </Link>
-          </div>
-        ) : null}
-
-        <div className="mt-6 flex flex-wrap gap-2">
-          {canJoinLive ? (
-            <Button href={`/student/live/${session.id}`} className="rounded-xl" variant="destructive">
-              <Icon name="live" size={18} className="ml-2" />
-              دخول البث المباشر
-            </Button>
-          ) : null}
-
-          {canEnroll ? (
-            <Button className="rounded-xl" variant="accent" onClick={() => setShowPayment(true)}>
-              احجز وادفع الآن
-            </Button>
-          ) : null}
-
-          {isEnrolled && !canJoinLive && !isCompleted && !isCancelled ? (
-            <>
-              <p className="w-full rounded-xl bg-success/10 px-4 py-3 text-sm font-semibold text-success">
-                أنت مسجّل في هذه الجلسة. ستتمكن من الدخول قبل موعد الحصة بـ 15 دقيقة.
-              </p>
-              <Button
-                variant="outline"
-                className="rounded-xl"
-                onClick={async () => {
-                  if (!confirm("هل تريد إلغاء التسجيل؟")) return;
-                  try {
-                    await sessionsApi.cancelEnrollment(session.id);
-                    await loadSession();
-                  } catch (err) {
-                    alert(err.message || "تعذر الإلغاء");
-                  }
-                }}
-              >
-                إلغاء التسجيل
-              </Button>
-            </>
-          ) : null}
-
-          {isCompleted ? (
-            <p className="w-full rounded-xl bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-600">
-              هذه الجلسة منتهية. شكراً لمشاركتك.
-            </p>
-          ) : null}
-
-          {isCancelled ? (
-            <p className="w-full rounded-xl bg-danger/10 px-4 py-3 text-sm font-semibold text-danger">
-              تم إلغاء هذه الجلسة.
-            </p>
-          ) : null}
-
-          {isFull && !isEnrolled && raw?.status === "scheduled" ? (
-            <p className="w-full rounded-xl bg-warning/10 px-4 py-3 text-sm font-semibold text-warning">
-              اكتمل عدد المقاعد في هذه الجلسة. جرّب جلسة أخرى من القائمة.
-            </p>
-          ) : null}
-
-          {!canEnroll && !canJoinLive && !isEnrolled && raw?.status === "scheduled" && !isFull ? (
-            <p className="w-full rounded-xl bg-warning/10 px-4 py-3 text-sm font-semibold text-warning">
-              موعد الجلسة قد مضى أو لا يمكن الحجز حالياً.
-            </p>
-          ) : null}
-        </div>
-      </section>
-
-      {showPayment ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 sm:items-center">
-          <div className="w-full max-w-md animate-in fade-in">
-            <PaymentModal
-              session={session}
-              checkoutOptions={{
-                free_trial_available: raw?.free_trial_available,
-                active_subscription: raw?.active_subscription,
-                seats_left: raw?.seats_left,
-                low_seats: raw?.low_seats
-              }}
-              onClose={() => setShowPayment(false)}
-              onSuccess={() => loadSession()}
-            />
-          </div>
-        </div>
-      ) : null}
-    </main>
+    <StudentSessionDetailView
+      session={session}
+      raw={raw}
+      error={error}
+      showPayment={showPayment}
+      onShowPayment={() => setShowPayment(true)}
+      onClosePayment={() => setShowPayment(false)}
+      onCancelEnrollment={handleCancelEnrollment}
+      onReload={loadSession}
+      paymentModal={
+        session ? (
+          <PaymentModal
+            session={session}
+            checkoutOptions={{
+              free_trial_available: raw?.free_trial_available,
+              active_subscription: raw?.active_subscription,
+              seats_left: raw?.seats_left,
+              low_seats: raw?.low_seats
+            }}
+            onClose={() => setShowPayment(false)}
+            onSuccess={() => loadSession()}
+          />
+        ) : null
+      }
+    />
   );
 }

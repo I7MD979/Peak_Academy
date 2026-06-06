@@ -1,110 +1,245 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { SectionLoader } from "@/components/shared/LoadingSkeleton";
+import AdminActionsMenu from "@/components/admin/AdminActionsMenu";
+import AdminConfirmDialog from "@/components/admin/AdminConfirmDialog";
+import AdminLandingStatModal from "@/components/admin/AdminLandingStatModal";
+import AdminLandingView, {
+  LandingStatKeyCell,
+  LandingStatValueCell,
+  LandingStatVisibilityCell
+} from "@/components/admin/AdminLandingPage";
 import { adminApi } from "@/lib/api";
+import { formatDateAr } from "@/lib/format";
 
-export default function AdminLandingPage() {
+const EMPTY_FORM = {
+  label: "",
+  value: "",
+  hint: "",
+  sort_order: 0,
+  is_visible: true
+};
+
+export default function AdminLandingRoute() {
   const [stats, setStats] = useState([]);
+  const [overview, setOverview] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [overviewLoading, setOverviewLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [mutatingId, setMutatingId] = useState("");
+
+  const [visibilityFilter, setVisibilityFilter] = useState("all");
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
+
+  const [editStat, setEditStat] = useState(null);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [saving, setSaving] = useState(false);
+  const [toggleTarget, setToggleTarget] = useState(null);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => setSearch(searchInput.trim()), 350);
+    return () => clearTimeout(timeout);
+  }, [searchInput]);
+
+  const loadOverview = useCallback(async () => {
+    setOverviewLoading(true);
+    try {
+      const res = await adminApi.landingStatsOverview();
+      setOverview(res?.data || null);
+    } catch {
+      setOverview(null);
+    } finally {
+      setOverviewLoading(false);
+    }
+  }, []);
 
   const loadStats = useCallback(async () => {
+    setLoading(true);
+    setError("");
+
     try {
-      const res = await adminApi.getLandingStats();
+      const params = new URLSearchParams({ visibility: visibilityFilter });
+      if (search) params.set("search", search);
+
+      const res = await adminApi.getLandingStats(params.toString());
       setStats(res?.data || []);
-    } catch {
-      toast.error("تعذر تحميل الإحصائيات");
+    } catch (err) {
+      setStats([]);
+      setError(err.message || "تعذر تحميل إحصائيات الهبوط");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [visibilityFilter, search]);
+
+  useEffect(() => {
+    loadOverview();
+  }, [loadOverview]);
 
   useEffect(() => {
     loadStats();
   }, [loadStats]);
 
-  async function updateStat(id, value) {
+  const refreshAll = useCallback(async () => {
+    await Promise.all([loadOverview(), loadStats()]);
+  }, [loadOverview, loadStats]);
+
+  function openEdit(stat) {
+    setEditStat(stat);
+    setForm({
+      label: stat.label || "",
+      value: stat.value || "",
+      hint: stat.hint || "",
+      sort_order: stat.sort_order ?? 0,
+      is_visible: Boolean(stat.is_visible)
+    });
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!editStat?.id) return;
+
+    setSaving(true);
     try {
-      await adminApi.updateLandingStat(id, { value });
-      toast.success("تم التحديث");
-      loadStats();
-    } catch {
-      toast.error("تعذر التحديث");
+      await adminApi.updateLandingStat(editStat.id, {
+        label: form.label.trim(),
+        value: form.value.trim(),
+        hint: form.hint.trim(),
+        sort_order: Number(form.sort_order) || 0,
+        is_visible: form.is_visible
+      });
+      toast.success("تم تحديث الإحصائية");
+      setEditStat(null);
+      await refreshAll();
+    } catch (err) {
+      toast.error(err.message || "تعذر حفظ التغييرات");
+    } finally {
+      setSaving(false);
     }
   }
 
-  if (loading) {
-    return (
-      <div className="p-6">
-        <SectionLoader />
-      </div>
-    );
+  async function handleToggleVisibility(stat) {
+    setMutatingId(stat.id);
+    try {
+      await adminApi.updateLandingStat(stat.id, { is_visible: !stat.is_visible });
+      toast.success(stat.is_visible ? "تم إخفاء الإحصائية" : "تم إظهار الإحصائية");
+      setToggleTarget(null);
+      await refreshAll();
+    } catch (err) {
+      toast.error(err.message || "تعذر تحديث الإحصائية");
+    } finally {
+      setMutatingId("");
+    }
   }
 
+  const columns = useMemo(
+    () => [
+      {
+        key: "label",
+        label: "العنوان",
+        render: (row) => <span className="font-semibold text-on-surface">{row.label}</span>
+      },
+      {
+        key: "key",
+        label: "المفتاح",
+        render: (row) => <LandingStatKeyCell row={row} />
+      },
+      {
+        key: "value",
+        label: "القيمة",
+        render: (row) => <LandingStatValueCell row={row} />
+      },
+      {
+        key: "hint",
+        label: "الوصف",
+        render: (row) => (
+          <span className="text-sm text-on-surface-variant">{row.hint || "—"}</span>
+        )
+      },
+      {
+        key: "sort_order",
+        label: "الترتيب",
+        render: (row) => (
+          <span className="font-mono text-sm text-on-surface" dir="ltr">
+            {row.sort_order ?? 0}
+          </span>
+        )
+      },
+      {
+        key: "is_visible",
+        label: "الحالة",
+        render: (row) => <LandingStatVisibilityCell row={row} />
+      },
+      {
+        key: "updated_at",
+        label: "آخر تحديث",
+        render: (row) => (
+          <span className="text-xs text-on-surface-variant">
+            {row.updated_at ? formatDateAr(row.updated_at) : "—"}
+          </span>
+        )
+      },
+      {
+        key: "actions",
+        label: "",
+        render: (row) => (
+          <AdminActionsMenu
+            disabled={mutatingId === row.id}
+            items={[
+              { label: "تعديل", icon: "edit", onClick: () => openEdit(row) },
+              {
+                label: row.is_visible ? "إخفاء من الهبوط" : "إظهار على الهبوط",
+                icon: row.is_visible ? "lock" : "unlock",
+                onClick: () => setToggleTarget(row)
+              }
+            ]}
+          />
+        )
+      }
+    ],
+    [mutatingId]
+  );
+
   return (
-    <div className="space-y-6 p-6">
-      <div>
-        <h1 className="text-xl font-bold text-primary">إدارة صفحة الهبوط</h1>
-        <p className="mt-1 text-sm text-text-muted">تحكم في المحتوى الظاهر للزوار</p>
-      </div>
+    <>
+      <AdminLandingView
+        stats={stats}
+        overview={overview}
+        loading={loading}
+        overviewLoading={overviewLoading}
+        error={error}
+        visibilityFilter={visibilityFilter}
+        onVisibilityFilterChange={setVisibilityFilter}
+        searchInput={searchInput}
+        onSearchChange={setSearchInput}
+        onRefresh={refreshAll}
+        columns={columns}
+      />
 
-      <div className="rounded-2xl border border-border bg-card p-5">
-        <h2 className="mb-4 font-bold text-primary">إحصائيات المنصة</h2>
-        <div className="space-y-3">
-          {stats.map((stat) => (
-            <div key={stat.id} className="flex items-center gap-3">
-              <div className="flex-1">
-                <p className="text-sm font-bold">{stat.label}</p>
-                <p className="text-xs text-text-muted">{stat.hint}</p>
-              </div>
-              <input
-                className="w-32 rounded-lg border border-border px-3 py-1.5 text-center text-sm font-bold"
-                defaultValue={stat.value}
-                onBlur={(e) => {
-                  if (e.target.value !== stat.value) {
-                    updateStat(stat.id, e.target.value);
-                  }
-                }}
-              />
-              <div className="w-20 text-center">
-                <span
-                  className={`rounded-full px-2 py-1 text-xs ${
-                    stat.is_visible ? "bg-success/10 text-success" : "bg-border text-text-muted"
-                  }`}
-                >
-                  {stat.is_visible ? "ظاهر" : "مخفي"}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      <AdminLandingStatModal
+        open={Boolean(editStat)}
+        stat={editStat}
+        form={form}
+        saving={saving}
+        onChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
+        onClose={() => setEditStat(null)}
+        onSubmit={handleSubmit}
+      />
 
-      <div className="rounded-2xl border border-border bg-card p-5">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="font-bold text-primary">خطط الاشتراك</h2>
-          <Link href="/admin/subscriptions" className="text-sm text-accent hover:underline">
-            إدارة الخطط ←
-          </Link>
-        </div>
-        <p className="text-sm text-text-muted">
-          الخطط تُدار من صفحة الاشتراكات وتظهر تلقائياً على صفحة الهبوط.
-        </p>
-      </div>
-
-      <div className="rounded-2xl border border-border bg-card p-5">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="font-bold text-primary">أكواد الخصم على الـ Landing</h2>
-          <Link href="/admin/promotions" className="text-sm text-accent hover:underline">
-            إدارة العروض ←
-          </Link>
-        </div>
-        <p className="text-sm text-text-muted">
-          الأكواد النشطة بدون تاريخ انتهاء (أو لم تنتهِ بعد) تظهر تلقائياً كأمثلة على صفحة الهبوط.
-        </p>
-      </div>
-    </div>
+      <AdminConfirmDialog
+        open={Boolean(toggleTarget)}
+        title={toggleTarget?.is_visible ? "إخفاء الإحصائية" : "إظهار الإحصائية"}
+        description={
+          toggleTarget?.is_visible
+            ? `هل تريد إخفاء "${toggleTarget?.label || ""}" من صفحة الهبوط؟`
+            : `هل تريد إظهار "${toggleTarget?.label || ""}" على صفحة الهبوط؟`
+        }
+        confirmLabel={toggleTarget?.is_visible ? "إخفاء" : "إظهار"}
+        tone={toggleTarget?.is_visible ? "danger" : "primary"}
+        onClose={() => setToggleTarget(null)}
+        onConfirm={() => toggleTarget && handleToggleVisibility(toggleTarget)}
+      />
+    </>
   );
 }

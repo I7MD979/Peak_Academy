@@ -12,14 +12,14 @@ export default function ParentChildCard({ child, active, onClick }) {
       className={cn(
         "flex min-w-[140px] flex-1 items-center gap-3 rounded-2xl border p-3 text-right transition-all",
         active
-          ? "border-accent bg-accent text-white shadow-md"
-          : "border-border bg-card text-text hover:border-accent/40 hover:shadow-sm"
+          ? "border-peak-orange bg-peak-orange text-white shadow-lg shadow-peak-orange/20"
+          : "border-auth-outline-variant/40 bg-auth-surface-low text-auth-on-surface hover:border-peak-orange/35"
       )}
     >
       <span
         className={cn(
           "flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl text-lg font-black",
-          active ? "bg-white/20 text-white" : "bg-accent/10 text-accent"
+          active ? "bg-white/20 text-white" : "bg-peak-orange/15 text-peak-orange"
         )}
       >
         {child?.avatar_url ? (
@@ -31,7 +31,7 @@ export default function ParentChildCard({ child, active, onClick }) {
       </span>
       <span className="min-w-0">
         <span className="block truncate text-sm font-bold">{child?.full_name || "طالب"}</span>
-        <span className={cn("block text-xs", active ? "text-white/80" : "text-text-muted")}>
+        <span className={cn("block text-xs", active ? "text-white/85" : "text-auth-on-surface-variant")}>
           {child?.grade_label || "—"}
         </span>
       </span>

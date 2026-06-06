@@ -65,12 +65,12 @@ export default function CameraPreview() {
   }, [videoDeviceId]);
 
   return (
-    <Card className="rounded-xl border-border">
+    <Card className="rounded-xl border-auth-outline-variant/40">
       <CardHeader className="pb-2">
         <CardTitle className="text-lg text-primary">فحص الكاميرا</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="overflow-hidden rounded-lg border border-border bg-black">
+        <div className="overflow-hidden rounded-lg border border-auth-outline-variant/40 bg-black">
           <video
             ref={videoRef}
             autoPlay

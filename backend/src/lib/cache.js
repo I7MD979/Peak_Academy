@@ -150,7 +150,8 @@ export const CACHE = {
   studentSubscription: (id) => `student:${id}:subscription`,
   subscriptionPlans: () => "subscription:plans",
   parentReport: (parentId, studentId, month) => `parent:${parentId}:${studentId}:${month}`,
-  adminDashboard: () => "admin:dashboard"
+  adminDashboard: () => "admin:dashboard",
+  adminDashboardFull: () => "admin:dashboard:full"
 };
 
 export async function getCacheEntry(key) {
@@ -214,7 +215,8 @@ export async function invalidateSessionCaches(sessionId, teacherUserId = null) {
     invalidatePattern("sessions:list:"),
     invalidatePattern(`teacher:`),
     teacherUserId ? invalidate(CACHE.teacherDashboard(teacherUserId)) : Promise.resolve(),
-    invalidate(CACHE.adminDashboard())
+    invalidate(CACHE.adminDashboard()),
+    invalidate(CACHE.adminDashboardFull())
   ]);
 }
 

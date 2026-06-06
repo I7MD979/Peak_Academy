@@ -19,21 +19,21 @@ export default function SessionInfoCard({ session }) {
   if (!session) return null;
 
   return (
-    <Card className="rounded-xl border-border">
+    <Card className="rounded-xl border-auth-outline-variant/40">
       <CardHeader className="pb-2">
         <CardTitle className="text-lg text-primary">معلومات الجلسة</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
         <div className="flex justify-between gap-3">
-          <span className="text-text-muted">المادة</span>
+          <span className="text-auth-on-surface-variant">المادة</span>
           <span className="font-bold">{session.subject}</span>
         </div>
         <div className="flex justify-between gap-3">
-          <span className="text-text-muted">الموضوع</span>
+          <span className="text-auth-on-surface-variant">الموضوع</span>
           <span className="font-bold">{session.topic}</span>
         </div>
         <div className="flex justify-between gap-3">
-          <span className="text-text-muted">الوقت</span>
+          <span className="text-auth-on-surface-variant">الوقت</span>
           <span className="font-bold">{formatDateTimeAr(session.scheduledAt)}</span>
         </div>
         {countdown ? (
@@ -42,11 +42,11 @@ export default function SessionInfoCard({ session }) {
           </div>
         ) : null}
         <div className="flex justify-between gap-3">
-          <span className="text-text-muted">المدة</span>
+          <span className="text-auth-on-surface-variant">المدة</span>
           <span className="font-bold">{session.durationMinutes} دقيقة</span>
         </div>
         <div className="flex justify-between gap-3">
-          <span className="text-text-muted">الطلاب</span>
+          <span className="text-auth-on-surface-variant">الطلاب</span>
           <span className="font-bold">
             {session.enrolledCount}/{session.maxStudents}
           </span>

@@ -1,6 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { resolvePostAuthPath } from "@/lib/role-routes-edge";
+import { appendNextParam, readNextParam } from "@/lib/auth-redirect";
 
 export const dynamic = "force-dynamic";
 
@@ -48,43 +50,30 @@ export async function GET(request) {
     const { error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
     if (sessionError) {
       console.error("[callback] session error:", sessionError.message);
-      return NextResponse.redirect(new URL("/auth/login", origin));
+      const loginUrl = new URL("/auth/login", origin);
+      loginUrl.searchParams.set("error", "oauth_failed");
+      return NextResponse.redirect(loginUrl);
     }
-
-    await supabase.auth.getSession();
 
     const {
-      data: { user }
-    } = await supabase.auth.getUser();
+      data: { session }
+    } = await supabase.auth.getSession();
 
-    if (!user) {
+    if (!session?.access_token) {
       return NextResponse.redirect(new URL("/auth/login", origin));
     }
 
-    console.log("[callback] user_id:", user.id);
+    const nextReturn = readNextParam(requestUrl.searchParams);
 
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    let redirectPath =
+      (await resolvePostAuthPath(session.access_token, request)) || "/onboarding";
 
-    let redirectPath = "/student/dashboard";
-    try {
-      const { data: profile } = await supabase
-        .from("users")
-        .select("role")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      console.log("[callback] profile result:", JSON.stringify(profile));
-
-      if (profile?.role === "teacher") redirectPath = "/teacher/dashboard";
-      else if (profile?.role === "parent") redirectPath = "/parent/dashboard";
-      else if (profile?.role === "admin") redirectPath = "/admin/dashboard";
-      else redirectPath = "/student/dashboard";
-    } catch (e) {
-      console.error("[callback] profile fetch error:", e.message);
-      redirectPath = "/student/dashboard";
+    if (redirectPath === "/onboarding" && nextReturn) {
+      redirectPath = appendNextParam("/onboarding", nextReturn);
+    } else if (nextReturn && redirectPath !== "/onboarding" && redirectPath !== "/auth/login") {
+      redirectPath = nextReturn;
     }
 
-    console.log("[callback] final redirect:", redirectPath);
     const response = NextResponse.redirect(new URL(redirectPath, origin));
     applyCookiesToResponse(response, pendingAuthCookies);
     return response;

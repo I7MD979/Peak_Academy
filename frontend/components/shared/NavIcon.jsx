@@ -4,6 +4,21 @@ import Icon from "@/components/shared/Icon";
 import { cn } from "@/lib/utils";
 
 export default function NavIcon({ name, active = false, variant = "sidebar" }) {
+  if (variant === "surface") {
+    return (
+      <span
+        className={cn(
+          "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors",
+          active
+            ? "bg-primary-container/20 text-md-primary"
+            : "bg-surface-container-high text-on-surface-variant group-hover:text-on-surface"
+        )}
+      >
+        <Icon name={name} size={18} strokeWidth={active ? 2.25 : 2} />
+      </span>
+    );
+  }
+
   if (variant === "bottom") {
     return (
       <span

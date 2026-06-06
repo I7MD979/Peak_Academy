@@ -29,9 +29,9 @@ export default function EndSessionDialog({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl" dir="rtl">
+      <div className="relative z-10 w-full max-w-md rounded-2xl border border-auth-outline-variant/40 bg-auth-surface-high p-6 shadow-xl" dir="rtl">
         <h2 className="text-lg font-black text-primary">إنهاء الجلسة؟</h2>
-        <ul className="mt-3 space-y-1 text-sm text-text-muted">
+        <ul className="mt-3 space-y-1 text-sm text-auth-on-surface-variant">
           <li>• {connectedCount} طلاب متصلين دلوقتي</li>
           <li>• مدة الجلسة: {formatSessionDuration(elapsedSeconds)} ({minutes} دقيقة)</li>
         </ul>

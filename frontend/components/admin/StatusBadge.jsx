@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 const styles = {
   scheduled: "bg-accent-blue/10 text-accent-blue",
   live: "bg-success/10 text-success",
-  completed: "bg-slate-100 text-slate-600",
+  completed: "bg-surface-container-highest text-on-surface-variant",
   cancelled: "bg-danger/10 text-danger",
   pending: "bg-warning/10 text-warning",
   approved: "bg-success/10 text-success",
@@ -34,7 +34,7 @@ const labels = {
 };
 
 export default function StatusBadge({ status, variant }) {
-  if (!status) return <span className="text-xs text-text-muted">—</span>;
+  if (!status) return <span className="text-xs text-on-surface-variant">—</span>;
 
   const labelMap = variant === "session" ? { ...labels, ...sessionLabels } : labels;
   const displayLabel = labelMap[status] || status;
@@ -43,7 +43,7 @@ export default function StatusBadge({ status, variant }) {
     <span
       className={cn(
         "inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-bold",
-        styles[status] || "bg-slate-100 text-slate-600"
+        styles[status] || "bg-surface-container-highest text-on-surface-variant"
       )}
     >
       {status === "live" ? (

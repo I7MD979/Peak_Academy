@@ -54,7 +54,7 @@ export default function LiveBroadcast({
             onParticipantsChange={setParticipants}
           />
         </div>
-        <aside className="flex w-full flex-col border-t border-border bg-card lg:w-80 lg:border-r lg:border-t-0">
+        <aside className="flex w-full flex-col border-t border-auth-outline-variant/40 bg-auth-surface-high lg:w-80 lg:border-r lg:border-t-0">
           <TeacherToolsPanel sessionId={sessionId} room={call} />
           <AttendancePanel
             participants={participants}

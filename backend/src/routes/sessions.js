@@ -61,7 +61,7 @@ import { refundAllSessionEnrollments } from "../services/refundService.js";
 
 const createSessionSchema = z.object({
   title: z.string().min(3, "عنوان الجلسة قصير جداً").max(200),
-  subject: z.string().min(1).optional(),
+  subject: z.string().min(1, "المادة مطلوبة").max(100),
   grade: z
     .enum([
       "prep_first",
@@ -75,7 +75,7 @@ const createSessionSchema = z.object({
   school_level: z.enum(["preparatory", "secondary"]).optional(),
   scheduled_at: z.string().min(1, "موعد الجلسة مطلوب"),
   duration_min: z.coerce.number().int().min(15).max(240).optional(),
-  max_students: z.coerce.number().int().min(1).max(100).optional(),
+  max_students: z.coerce.number().int().min(2, "الحد الأدنى طالبان").max(100).optional(),
   price_per_student: z.coerce.number().positive("السعر يجب أن يكون أكبر من صفر"),
   description: z.string().max(2000).optional().nullable(),
   subject_id: z.string().uuid().optional().nullable()
@@ -241,17 +241,39 @@ router.get("/", auth, async (req, res) => {
       return error(res, "غير مصرح لك بعرض الجلسات", 403);
     }
 
-    const { page = 1, limit = 20, subject, grade, status = "scheduled", search } = req.query;
-    const { from, to } = paginate(page, limit);
+    const { page = 1, limit = 20, subject, grade, status = "scheduled", search, school_level, scheduled_from, scheduled_to } =
+      req.query;
+    const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
+    const { from, to } = paginate(page, safeLimit);
     const ascending = status === "completed" || status === "cancelled" ? false : true;
+    const validStatuses = ["all", "scheduled", "live", "completed", "cancelled"];
+    const safeStatus = validStatuses.includes(String(status)) ? String(status) : "scheduled";
+
+    let teacherIdsForSearch = [];
+    if (search && req.user.role === "admin") {
+      const term = String(search)
+        .trim()
+        .replace(/[%_,]/g, "");
+      if (term) {
+        const { data: teachers } = await supabase
+          .from("users")
+          .select("id")
+          .eq("role", "teacher")
+          .ilike("full_name", `%${term}%`);
+        teacherIdsForSearch = (teachers || []).map((t) => t.id);
+      }
+    }
 
     const cacheKey = CACHE.sessionsList({
       page: Number(page),
-      limit: Number(limit),
+      limit: safeLimit,
       subject: subject || null,
       grade: grade || null,
-      status: status || "scheduled",
+      status: safeStatus || "scheduled",
       search: search || null,
+      school_level: school_level || null,
+      scheduled_from: scheduled_from || null,
+      scheduled_to: scheduled_to || null,
       role: req.user.role,
       userId: req.user.role === "teacher" ? req.user.id : null
     });
@@ -264,16 +286,43 @@ router.get("/", auth, async (req, res) => {
           q = q.eq("teacher_id", req.user.id);
         }
 
-        if (status && status !== "all") {
-          q = q.eq("status", status);
+        if (safeStatus && safeStatus !== "all") {
+          q = q.eq("status", safeStatus);
         }
 
         q = q.order(orderColumn, { ascending });
 
         if (grade) q = q.eq("grade", grade);
+        if (school_level && ["preparatory", "secondary"].includes(String(school_level))) {
+          q = q.eq("school_level", school_level);
+        }
+
+        const scheduleColumn = orderColumn === "start_time" ? "start_time" : "scheduled_at";
+        if (scheduled_from) {
+          const fromDate = new Date(String(scheduled_from));
+          if (!Number.isNaN(fromDate.getTime())) {
+            q = q.gte(scheduleColumn, fromDate.toISOString());
+          }
+        }
+        if (scheduled_to) {
+          const toDate = new Date(String(scheduled_to));
+          if (!Number.isNaN(toDate.getTime())) {
+            toDate.setHours(23, 59, 59, 999);
+            q = q.lte(scheduleColumn, toDate.toISOString());
+          }
+        }
+
         if (search) {
-          const term = String(search).trim();
-          if (term) q = q.ilike("title", `%${term}%`);
+          const term = String(search)
+            .trim()
+            .replace(/[%_,]/g, "");
+          if (term) {
+            if (req.user.role === "admin" && teacherIdsForSearch.length) {
+              q = q.or(`title.ilike.%${term}%,teacher_id.in.(${teacherIdsForSearch.join(",")})`);
+            } else {
+              q = q.ilike("title", `%${term}%`);
+            }
+          }
         }
 
         if (subject) {
@@ -299,7 +348,7 @@ router.get("/", auth, async (req, res) => {
         ? cached
         : { data: [], count: 0, db_warning: null };
     const { data = [], count = 0, db_warning } = payload;
-    const { page: pageNum, limit: limitNum } = paginate(page, limit);
+    const { page: pageNum, limit: limitNum } = paginate(page, safeLimit);
 
     if (db_warning) {
       res.setHeader("X-Peak-Db-Warning", "schema");
@@ -448,8 +497,8 @@ router.post("/", auth, checkRole("teacher"), async (req, res) => {
     if (Number.isNaN(scheduledAt.getTime())) {
       return error(res, "موعد الجلسة غير صالح", 400);
     }
-    if (scheduledAt.getTime() <= Date.now()) {
-      return error(res, "موعد الجلسة يجب أن يكون في المستقبل", 400);
+    if (scheduledAt.getTime() <= Date.now() + 5 * 60 * 1000) {
+      return error(res, "موعد الجلسة يجب أن يكون بعد 5 دقائق على الأقل", 400);
     }
 
     const maxStudents = body.max_students || 10;
@@ -953,10 +1002,14 @@ router.post("/:id/end", auth, checkRole("teacher"), async (req, res) => {
 
 router.patch("/:id/cancel", auth, checkRole("teacher", "admin"), async (req, res) => {
   try {
+    const sessionId = req.params.id;
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!UUID_RE.test(sessionId)) return error(res, "معرّف الجلسة غير صالح", 400);
+
     const { data: session, error: dbError } = await supabase
       .from("sessions")
       .select("status, teacher_id")
-      .eq("id", req.params.id)
+      .eq("id", sessionId)
       .single();
 
     if (dbError) throw dbError;

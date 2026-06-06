@@ -7,10 +7,19 @@ import { createClient } from "@/lib/supabase/client";
 import { SectionLoader } from "@/components/shared/LoadingSkeleton";
 import { getAuthErrorMessage } from "@/lib/auth-errors";
 
+import {
+  authInputClass,
+  authBtnPrimaryClass,
+  authErrorClass
+} from "@/components/auth/auth-styles";
+import { cn } from "@/lib/utils";
+
 export default function ResetPasswordForm() {
   const router = useRouter();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [ready, setReady] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -82,8 +91,8 @@ export default function ResetPasswordForm() {
   if (error && !ready) {
     return (
       <div className="space-y-4 text-center">
-        <p className="text-sm font-bold text-danger">{error}</p>
-        <Link href="/auth/forgot-password" className="font-bold text-accent hover:underline">
+        <div className={authErrorClass}>{error}</div>
+        <Link href="/auth/forgot-password" className="font-bold text-md-primary hover:underline">
           طلب رابط جديد
         </Link>
       </div>
@@ -95,44 +104,76 @@ export default function ResetPasswordForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      {error ? (
-        <div className="rounded-xl bg-danger/10 p-3 text-sm font-bold text-danger">⚠️ {error}</div>
-      ) : null}
-      <div>
-        <label htmlFor="new-password" className="mb-1 block text-sm font-bold">
+    <form onSubmit={handleSubmit} className="space-y-6">
+      {error ? <div className={authErrorClass}>{error}</div> : null}
+
+      <div className="space-y-2">
+        <label className="block text-xs font-semibold text-on-surface-variant" htmlFor="new-password">
           كلمة المرور الجديدة
         </label>
-        <input
-          id="new-password"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          minLength={8}
-          required
-          className="w-full rounded-xl border border-border p-3 font-cairo focus:border-accent focus:outline-none"
-        />
+        <div className="relative">
+          <input
+            id="new-password"
+            type={showPassword ? "text" : "password"}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="••••••••"
+            minLength={8}
+            required
+            autoComplete="new-password"
+            className={cn(authInputClass, "pl-12 text-start")}
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((prev) => !prev)}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant transition-colors hover:text-on-surface"
+            aria-label={showPassword ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"}
+          >
+            <span className="material-symbols-outlined text-lg">
+              {showPassword ? "visibility_off" : "visibility"}
+            </span>
+          </button>
+        </div>
       </div>
-      <div>
-        <label htmlFor="confirm-password" className="mb-1 block text-sm font-bold">
+
+      <div className="space-y-2">
+        <label className="block text-xs font-semibold text-on-surface-variant" htmlFor="confirm-password">
           تأكيد كلمة المرور
         </label>
-        <input
-          id="confirm-password"
-          type="password"
-          value={confirm}
-          onChange={(e) => setConfirm(e.target.value)}
-          minLength={8}
-          required
-          className="w-full rounded-xl border border-border p-3 font-cairo focus:border-accent focus:outline-none"
-        />
+        <div className="relative">
+          <input
+            id="confirm-password"
+            type={showConfirm ? "text" : "password"}
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            placeholder="••••••••"
+            minLength={8}
+            required
+            autoComplete="new-password"
+            className={cn(authInputClass, "pl-12 text-start")}
+          />
+          <button
+            type="button"
+            onClick={() => setShowConfirm((prev) => !prev)}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant transition-colors hover:text-on-surface"
+            aria-label={showConfirm ? "إخفاء التأكيد" : "إظهار التأكيد"}
+          >
+            <span className="material-symbols-outlined text-lg">
+              {showConfirm ? "visibility_off" : "visibility"}
+            </span>
+          </button>
+        </div>
       </div>
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full rounded-xl bg-accent py-3 font-black text-white hover:bg-orange-600 disabled:opacity-50"
-      >
-        {loading ? "جاري الحفظ..." : "حفظ كلمة المرور"}
+
+      <button type="submit" disabled={loading} className={authBtnPrimaryClass}>
+        {loading ? (
+          <span className="material-symbols-outlined animate-spin">sync</span>
+        ) : (
+          <>
+            <span>حفظ كلمة المرور</span>
+            <span className="material-symbols-outlined">lock_reset</span>
+          </>
+        )}
       </button>
     </form>
   );

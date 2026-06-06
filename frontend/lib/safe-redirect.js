@@ -5,7 +5,8 @@ export function sanitizeRedirectPath(path, fallback = null) {
   if (!path || typeof path !== "string") return fallback;
   const trimmed = path.trim();
   if (!trimmed.startsWith("/") || trimmed.startsWith("//")) return fallback;
-  if (trimmed.startsWith("/auth/login") || trimmed.startsWith("/auth/callback")) {
+  const blocked = ["/auth/login", "/auth/register", "/auth/callback", "/auth/forgot-password"];
+  if (blocked.some((p) => trimmed === p || trimmed.startsWith(`${p}/`) || trimmed.startsWith(`${p}?`))) {
     return fallback;
   }
   return trimmed;

@@ -3,16 +3,20 @@ import { z } from "zod";
 import { auth } from "../middleware/auth.js";
 import { checkRole } from "../middleware/checkRole.js";
 import { supabase } from "../lib/supabase.js";
+import { isValidGrade } from "../lib/grades.js";
 import { success, error } from "../utils/response.js";
 import {
   countActiveRoomMembers,
   getStudyRoomsOverview,
   joinStudyRoom,
   leaveRoom,
-  markRoomStatus
+  markRoomStatus,
+  SUBJECT_LABELS
 } from "../services/studyRoomsService.js";
 
 const router = Router();
+
+const VALID_SUBJECT_KEYS = Object.keys(SUBJECT_LABELS).filter((k) => k !== "general");
 
 async function getStudentGrade(userId) {
   const { data: student, error: studentError } = await supabase
@@ -28,9 +32,18 @@ async function getStudentGrade(userId) {
 router.get("/", auth, checkRole("student"), async (req, res) => {
   try {
     const grade = await getStudentGrade(req.user.id);
-    if (!grade) return error(res, "أكمل ملفك الدراسي (الصف) قبل الانضمام لغرف المذاكرة", 400);
+    if (!grade) {
+      return error(res, "أكمل ملفك الدراسي (الصف) قبل الانضمام لغرف المذاكرة", 400);
+    }
 
-    const overview = await getStudyRoomsOverview(req.user.id, grade);
+    const subjectRaw = String(req.query.subject || "").trim().toLowerCase();
+    if (subjectRaw && !VALID_SUBJECT_KEYS.includes(subjectRaw)) {
+      return error(res, "المادة غير صالحة", 400);
+    }
+
+    const overview = await getStudyRoomsOverview(req.user.id, grade, {
+      subject: subjectRaw || null
+    });
     return success(res, { grade, ...overview });
   } catch (err) {
     if (process.env.NODE_ENV !== "production") console.error("GET /study-rooms", err);
@@ -41,20 +54,27 @@ router.get("/", auth, checkRole("student"), async (req, res) => {
 router.post("/join-random", auth, checkRole("student"), async (req, res) => {
   const parsed = z
     .object({
-      subject: z.string().min(2),
-      grade: z.enum(["first", "second", "third"]).optional()
+      subject: z.string().min(1).max(32),
+      grade: z.string().optional()
     })
     .safeParse(req.body);
 
-  if (!parsed.success) return error(res, "بيانات غير صالحة — اختر المادة والصف", 400);
+  if (!parsed.success) return error(res, "بيانات غير صالحة — اختر المادة", 400);
+
+  const subjectKey = String(parsed.data.subject).trim().toLowerCase();
+  if (!VALID_SUBJECT_KEYS.includes(subjectKey)) {
+    return error(res, "المادة غير صالحة", 400);
+  }
 
   try {
     const grade = parsed.data.grade || (await getStudentGrade(req.user.id));
-    if (!grade) return error(res, "حدد صفك الدراسي في الملف الشخصي أولاً", 400);
+    if (!grade || !isValidGrade(grade)) {
+      return error(res, "حدد صفك الدراسي في الملف الشخصي أولاً", 400);
+    }
 
     const result = await joinStudyRoom({
       userId: req.user.id,
-      subject: parsed.data.subject,
+      subject: subjectKey,
       grade
     });
 
@@ -69,14 +89,21 @@ router.post("/join-random", auth, checkRole("student"), async (req, res) => {
 });
 
 router.post("/:roomId/join", auth, checkRole("student"), async (req, res) => {
+  const roomId = String(req.params.roomId || "").trim();
+  if (!roomId || roomId.length > 64) {
+    return error(res, "معرّف الغرفة غير صالح", 400);
+  }
+
   try {
     const grade = await getStudentGrade(req.user.id);
-    if (!grade) return error(res, "حدد صفك الدراسي في الملف الشخصي أولاً", 400);
+    if (!grade || !isValidGrade(grade)) {
+      return error(res, "حدد صفك الدراسي في الملف الشخصي أولاً", 400);
+    }
 
     const result = await joinStudyRoom({
       userId: req.user.id,
       grade,
-      roomId: req.params.roomId
+      roomId
     });
 
     const message = result.already_member ? "أنت بالفعل في هذه الغرفة" : "تم الانضمام للغرفة";
@@ -87,17 +114,27 @@ router.post("/:roomId/join", auth, checkRole("student"), async (req, res) => {
 });
 
 router.post("/:roomId/leave", auth, checkRole("student"), async (req, res) => {
-  try {
-    const leftAt = await leaveRoom(req.params.roomId, req.user.id);
-    const activeMembers = await countActiveRoomMembers(req.params.roomId);
-    if (activeMembers === 0) await markRoomStatus(req.params.roomId, "closed");
+  const roomId = String(req.params.roomId || "").trim();
+  if (!roomId || roomId.length > 64) {
+    return error(res, "معرّف الغرفة غير صالح", 400);
+  }
 
-    return success(res, {
-      room_id: req.params.roomId,
-      left_at: leftAt,
-      active_members: activeMembers
-    }, "تم مغادرة الغرفة");
-  } catch (_err) {
+  try {
+    const leftAt = await leaveRoom(roomId, req.user.id);
+    const activeMembers = await countActiveRoomMembers(roomId);
+    if (activeMembers === 0) await markRoomStatus(roomId, "closed");
+
+    return success(
+      res,
+      {
+        room_id: roomId,
+        left_at: leftAt,
+        active_members: activeMembers
+      },
+      "تم مغادرة الغرفة"
+    );
+  } catch (err) {
+    if (process.env.NODE_ENV !== "production") console.error("POST /study-rooms/leave", err);
     return error(res, "تعذر مغادرة الغرفة", 500);
   }
 });
