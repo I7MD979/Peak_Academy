@@ -61,7 +61,7 @@ function buildCallbackRedirect(frontendUrl, returnTo, isNew) {
   return `${frontendUrl}/auth/callback`;
 }
 
-router.get("/google", oauthLimiter, (req, res) => {
+router.get("/", oauthLimiter, (req, res) => {
   try {
     const returnTo = req.query.return_to || null;
 
@@ -80,7 +80,7 @@ router.get("/google", oauthLimiter, (req, res) => {
   }
 });
 
-router.get("/google/callback", oauthLimiter, async (req, res) => {
+router.get("/callback", oauthLimiter, async (req, res) => {
   const frontendUrl = getFrontendUrl();
 
   try {

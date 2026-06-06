@@ -205,8 +205,8 @@ app.get("/api/diag", async (_req, res) => {
   res.status(200).json(payload);
 });
 
-app.use("/api/auth", googleAuthRoutes);
-app.use("/auth", googleAuthRoutes);
+app.use("/api/auth/google", googleAuthRoutes);
+app.use("/auth/google", googleAuthRoutes);
 app.use("/api/auth", authRoutes);
 /** Same routes without /api prefix when NEXT_PUBLIC_API_URL omits /api */
 app.use("/auth", authRoutes);
