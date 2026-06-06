@@ -18,7 +18,9 @@ export const useAuth = () => {
 
   const signInWithGoogle = async ({ returnTo } = {}) => {
     try {
-      const apiBase = getApiBaseUrl().replace(/\/api$/, "");
+      const apiBase = getApiBaseUrl()
+        .replace(/\/api$/, "")
+        .replace(/\/peak-api$/, "");
       const params = new URLSearchParams();
       const safeReturnTo = sanitizeRedirectPath(returnTo);
       if (safeReturnTo) params.set("return_to", safeReturnTo);
