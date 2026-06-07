@@ -10,6 +10,8 @@ import hpp from "hpp";
 const OAUTH_CALLBACK_PATHS = [
   "/api/auth/google/callback",
   "/auth/google/callback",
+  "/api/auth/google/exchange",
+  "/auth/google/exchange",
   "/api/auth/google",
   "/auth/google"
 ];
