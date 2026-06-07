@@ -154,7 +154,8 @@ router.get("/callback", oauthLimiter, async (req, res) => {
 });
 
 // ─── POST /api/auth/google/exchange ───────────────────────────────────────
-// Frontend calls this once with the one-time JWT to get a Supabase session
+// Frontend calls this once with the one-time JWT to get a Supabase session.
+// Uses Supabase REST API directly to avoid JS-client session-persistence issues.
 router.post("/exchange", oauthLimiter, async (req, res) => {
   try {
     const { token } = req.body;
@@ -176,11 +177,11 @@ router.post("/exchange", oauthLimiter, async (req, res) => {
 
     const email = payload.email;
 
-    // Generate a Supabase magic link → exchange → return session tokens
+    // Step 1: Generate a one-time OTP token for this user (server-side, no email sent)
     const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
       type: "magiclink",
       email,
-      options: { redirectTo: null }
+      options: { redirectTo: "" }
     });
 
     if (linkError || !linkData?.properties?.hashed_token) {
@@ -188,25 +189,45 @@ router.post("/exchange", oauthLimiter, async (req, res) => {
       return res.status(500).json({ error: "session_generation_failed" });
     }
 
-    // Exchange the hashed token for a real Supabase session
-    const { data: sessionData, error: sessionError } = await supabase.auth.verifyOtp({
-      email,
-      token: linkData.properties.hashed_token,
-      type: "magiclink"
+    // Step 2: Exchange the hashed token for a real Supabase session via REST API
+    // POST /auth/v1/verify with token_hash returns JSON tokens (no redirect)
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const apiKey = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_KEY;
+
+    const verifyRes = await fetch(`${supabaseUrl}/auth/v1/verify`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": apiKey,
+        "Authorization": `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        token_hash: linkData.properties.hashed_token,
+        type: "magiclink"
+      }),
+      signal: AbortSignal.timeout(10_000)
     });
 
-    if (sessionError || !sessionData?.session) {
-      console.error("[google-auth] verifyOtp error:", sessionError?.message);
+    if (!verifyRes.ok) {
+      const errBody = await verifyRes.json().catch(() => ({}));
+      console.error("[google-auth] verify REST error:", errBody);
       return res.status(500).json({ error: "session_exchange_failed" });
     }
 
+    const session = await verifyRes.json();
+
+    if (!session?.access_token || !session?.refresh_token) {
+      console.error("[google-auth] verify returned incomplete session");
+      return res.status(500).json({ error: "session_incomplete" });
+    }
+
     return res.json({
-      access_token: sessionData.session.access_token,
-      refresh_token: sessionData.session.refresh_token,
-      expires_in: sessionData.session.expires_in,
+      access_token: session.access_token,
+      refresh_token: session.refresh_token,
+      expires_in: session.expires_in ?? 3600,
       user: {
-        id: sessionData.user.id,
-        email: sessionData.user.email
+        id: session.user?.id,
+        email: session.user?.email
       }
     });
   } catch (err) {
