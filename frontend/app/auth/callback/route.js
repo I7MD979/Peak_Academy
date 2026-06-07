@@ -13,11 +13,12 @@ function applyCookiesToResponse(target, cookiesToSet) {
 }
 
 function getBackendUrl() {
-  // Server-side: use internal URL env or fallback
+  // Server-side: strips trailing /api then re-appends it, so NEXT_PUBLIC_API_URL
+  // can be "https://api.peak-academy.net/api" or "https://api.peak-academy.net"
   const configured = process.env.NEXT_PUBLIC_API_URL?.trim();
-  if (configured) return configured.replace(/\/$/, "");
+  if (configured) return configured.replace(/\/api$/, "").replace(/\/$/, "") + "/api";
   return process.env.NODE_ENV === "production"
-    ? "https://peakacademy-production.up.railway.app/api"
+    ? "https://api.peak-academy.net/api"
     : "http://localhost:4000/api";
 }
 
@@ -26,6 +27,7 @@ async function exchangeOneTimeToken(token) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ token }),
+    cache: "no-store",
     signal: AbortSignal.timeout(10_000)
   });
 
@@ -64,7 +66,8 @@ export async function GET(request) {
 
   // ── Path 1: One-time JWT from our backend (Google OAuth) ──────────────────
   const oneTimeToken = requestUrl.searchParams.get("token");
-  if (oneTimeToken) {
+  const code = requestUrl.searchParams.get("code");
+  if (oneTimeToken && !code) {
     try {
       const sessionData = await exchangeOneTimeToken(oneTimeToken);
 
@@ -92,14 +95,13 @@ export async function GET(request) {
       applyCookiesToResponse(response, pendingAuthCookies);
       return response;
     } catch (err) {
-      const code = err.code || "exchange_failed";
+      const errCode = err.code || "exchange_failed";
       console.error("[callback] token exchange error:", err.message);
-      return NextResponse.redirect(new URL(`/auth/login?error=${code}`, origin));
+      return NextResponse.redirect(new URL(`/auth/login?error=${errCode}`, origin));
     }
   }
 
   // ── Path 2: Supabase code exchange (magic link / email OTP fallback) ───────
-  const code = requestUrl.searchParams.get("code");
   if (!code) {
     return NextResponse.redirect(new URL("/auth/login", origin));
   }
