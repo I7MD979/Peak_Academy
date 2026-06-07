@@ -166,6 +166,15 @@ router.get("/callback", oauthLimiter, async (req, res) => {
 router.post("/exchange", oauthLimiter, async (req, res) => {
   try {
     const { token } = req.body;
+
+    // DEBUG — remove after fix
+    console.log("[DEBUG exchange] token type:", typeof token);
+    console.log("[DEBUG exchange] token length:", token?.length);
+    console.log("[DEBUG exchange] first 30 chars:", token?.substring(0, 30));
+    console.log("[DEBUG exchange] is JWT format:", /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token || ""));
+    console.log("[DEBUG exchange] has spaces:", token?.includes(" "));
+    console.log("[DEBUG exchange] has newlines:", token?.includes("\n"));
+
     if (!token || typeof token !== "string") {
       return res.status(400).json({ error: "missing_token" });
     }
