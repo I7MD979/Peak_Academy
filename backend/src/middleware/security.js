@@ -7,12 +7,25 @@ import { rateLimit } from "express-rate-limit";
 import slowDown from "express-slow-down";
 import hpp from "hpp";
 
+const OAUTH_CALLBACK_PATHS = [
+  "/api/auth/google/callback",
+  "/auth/google/callback",
+  "/api/auth/google",
+  "/auth/google"
+];
+
+function isOAuthPath(req) {
+  const path = req.originalUrl?.split("?")[0] || req.url?.split("?")[0] || "";
+  return OAUTH_CALLBACK_PATHS.some((p) => path === p || path.startsWith(p));
+}
+
 // ─────────────────────────────────────────
 // A01 — Broken Access Control
 // ─────────────────────────────────────────
 
 /** منع path traversal في أي URL parameter */
 export function blockPathTraversal(req, res, next) {
+  if (isOAuthPath(req)) return next();
   const raw = req.originalUrl + JSON.stringify(req.params) + JSON.stringify(req.query);
   if (/(\.\.(\/|\\|%2F|%5C)|%00|\/etc\/|\/proc\/)/.test(raw)) {
     return res.status(400).json({ success: false, error: "طلب غير صالح", code: "PATH_TRAVERSAL" });
@@ -110,10 +123,7 @@ function deepSanitize(obj, depth = 0) {
 
 /** XSS + NoSQL injection sanitization */
 export function sanitizeInput(req, _res, next) {
-  const path = req.originalUrl || req.url || "";
-  if (path.startsWith("/api/auth/google/callback") || path.startsWith("/auth/google/callback")) {
-    return next();
-  }
+  if (isOAuthPath(req)) return next();
 
   if (req.body) req.body = deepSanitize(req.body);
   if (req.query) req.query = deepSanitize(req.query);
@@ -125,10 +135,7 @@ export function sanitizeInput(req, _res, next) {
 const SQL_PATTERNS = /('|--|;|\/\*|\*\/|xp_|UNION\s+SELECT|DROP\s+TABLE|INSERT\s+INTO|DELETE\s+FROM|UPDATE\s+SET|EXEC\s*\()/i;
 
 export function blockSQLInjection(req, res, next) {
-  const path = req.originalUrl || req.url || "";
-  if (path.startsWith("/api/auth/google/callback") || path.startsWith("/auth/google/callback")) {
-    return next();
-  }
+  if (isOAuthPath(req)) return next();
 
   const check = (obj) => {
     if (!obj) return false;
@@ -330,6 +337,7 @@ export const hppProtection = hpp({
 
 /** تحديد طول الـ strings */
 export function validateInputLengths(req, res, next) {
+  if (isOAuthPath(req)) return next();
   const MAX_LENGTHS = {
     email: 254,
     password: 128,
