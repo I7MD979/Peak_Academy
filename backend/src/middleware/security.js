@@ -110,6 +110,11 @@ function deepSanitize(obj, depth = 0) {
 
 /** XSS + NoSQL injection sanitization */
 export function sanitizeInput(req, _res, next) {
+  const path = req.originalUrl || req.url || "";
+  if (path.startsWith("/api/auth/google/callback") || path.startsWith("/auth/google/callback")) {
+    return next();
+  }
+
   if (req.body) req.body = deepSanitize(req.body);
   if (req.query) req.query = deepSanitize(req.query);
   if (req.params) req.params = deepSanitize(req.params);
@@ -120,6 +125,11 @@ export function sanitizeInput(req, _res, next) {
 const SQL_PATTERNS = /('|--|;|\/\*|\*\/|xp_|UNION\s+SELECT|DROP\s+TABLE|INSERT\s+INTO|DELETE\s+FROM|UPDATE\s+SET|EXEC\s*\()/i;
 
 export function blockSQLInjection(req, res, next) {
+  const path = req.originalUrl || req.url || "";
+  if (path.startsWith("/api/auth/google/callback") || path.startsWith("/auth/google/callback")) {
+    return next();
+  }
+
   const check = (obj) => {
     if (!obj) return false;
     return Object.values(obj).some((v) => typeof v === "string" && SQL_PATTERNS.test(v));
