@@ -57,7 +57,7 @@ function signOneTimeToken(email, returnTo) {
   const token = jwt.sign(
     { email, returnTo: returnTo || null, jti },
     getJwtSecret(),
-    { expiresIn: "15s", issuer: "peak-academy-oauth" }
+    { expiresIn: "2m", issuer: "peak-academy-oauth" }
   );
   return token;
 }
