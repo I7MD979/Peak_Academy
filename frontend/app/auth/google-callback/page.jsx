@@ -3,6 +3,11 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
+function decodeBase64Url(value) {
+  const padded = value + "=".repeat((4 - (value.length % 4)) % 4);
+  return atob(padded.replace(/-/g, "+").replace(/_/g, "/"));
+}
+
 export default function GoogleCallbackPage() {
   const router = useRouter();
   const [status, setStatus] = useState("جاري تسجيل الدخول...");
@@ -22,10 +27,8 @@ export default function GoogleCallbackPage() {
 
         window.history.replaceState(null, "", window.location.pathname);
 
-        const token = atob(safeToken.replace(/-/g, "+").replace(/_/g, "/"));
-        const returnTo = safeNext
-          ? atob(safeNext.replace(/-/g, "+").replace(/_/g, "/"))
-          : null;
+        const token = decodeBase64Url(safeToken);
+        const returnTo = safeNext ? decodeBase64Url(safeNext) : null;
 
         const apiBase = "https://api.peak-academy.net";
         const res = await fetch(`${apiBase}/api/auth/google/exchange`, {
