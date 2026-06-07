@@ -50,17 +50,22 @@ export function selfOnly(paramKey = "userId") {
 // A02 — Cryptographic Failures
 // ─────────────────────────────────────────
 
-/** إجبار HTTPS في production */
+/** Enforce HTTPS in production */
 export function enforceHttps(req, res, next) {
   if (process.env.NODE_ENV !== "production") return next();
 
-  // السماح لـ Railway healthcheck بالمرور — بيبعت plain HTTP مباشرة للـ container
+  // Skip healthcheck
   const path = req.originalUrl || req.url || "";
   if (path === "/api/health" || path === "/health") return next();
 
-  // السماح لـ Railway internal requests (بدون host header أو بـ internal hostname)
+  // Skip internal/loopback requests
   const host = req.headers.host || "";
-  if (host.includes("railway.internal") || host.includes(".railway.internal")) return next();
+  if (
+    host.includes("railway.internal") ||
+    host.includes("127.0.0.1") ||
+    host.includes("localhost") ||
+    !req.headers.host // no host = internal
+  ) return next();
 
   const proto = req.headers["x-forwarded-proto"] || req.protocol;
   if (proto !== "https") {
