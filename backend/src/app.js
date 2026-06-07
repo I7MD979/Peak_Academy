@@ -73,7 +73,12 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "https://cdn.jsdelivr.net"],
+        scriptSrc: [
+          "'self'",
+          "https://cdn.jsdelivr.net",
+          // Hash for OAuth form auto-submit script
+          "'sha256-ullP4cEe8eEFeNc8L8BzGi1z4LC3Nt3JUCRKSZCRkhc='",
+        ],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
         imgSrc: ["'self'", "data:", "https:"],
