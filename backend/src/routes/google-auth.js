@@ -139,14 +139,39 @@ router.get("/callback", oauthLimiter, async (req, res) => {
     // Issue short-lived one-time JWT (15 seconds)
     const oneTimeToken = signOneTimeToken(googleUser.email, stateData.returnTo);
 
-    // Redirect frontend to /auth/callback?token=<jwt>
-    const callbackUrl = new URL(`${frontendUrl}/auth/callback`);
-    callbackUrl.searchParams.set("token", oneTimeToken);
-    if (stateData.returnTo) {
-      callbackUrl.searchParams.set("next", stateData.returnTo);
-    }
+    // HTML form POST — avoids URL encoding issues with JWT characters
+    const safeToken = Buffer.from(oneTimeToken).toString("base64url");
+    const safeNext = stateData.returnTo
+      ? Buffer.from(stateData.returnTo).toString("base64url")
+      : "";
+    const callbackUrl = `${frontendUrl}/auth/callback`;
 
-    return res.redirect(callbackUrl.toString());
+    return res.send(`<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8"/>
+  <title>جاري تسجيل الدخول...</title>
+  <style>
+    body { margin: 0; background: #0a0c0c; display: flex; align-items: center; justify-content: center; min-height: 100vh; font-family: Cairo, sans-serif; }
+    .loader { text-align: center; color: rgba(255,255,255,0.6); }
+    .spinner { width: 40px; height: 40px; border: 3px solid rgba(255,114,26,0.2); border-top-color: #f5721a; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="loader">
+    <div class="spinner"></div>
+    <p>جاري تسجيل الدخول...</p>
+  </div>
+  <form id="oauthForm" method="POST" action="${callbackUrl}" style="display:none">
+    <input type="hidden" name="t" value="${safeToken}">
+    ${safeNext ? `<input type="hidden" name="n" value="${safeNext}">` : ""}
+  </form>
+  <script>
+    document.getElementById('oauthForm').submit();
+  </script>
+</body>
+</html>`);
   } catch (err) {
     console.error("[google-auth] callback error:", err.message);
     return res.redirect(`${frontendUrl}/auth/login?error=oauth_failed`);
