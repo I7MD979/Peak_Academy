@@ -1,13 +1,13 @@
 /**
- * Google OAuth Routes — Stateless Implementation
- * Uses signed cookies for state (CSRF) instead of in-memory Map
- * Works correctly across multiple Railway instances
+ * Google OAuth Routes — Redis-backed state and single-use tokens
+ * Shared across Railway instances via Upstash Redis
  */
 
 import { Router } from "express";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import { supabase } from "../lib/supabase.js";
+import { getRedis } from "../lib/redis.js";
 import { oauthLimiter, validateOAuthEmail } from "../middleware/oauth-security.js";
 import {
   buildGoogleAuthUrl,
@@ -31,28 +31,40 @@ function getFrontendUrl() {
   return (process.env.FRONTEND_URL || "http://localhost:3000").replace(/\/$/, "");
 }
 
-// ─── State: signed cookie (stateless, works across instances) ─────────────
+// ─── State: Redis single-use (10 min TTL) ──────────────────────────────────
 
-function signState(returnTo) {
-  const nonce = crypto.randomBytes(16).toString("hex");
-  return jwt.sign(
-    { nonce, returnTo: returnTo || null },
-    getJwtSecret(),
-    { expiresIn: "10m", issuer: "peak-academy-oauth-state" }
-  );
+async function generateState(returnTo = null) {
+  const state = crypto.randomBytes(32).toString("hex");
+  const redis = getRedis();
+  if (redis) {
+    await redis.set(
+      `oauth:state:${state}`,
+      JSON.stringify({ returnTo: returnTo || null }),
+      { ex: 600 }
+    );
+  }
+  return state;
 }
 
-function verifyState(stateToken) {
+async function validateState(state) {
+  if (!state || typeof state !== "string") return null;
+  const redis = getRedis();
+  if (!redis) return { returnTo: null };
+
+  const key = `oauth:state:${state}`;
+  const raw = await redis.get(key);
+  if (!raw) return null;
+
+  await redis.del(key);
+
   try {
-    return jwt.verify(stateToken, getJwtSecret(), {
-      issuer: "peak-academy-oauth-state",
-    });
+    return typeof raw === "string" ? JSON.parse(raw) : raw;
   } catch {
     return null;
   }
 }
 
-// ─── One-time token: JWT with jti (stateless replay protection via short TTL) ─
+// ─── One-time token: JWT + Redis single-use jti ────────────────────────────
 
 function signOneTimeToken(email, returnTo) {
   const jti = crypto.randomBytes(16).toString("hex");
@@ -63,12 +75,24 @@ function signOneTimeToken(email, returnTo) {
   );
 }
 
-function verifyOneTimeToken(token) {
-  return jwt.verify(token, getJwtSecret(), { issuer: "peak-academy-oauth" });
+async function verifyOneTimeToken(token) {
+  const payload = jwt.verify(token, getJwtSecret(), { issuer: "peak-academy-oauth" });
+
+  const redis = getRedis();
+  if (redis) {
+    const redisKey = `oauth:used:${payload.jti}`;
+    const alreadyUsed = await redis.get(redisKey);
+    if (alreadyUsed) {
+      throw Object.assign(new Error("Token already used"), { code: "token_used" });
+    }
+    await redis.set(redisKey, "1", { ex: 300 });
+  }
+
+  return payload;
 }
 
 // ─── GET /api/auth/google ──────────────────────────────────────────────────
-router.get("/", oauthLimiter, (req, res) => {
+router.get("/", oauthLimiter, async (req, res) => {
   try {
     const returnTo = req.query.return_to || null;
     let safeReturnTo = null;
@@ -76,19 +100,8 @@ router.get("/", oauthLimiter, (req, res) => {
       safeReturnTo = returnTo.slice(0, 200);
     }
 
-    // Sign state as JWT — no server-side storage needed
-    const stateToken = signState(safeReturnTo);
-
-    // Store state in a short-lived cookie for CSRF verification
-    res.cookie("oauth_state", stateToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 10 * 60 * 1000, // 10 minutes
-      path: "/",
-    });
-
-    const authUrl = buildGoogleAuthUrl(stateToken);
+    const state = await generateState(safeReturnTo);
+    const authUrl = buildGoogleAuthUrl(state);
     res.redirect(authUrl);
   } catch (err) {
     console.error("[google-auth] initiate error:", err.message);
@@ -108,21 +121,11 @@ router.get("/callback", oauthLimiter, async (req, res) => {
       return res.redirect(`${frontendUrl}/auth/login?error=google_denied`);
     }
 
-    // Verify state from cookie (CSRF check)
-    const cookieState = req.cookies?.oauth_state;
-    if (!cookieState || cookieState !== state) {
-      console.warn(`[google-auth] state mismatch — IP: ${req.ip}`);
-      return res.redirect(`${frontendUrl}/auth/login?error=invalid_state`);
-    }
-
-    const stateData = verifyState(state);
+    const stateData = await validateState(state);
     if (!stateData) {
-      console.warn(`[google-auth] invalid state JWT — IP: ${req.ip}`);
+      console.warn(`[google-auth] invalid state — IP: ${req.ip}`);
       return res.redirect(`${frontendUrl}/auth/login?error=invalid_state`);
     }
-
-    // Clear state cookie
-    res.clearCookie("oauth_state", { path: "/" });
 
     if (!code || typeof code !== "string") {
       return res.redirect(`${frontendUrl}/auth/login?error=missing_code`);
@@ -143,19 +146,15 @@ router.get("/callback", oauthLimiter, async (req, res) => {
 
     await createSupabaseSession(supabase, googleUser.email, googleUser.name, googleUser.picture);
 
-    // Issue one-time JWT (3 min TTL)
     const oneTimeToken = signOneTimeToken(googleUser.email, stateData.returnTo);
 
-    // base64url-encode token for hash fragment (avoids JWT corruption in URLs)
     const safeToken = Buffer.from(oneTimeToken).toString("base64url");
     const safeNext = stateData.returnTo
       ? Buffer.from(stateData.returnTo).toString("base64url")
       : "";
-    // Redirect with token in hash fragment (never sent to server)
     const callbackUrl = new URL(`${frontendUrl}/auth/google-callback`);
     callbackUrl.hash = `t=${safeToken}${safeNext ? `&n=${safeNext}` : ""}`;
     return res.redirect(callbackUrl.toString());
-
   } catch (err) {
     console.error("[google-auth] callback error:", err.message);
     return res.redirect(`${frontendUrl}/auth/login?error=oauth_failed`);
@@ -172,18 +171,18 @@ router.post("/exchange", oauthLimiter, async (req, res) => {
 
     let payload;
     try {
-      payload = verifyOneTimeToken(token);
+      payload = await verifyOneTimeToken(token);
     } catch (err) {
       const isExpired = err.name === "TokenExpiredError";
+      const isUsed = err.code === "token_used" || err.message === "Token already used";
       console.warn(`[google-auth] exchange failed: ${err.message}`);
       return res.status(401).json({
-        error: isExpired ? "token_expired" : "invalid_token",
+        error: isExpired ? "token_expired" : isUsed ? "token_used" : "invalid_token",
       });
     }
 
     const email = payload.email;
 
-    // Generate Supabase session via OTP verify
     const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
       type: "magiclink",
       email,
