@@ -146,34 +146,15 @@ router.get("/callback", oauthLimiter, async (req, res) => {
     // Issue one-time JWT (3 min TTL)
     const oneTimeToken = signOneTimeToken(googleUser.email, stateData.returnTo);
 
-    // HTML form POST with base64url encoding (prevents JWT corruption in URL)
+    // base64url-encode token for hash fragment (avoids JWT corruption in URLs)
     const safeToken = Buffer.from(oneTimeToken).toString("base64url");
     const safeNext = stateData.returnTo
       ? Buffer.from(stateData.returnTo).toString("base64url")
       : "";
-    const callbackUrl = `${frontendUrl}/auth/callback`;
-
-    return res.send(`<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-  <meta charset="utf-8"/>
-  <title>جاري تسجيل الدخول...</title>
-  <style>
-    body{margin:0;background:#0a0c0c;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:Cairo,sans-serif}
-    .l{text-align:center;color:rgba(255,255,255,0.6)}
-    .s{width:40px;height:40px;border:3px solid rgba(245,114,26,0.2);border-top-color:#f5721a;border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 16px}
-    @keyframes spin{to{transform:rotate(360deg)}}
-  </style>
-</head>
-<body>
-  <div class="l"><div class="s"></div><p>جاري تسجيل الدخول...</p></div>
-  <form id="f" method="POST" action="${callbackUrl}">
-    <input type="hidden" name="t" value="${safeToken}">
-    ${safeNext ? `<input type="hidden" name="n" value="${safeNext}">` : ""}
-  </form>
-  <script>document.getElementById('f').submit();</script>
-</body>
-</html>`);
+    // Redirect with token in hash fragment (never sent to server)
+    const callbackUrl = new URL(`${frontendUrl}/auth/google-callback`);
+    callbackUrl.hash = `t=${safeToken}${safeNext ? `&n=${safeNext}` : ""}`;
+    return res.redirect(callbackUrl.toString());
 
   } catch (err) {
     console.error("[google-auth] callback error:", err.message);

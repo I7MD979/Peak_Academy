@@ -85,7 +85,7 @@ app.use(
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
         imgSrc: ["'self'", "data:", "https:"],
-        connectSrc: ["'self'", "https://*.supabase.co", "https://api.paymob.com"],
+        connectSrc: ["'self'", "https://*.supabase.co", "https://api.paymob.com", "https://api.peak-academy.net"],
         frameSrc: ["'none'"],
         objectSrc: ["'none'"],
         formAction: [
