@@ -1,8 +1,7 @@
 /**
- * Google OAuth Routes — Backend Handler
- * GET /api/auth/google              → redirect to Google
- * GET /api/auth/google/callback     → handle callback, issue short-lived JWT
- * POST /api/auth/google/exchange    → exchange one-time JWT for Supabase session
+ * Google OAuth Routes — Stateless Implementation
+ * Uses signed cookies for state (CSRF) instead of in-memory Map
+ * Works correctly across multiple Railway instances
  */
 
 import { Router } from "express";
@@ -14,83 +13,82 @@ import {
   buildGoogleAuthUrl,
   exchangeCodeForTokens,
   getGoogleUserInfo,
-  createSupabaseSession
+  createSupabaseSession,
 } from "../services/google-oauth.service.js";
 
 const router = Router();
 
-// ─── State store (CSRF) ────────────────────────────────────────────────────
-const stateStore = new Map();
-const STATE_TTL = 10 * 60 * 1000;
-
-function generateState(returnTo = null) {
-  const state = crypto.randomBytes(32).toString("hex");
-  stateStore.set(state, { returnTo, createdAt: Date.now() });
-  setTimeout(() => stateStore.delete(state), STATE_TTL);
-  return state;
-}
-
-function validateState(state) {
-  if (!state || typeof state !== "string") return null;
-  const data = stateStore.get(state);
-  if (!data) return null;
-  if (Date.now() - data.createdAt > STATE_TTL) {
-    stateStore.delete(state);
-    return null;
-  }
-  stateStore.delete(state);
-  return data;
-}
-
-// ─── One-time token store (replay protection) ──────────────────────────────
-// Stores jti values of tokens that have been used
-const usedTokens = new Set();
-
 function getJwtSecret() {
-  const secret = process.env.OAUTH_TOKEN_SECRET || process.env.AUTH_JWT_SECRET || process.env.SUPABASE_SERVICE_KEY;
-  if (!secret) throw new Error("AUTH_JWT_SECRET is not configured");
+  const secret =
+    process.env.OAUTH_TOKEN_SECRET ||
+    process.env.AUTH_JWT_SECRET ||
+    process.env.SUPABASE_SERVICE_KEY;
+  if (!secret) throw new Error("OAUTH_TOKEN_SECRET is not configured");
   return secret;
-}
-
-function signOneTimeToken(email, returnTo) {
-  const jti = crypto.randomBytes(16).toString("hex");
-  const token = jwt.sign(
-    { email, returnTo: returnTo || null, jti },
-    getJwtSecret(),
-    { expiresIn: "2m", issuer: "peak-academy-oauth" }
-  );
-  return token;
-}
-
-function verifyOneTimeToken(token) {
-  const payload = jwt.verify(token, getJwtSecret(), { issuer: "peak-academy-oauth" });
-  if (usedTokens.has(payload.jti)) {
-    throw new Error("Token already used");
-  }
-  // Mark used before any async work to prevent race conditions
-  usedTokens.add(payload.jti);
-  // Clean up after 60 seconds (well past the 15s TTL)
-  setTimeout(() => usedTokens.delete(payload.jti), 60_000);
-  return payload;
 }
 
 function getFrontendUrl() {
   return (process.env.FRONTEND_URL || "http://localhost:3000").replace(/\/$/, "");
 }
 
+// ─── State: signed cookie (stateless, works across instances) ─────────────
+
+function signState(returnTo) {
+  const nonce = crypto.randomBytes(16).toString("hex");
+  return jwt.sign(
+    { nonce, returnTo: returnTo || null },
+    getJwtSecret(),
+    { expiresIn: "10m", issuer: "peak-academy-oauth-state" }
+  );
+}
+
+function verifyState(stateToken) {
+  try {
+    return jwt.verify(stateToken, getJwtSecret(), {
+      issuer: "peak-academy-oauth-state",
+    });
+  } catch {
+    return null;
+  }
+}
+
+// ─── One-time token: JWT with jti (stateless replay protection via short TTL) ─
+
+function signOneTimeToken(email, returnTo) {
+  const jti = crypto.randomBytes(16).toString("hex");
+  return jwt.sign(
+    { email, returnTo: returnTo || null, jti },
+    getJwtSecret(),
+    { expiresIn: "3m", issuer: "peak-academy-oauth" }
+  );
+}
+
+function verifyOneTimeToken(token) {
+  return jwt.verify(token, getJwtSecret(), { issuer: "peak-academy-oauth" });
+}
+
 // ─── GET /api/auth/google ──────────────────────────────────────────────────
 router.get("/", oauthLimiter, (req, res) => {
   try {
     const returnTo = req.query.return_to || null;
-
     let safeReturnTo = null;
     if (returnTo && typeof returnTo === "string" && returnTo.startsWith("/") && !returnTo.startsWith("//")) {
       safeReturnTo = returnTo.slice(0, 200);
     }
 
-    const state = generateState(safeReturnTo);
-    const authUrl = buildGoogleAuthUrl(state);
+    // Sign state as JWT — no server-side storage needed
+    const stateToken = signState(safeReturnTo);
 
+    // Store state in a short-lived cookie for CSRF verification
+    res.cookie("oauth_state", stateToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 10 * 60 * 1000, // 10 minutes
+      path: "/",
+    });
+
+    const authUrl = buildGoogleAuthUrl(stateToken);
     res.redirect(authUrl);
   } catch (err) {
     console.error("[google-auth] initiate error:", err.message);
@@ -110,11 +108,21 @@ router.get("/callback", oauthLimiter, async (req, res) => {
       return res.redirect(`${frontendUrl}/auth/login?error=google_denied`);
     }
 
-    const stateData = validateState(state);
-    if (!stateData) {
-      console.warn(`[google-auth] invalid state from IP: ${req.ip}`);
+    // Verify state from cookie (CSRF check)
+    const cookieState = req.cookies?.oauth_state;
+    if (!cookieState || cookieState !== state) {
+      console.warn(`[google-auth] state mismatch — IP: ${req.ip}`);
       return res.redirect(`${frontendUrl}/auth/login?error=invalid_state`);
     }
+
+    const stateData = verifyState(state);
+    if (!stateData) {
+      console.warn(`[google-auth] invalid state JWT — IP: ${req.ip}`);
+      return res.redirect(`${frontendUrl}/auth/login?error=invalid_state`);
+    }
+
+    // Clear state cookie
+    res.clearCookie("oauth_state", { path: "/" });
 
     if (!code || typeof code !== "string") {
       return res.redirect(`${frontendUrl}/auth/login?error=missing_code`);
@@ -133,13 +141,12 @@ router.get("/callback", oauthLimiter, async (req, res) => {
       return res.redirect(`${frontendUrl}/auth/login?error=email_not_allowed`);
     }
 
-    // Ensure user exists in Supabase auth + DB
     await createSupabaseSession(supabase, googleUser.email, googleUser.name, googleUser.picture);
 
-    // Issue short-lived one-time JWT (15 seconds)
+    // Issue one-time JWT (3 min TTL)
     const oneTimeToken = signOneTimeToken(googleUser.email, stateData.returnTo);
 
-    // HTML form POST — avoids URL encoding issues with JWT characters
+    // HTML form POST with base64url encoding (prevents JWT corruption in URL)
     const safeToken = Buffer.from(oneTimeToken).toString("base64url");
     const safeNext = stateData.returnTo
       ? Buffer.from(stateData.returnTo).toString("base64url")
@@ -152,26 +159,22 @@ router.get("/callback", oauthLimiter, async (req, res) => {
   <meta charset="utf-8"/>
   <title>جاري تسجيل الدخول...</title>
   <style>
-    body { margin: 0; background: #0a0c0c; display: flex; align-items: center; justify-content: center; min-height: 100vh; font-family: Cairo, sans-serif; }
-    .loader { text-align: center; color: rgba(255,255,255,0.6); }
-    .spinner { width: 40px; height: 40px; border: 3px solid rgba(255,114,26,0.2); border-top-color: #f5721a; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
-    @keyframes spin { to { transform: rotate(360deg); } }
+    body{margin:0;background:#0a0c0c;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:Cairo,sans-serif}
+    .l{text-align:center;color:rgba(255,255,255,0.6)}
+    .s{width:40px;height:40px;border:3px solid rgba(245,114,26,0.2);border-top-color:#f5721a;border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 16px}
+    @keyframes spin{to{transform:rotate(360deg)}}
   </style>
 </head>
 <body>
-  <div class="loader">
-    <div class="spinner"></div>
-    <p>جاري تسجيل الدخول...</p>
-  </div>
-  <form id="oauthForm" method="POST" action="${callbackUrl}" style="display:none">
+  <div class="l"><div class="s"></div><p>جاري تسجيل الدخول...</p></div>
+  <form id="f" method="POST" action="${callbackUrl}">
     <input type="hidden" name="t" value="${safeToken}">
     ${safeNext ? `<input type="hidden" name="n" value="${safeNext}">` : ""}
   </form>
-  <script>
-    document.getElementById('oauthForm').submit();
-  </script>
+  <script>document.getElementById('f').submit();</script>
 </body>
 </html>`);
+
   } catch (err) {
     console.error("[google-auth] callback error:", err.message);
     return res.redirect(`${frontendUrl}/auth/login?error=oauth_failed`);
@@ -179,8 +182,6 @@ router.get("/callback", oauthLimiter, async (req, res) => {
 });
 
 // ─── POST /api/auth/google/exchange ───────────────────────────────────────
-// Frontend calls this once with the one-time JWT to get a Supabase session.
-// Uses Supabase REST API directly to avoid JS-client session-persistence issues.
 router.post("/exchange", oauthLimiter, async (req, res) => {
   try {
     const { token } = req.body;
@@ -193,20 +194,19 @@ router.post("/exchange", oauthLimiter, async (req, res) => {
       payload = verifyOneTimeToken(token);
     } catch (err) {
       const isExpired = err.name === "TokenExpiredError";
-      const isUsed = err.message === "Token already used";
       console.warn(`[google-auth] exchange failed: ${err.message}`);
       return res.status(401).json({
-        error: isExpired ? "token_expired" : isUsed ? "token_used" : "invalid_token"
+        error: isExpired ? "token_expired" : "invalid_token",
       });
     }
 
     const email = payload.email;
 
-    // Step 1: Generate a one-time OTP token for this user (server-side, no email sent)
+    // Generate Supabase session via OTP verify
     const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
       type: "magiclink",
       email,
-      options: { redirectTo: "" }
+      options: { redirectTo: "" },
     });
 
     if (linkError || !linkData?.properties?.hashed_token) {
@@ -214,8 +214,6 @@ router.post("/exchange", oauthLimiter, async (req, res) => {
       return res.status(500).json({ error: "session_generation_failed" });
     }
 
-    // Step 2: Exchange the hashed token for a real Supabase session via REST API
-    // POST /auth/v1/verify with token_hash returns JSON tokens (no redirect)
     const supabaseUrl = process.env.SUPABASE_URL;
     const apiKey = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_KEY;
 
@@ -223,14 +221,14 @@ router.post("/exchange", oauthLimiter, async (req, res) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "apikey": apiKey,
-        "Authorization": `Bearer ${apiKey}`
+        apikey: apiKey,
+        Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
         token_hash: linkData.properties.hashed_token,
-        type: "magiclink"
+        type: "magiclink",
       }),
-      signal: AbortSignal.timeout(10_000)
+      signal: AbortSignal.timeout(10_000),
     });
 
     if (!verifyRes.ok) {
@@ -242,7 +240,6 @@ router.post("/exchange", oauthLimiter, async (req, res) => {
     const session = await verifyRes.json();
 
     if (!session?.access_token || !session?.refresh_token) {
-      console.error("[google-auth] verify returned incomplete session");
       return res.status(500).json({ error: "session_incomplete" });
     }
 
@@ -250,10 +247,7 @@ router.post("/exchange", oauthLimiter, async (req, res) => {
       access_token: session.access_token,
       refresh_token: session.refresh_token,
       expires_in: session.expires_in ?? 3600,
-      user: {
-        id: session.user?.id,
-        email: session.user?.email
-      }
+      user: { id: session.user?.id, email: session.user?.email },
     });
   } catch (err) {
     console.error("[google-auth] exchange error:", err.message);

@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
+import cookieParser from "cookie-parser";
 import { limiter } from "./middleware/rateLimit.js";
 import { timeout } from "./middleware/timeout.js";
 import { requestId } from "./middleware/requestId.js";
@@ -40,6 +41,8 @@ import { captureException, setupExpressSentry } from "./lib/sentry.js";
 
 const app = express();
 
+app.use(cookieParser());
+
 function getAllowedOrigins() {
   const origins = new Set();
   const primary = (process.env.FRONTEND_URL || "http://localhost:3000").trim();
@@ -77,7 +80,7 @@ app.use(
           "'self'",
           "https://cdn.jsdelivr.net",
           // Hash for OAuth form auto-submit script
-          "'sha256-ullP4cEe8eEFeNc8L8BzGi1z4LC3Nt3JUCRKSZCRkhc='",
+          "'sha256-CNpGs301fn1abxhLSmcOuQ1govWG+iiQizQpEPLwBd4='",
         ],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
