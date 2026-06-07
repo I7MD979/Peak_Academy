@@ -153,7 +153,8 @@ router.get("/callback", oauthLimiter, async (req, res) => {
       ? Buffer.from(stateData.returnTo).toString("base64url")
       : "";
     const callbackUrl = new URL(`${frontendUrl}/auth/google-callback`);
-    callbackUrl.hash = `t=${safeToken}${safeNext ? `&n=${safeNext}` : ""}`;
+    callbackUrl.searchParams.set("t", safeToken);
+    if (safeNext) callbackUrl.searchParams.set("n", safeNext);
     return res.redirect(callbackUrl.toString());
   } catch (err) {
     console.error("[google-auth] callback error:", err.message);

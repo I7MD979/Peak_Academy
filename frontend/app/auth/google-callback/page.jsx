@@ -15,8 +15,7 @@ export default function GoogleCallbackPage() {
   useEffect(() => {
     async function handleCallback() {
       try {
-        const hash = window.location.hash.slice(1);
-        const params = new URLSearchParams(hash);
+        const params = new URLSearchParams(window.location.search);
         const safeToken = params.get("t");
         const safeNext = params.get("n");
 
