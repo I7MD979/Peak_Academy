@@ -47,7 +47,7 @@ function validateState(state) {
 const usedTokens = new Set();
 
 function getJwtSecret() {
-  const secret = process.env.AUTH_JWT_SECRET || process.env.SUPABASE_SERVICE_KEY;
+  const secret = process.env.OAUTH_TOKEN_SECRET || process.env.AUTH_JWT_SECRET || process.env.SUPABASE_SERVICE_KEY;
   if (!secret) throw new Error("AUTH_JWT_SECRET is not configured");
   return secret;
 }
