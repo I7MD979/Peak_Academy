@@ -71,7 +71,7 @@ function signOneTimeToken(email, returnTo) {
   return jwt.sign(
     { email, returnTo: returnTo || null, jti },
     getJwtSecret(),
-    { expiresIn: "3m", issuer: "peak-academy-oauth" }
+    { expiresIn: "10m", issuer: "peak-academy-oauth" }
   );
 }
 
