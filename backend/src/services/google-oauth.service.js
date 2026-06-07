@@ -114,15 +114,25 @@ export async function createSupabaseSession(supabase, email, name, picture) {
 }
 
 /**
- * Magic link لإنشاء جلسة Supabase في المتصفح
+ * إنشاء OTP link يرجع code في query param (مش access_token في fragment)
+ * ده بيتوافق مع /auth/callback اللي بيتوقع ?code=
  */
 export async function generateSupabaseMagicLink(supabase, email, redirectTo) {
-  const { data, error } = await supabase.auth.admin.generateLink({
-    type: "magiclink",
-    email: email.toLowerCase().trim(),
-    options: { redirectTo }
-  });
+  try {
+    const { data, error } = await supabase.auth.admin.generateLink({
+      type: "magiclink",
+      email,
+      options: { redirectTo }
+    });
 
-  if (error) throw error;
-  return data?.properties?.action_link || null;
+    if (error) {
+      console.error("[google-oauth] generateLink error:", error.message);
+      return null;
+    }
+
+    return data?.properties?.action_link || null;
+  } catch (err) {
+    console.error("[google-oauth] generateSupabaseMagicLink:", err.message);
+    return null;
+  }
 }

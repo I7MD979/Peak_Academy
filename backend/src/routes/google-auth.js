@@ -47,20 +47,6 @@ function getFrontendUrl() {
   return (process.env.FRONTEND_URL || "http://localhost:3000").replace(/\/$/, "");
 }
 
-function buildCallbackRedirect(frontendUrl, returnTo, isNew) {
-  if (isNew) {
-    const onboarding = `${frontendUrl}/onboarding`;
-    if (returnTo) {
-      return `${onboarding}?next=${encodeURIComponent(returnTo)}`;
-    }
-    return onboarding;
-  }
-  if (returnTo) {
-    return `${frontendUrl}${returnTo.startsWith("/") ? returnTo : `/${returnTo}`}`;
-  }
-  return `${frontendUrl}/auth/callback`;
-}
-
 router.get("/", oauthLimiter, (req, res) => {
   try {
     const returnTo = req.query.return_to || null;
@@ -121,14 +107,27 @@ router.get("/callback", oauthLimiter, async (req, res) => {
       googleUser.picture
     );
 
-    const redirectTo = buildCallbackRedirect(frontendUrl, stateData.returnTo, isNew);
-    const magicLinkUrl = await generateSupabaseMagicLink(supabase, googleUser.email, redirectTo);
+    let callbackUrl = `${frontendUrl}/auth/callback`;
+    if (stateData.returnTo) {
+      callbackUrl += `?next=${encodeURIComponent(stateData.returnTo)}`;
+    }
+
+    const magicLinkUrl = await generateSupabaseMagicLink(
+      supabase,
+      googleUser.email,
+      callbackUrl
+    );
 
     if (magicLinkUrl) {
       return res.redirect(magicLinkUrl);
     }
 
-    return res.redirect(redirectTo);
+    const fallback = isNew
+      ? `${frontendUrl}/onboarding`
+      : stateData.returnTo
+        ? `${frontendUrl}${stateData.returnTo}`
+        : `${frontendUrl}/student/dashboard`;
+    return res.redirect(fallback);
   } catch (err) {
     console.error("[google-auth] callback error:", err.message);
     return res.redirect(`${frontendUrl}/auth/login?error=oauth_failed`);
