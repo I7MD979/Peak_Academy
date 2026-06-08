@@ -1,7 +1,6 @@
 import { supabase } from "../lib/supabase.js";
 
-const PAYMENT_SELECT =
-  "*, enrollment:enrollment_id(id, session_id, student_id, status)";
+const PAYMENT_SELECT = "*";
 
 /**
  * Resolve a payment row by internal id, Paymob order id, or provider order id.

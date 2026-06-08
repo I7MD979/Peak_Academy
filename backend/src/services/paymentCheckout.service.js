@@ -127,7 +127,7 @@ async function syncPendingPaymentFromProvider(payment) {
       await fulfillPaymentV2(payment, remote.transactionId);
       const { data: refreshed } = await supabase
         .from("payments")
-        .select("*, enrollment:enrollment_id(id, session_id, student_id, status)")
+        .select("*")
         .eq("id", payment.id)
         .maybeSingle();
       return refreshed || payment;
@@ -136,7 +136,7 @@ async function syncPendingPaymentFromProvider(payment) {
       await supabase.from("payments").update({ status: "failed" }).eq("id", payment.id).eq("status", "pending");
       const { data: refreshed } = await supabase
         .from("payments")
-        .select("*, enrollment:enrollment_id(id, session_id, student_id, status)")
+        .select("*")
         .eq("id", payment.id)
         .maybeSingle();
       return refreshed || payment;
@@ -173,10 +173,20 @@ export async function getPaymentStatus(paymentId, userId, { sync = false } = {})
     subscriptionActivated = Boolean(activeSub);
   }
 
+  let enrolled = false;
+  if (payment.enrollment_id && payment.status === "paid") {
+    const { data: enr } = await supabase
+      .from("enrollments")
+      .select("status")
+      .eq("id", payment.enrollment_id)
+      .maybeSingle();
+    enrolled = enr?.status === "confirmed";
+  }
+
   return {
     payment,
     paid: payment.status === "paid",
-    enrolled: payment.enrollment?.status === "confirmed",
+    enrolled,
     subscription_activated: subscriptionActivated
   };
 }

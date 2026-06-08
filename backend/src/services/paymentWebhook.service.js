@@ -79,7 +79,7 @@ export async function processProviderWebhook({ provider, result }) {
 export async function verifyInstapayPayment({ paymentId, adminId, bankTransactionRef }) {
   const { data: payment } = await supabase
     .from("payments")
-    .select("*, enrollment:enrollment_id(id, session_id, student_id, status)")
+    .select("*")
     .eq("id", paymentId)
     .eq("provider", "instapay")
     .maybeSingle();
