@@ -94,12 +94,10 @@ export const UserService = {
     if (target.role !== "teacher") return { ok: false, status: 400, message: "يمكن توثيق حسابات المدرسين فقط" };
     if (target.is_verified) return { ok: false, status: 400, message: "المدرس موثّق بالفعل" };
 
-    const [profileRes, userRes] = await Promise.all([
-      supabase.from("teacher_profiles").update({ id_verified: true }).eq("user_id", userId),
-      supabase.from("users").update({ is_verified: true, updated_at: new Date().toISOString() }).eq("id", userId)
-    ]);
+    const profileRes = await supabase.from("teacher_profiles").update({ id_verified: true }).eq("user_id", userId);
     if (profileRes.error) throw profileRes.error;
-    if (userRes.error) throw userRes.error;
+
+    await UserRepository.update(userId, { is_verified: true });
     return { ok: true };
   },
 
@@ -148,7 +146,7 @@ export const UserService = {
     const newCount = Number(sub.sessions_remaining || 0) + sessionsToAdd;
     const { error: updateErr } = await supabase
       .from("student_subscriptions")
-      .update({ sessions_remaining: newCount, updated_at: new Date().toISOString() })
+      .update({ sessions_remaining: newCount })
       .eq("id", sub.id);
     if (updateErr) throw updateErr;
 

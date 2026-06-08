@@ -3,7 +3,23 @@ import { paginate, paginationMeta } from "../utils/paginate.js";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-const USER_PUBLIC_COLS = "id, full_name, email, phone, avatar_url, role, is_active, is_verified, created_at, updated_at";
+const USER_BASE_COLS =
+  "id, full_name, email, phone, avatar_url, role, is_active, is_verified, created_at";
+
+const TEACHER_BASE_COLS = "bio, subjects, rating, commission_rate, id_verified, created_at";
+const TEACHER_EXTENDED_COLS =
+  "id, bio, subjects, rating, experience_years, education, social_url, commission_rate, id_verified, created_at";
+
+const SUBSCRIPTION_BASE_SELECT = `
+  id, status, sessions_remaining, current_period_start, current_period_end, created_at,
+  subscription_plans ( name, sessions_per_month, price )
+`;
+
+const SUBSCRIPTION_EXTENDED_SELECT = `
+  id, status, sessions_remaining, current_period_start, current_period_end,
+  frozen_at, frozen_until, created_at,
+  subscription_plans ( name, sessions_per_month, price )
+`;
 
 function sanitizeSearch(value) {
   return String(value || "")
@@ -28,6 +44,100 @@ function parseDateStart(value) {
   return d.toISOString();
 }
 
+function isMissingColumnError(error) {
+  const code = error?.code;
+  const msg = String(error?.message || "").toLowerCase();
+  return code === "42703" || code === "PGRST204" || msg.includes("column");
+}
+
+function stripOptionalUserColumns(payload) {
+  const next = { ...payload };
+  delete next.updated_at;
+  delete next.deleted_at;
+  return next;
+}
+
+async function selectUserQuery(id) {
+  let result = await supabase.from("users").select(USER_BASE_COLS).eq("id", id).maybeSingle();
+  if (!result.error) return result;
+
+  if (isMissingColumnError(result.error)) {
+    result = await supabase.from("users").select("*").eq("id", id).maybeSingle();
+  }
+  return result;
+}
+
+async function patchUser(id, payload) {
+  let result = await supabase.from("users").update(payload).eq("id", id).select(USER_BASE_COLS).single();
+  if (!result.error) return result.data;
+
+  if (isMissingColumnError(result.error)) {
+    result = await supabase
+      .from("users")
+      .update(stripOptionalUserColumns(payload))
+      .eq("id", id)
+      .select(USER_BASE_COLS)
+      .single();
+    if (!result.error) return result.data;
+  }
+
+  throw result.error;
+}
+
+async function patchUserNoReturn(id, payload) {
+  let result = await supabase.from("users").update(payload).eq("id", id);
+  if (!result.error) return;
+
+  if (isMissingColumnError(result.error)) {
+    result = await supabase.from("users").update(stripOptionalUserColumns(payload)).eq("id", id);
+    if (!result.error) return;
+  }
+
+  throw result.error;
+}
+
+async function selectTeacherProfile(userId) {
+  let result = await supabase
+    .from("teacher_profiles")
+    .select(TEACHER_EXTENDED_COLS)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (!result.error) return result.data;
+
+  if (isMissingColumnError(result.error)) {
+    result = await supabase
+      .from("teacher_profiles")
+      .select(TEACHER_BASE_COLS)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!result.error) return result.data;
+  }
+
+  throw result.error;
+}
+
+async function selectUserSubscriptions(userId) {
+  let result = await supabase
+    .from("student_subscriptions")
+    .select(SUBSCRIPTION_EXTENDED_SELECT)
+    .eq("student_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(20);
+  if (!result.error) return result.data || [];
+
+  if (isMissingColumnError(result.error)) {
+    result = await supabase
+      .from("student_subscriptions")
+      .select(SUBSCRIPTION_BASE_SELECT)
+      .eq("student_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(20);
+    if (!result.error) return result.data || [];
+  }
+
+  throw result.error;
+}
+
 export const UserRepository = {
   /**
    * Paginated user list with optional filters.
@@ -39,7 +149,7 @@ export const UserRepository = {
 
     let query = supabase
       .from("users")
-      .select(USER_PUBLIC_COLS, { count: "exact" })
+      .select(USER_BASE_COLS, { count: "exact" })
       .order("created_at", { ascending: false })
       .range(from, to);
 
@@ -55,7 +165,21 @@ export const UserRepository = {
     const term = sanitizeSearch(search);
     if (term) query = query.or(`full_name.ilike.%${term}%,email.ilike.%${term}%`);
 
-    const { data, count, error } = await query;
+    let { data, count, error } = await query;
+    if (error && isMissingColumnError(error)) {
+      query = supabase
+        .from("users")
+        .select("*", { count: "exact" })
+        .order("created_at", { ascending: false })
+        .range(from, to);
+      if (role && VALID_ROLES.has(role)) query = query.eq("role", role);
+      if (isActive === true) query = query.eq("is_active", true);
+      if (isActive === false) query = query.eq("is_active", false);
+      if (fromIso) query = query.gte("created_at", fromIso);
+      if (toIso) query = query.lte("created_at", toIso);
+      if (term) query = query.or(`full_name.ilike.%${term}%,email.ilike.%${term}%`);
+      ({ data, count, error } = await query);
+    }
     if (error) throw error;
 
     return { data: data || [], pagination: paginationMeta(count, pageNum, limitNum) };
@@ -64,11 +188,7 @@ export const UserRepository = {
   /** Fetch one user row. */
   async findById(id) {
     if (!UUID_RE.test(id)) return null;
-    const { data, error } = await supabase
-      .from("users")
-      .select(USER_PUBLIC_COLS)
-      .eq("id", id)
-      .maybeSingle();
+    const { data, error } = await selectUserQuery(id);
     if (error) throw error;
     return data;
   },
@@ -80,11 +200,7 @@ export const UserRepository = {
   async findWithProfile(id) {
     if (!UUID_RE.test(id)) return null;
 
-    const { data: user, error: userErr } = await supabase
-      .from("users")
-      .select(USER_PUBLIC_COLS)
-      .eq("id", id)
-      .maybeSingle();
+    const { data: user, error: userErr } = await selectUserQuery(id);
     if (userErr) throw userErr;
     if (!user) return null;
 
@@ -98,18 +214,23 @@ export const UserRepository = {
         .maybeSingle();
       profile = data || null;
     } else if (user.role === "teacher") {
-      const { data } = await supabase
-        .from("teacher_profiles")
-        .select("id, bio, subjects, rating, experience_years, education, social_url, commission_rate, id_verified, created_at")
-        .eq("user_id", id)
-        .maybeSingle();
-      profile = data || null;
+      profile = await selectTeacherProfile(id);
     } else if (user.role === "parent") {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("student_profiles")
         .select("user_id, grade, link_code")
         .eq("parent_id", id);
-      profile = { children: data || [] };
+      if (error && isMissingColumnError(error)) {
+        const links = await supabase
+          .from("parent_children")
+          .select("student_id")
+          .eq("parent_id", id);
+        if (links.error) throw links.error;
+        profile = { children: links.data || [] };
+      } else {
+        if (error) throw error;
+        profile = { children: data || [] };
+      }
     }
 
     return { user, profile };
@@ -126,34 +247,23 @@ export const UserRepository = {
     if (!Object.keys(payload).length) throw new Error("no_fields");
     payload.updated_at = new Date().toISOString();
 
-    const { data: updated, error } = await supabase
-      .from("users")
-      .update(payload)
-      .eq("id", id)
-      .select(USER_PUBLIC_COLS)
-      .single();
-    if (error) throw error;
-    return updated;
+    return patchUser(id, payload);
   },
 
   /** Toggle is_active status. */
   async setStatus(id, isActive) {
     if (!UUID_RE.test(id)) throw new Error("invalid_id");
-    const { error } = await supabase
-      .from("users")
-      .update({ is_active: isActive, updated_at: new Date().toISOString() })
-      .eq("id", id);
-    if (error) throw error;
+    await patchUserNoReturn(id, { is_active: isActive, updated_at: new Date().toISOString() });
   },
 
-  /** Soft-delete: mark deleted_at (requires deleted_at column). Fallback: deactivate. */
+  /** Soft-delete: mark deleted_at when available. Fallback: deactivate only. */
   async softDelete(id) {
     if (!UUID_RE.test(id)) throw new Error("invalid_id");
-    const { error } = await supabase
-      .from("users")
-      .update({ is_active: false, deleted_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-      .eq("id", id);
-    if (error) throw error;
+    await patchUserNoReturn(id, {
+      is_active: false,
+      deleted_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    });
   },
 
   /** Count users grouped by role and active status for stats cards. */
@@ -179,17 +289,6 @@ export const UserRepository = {
   /** Get student's subscription history (active + expired). */
   async findUserSubscriptions(userId) {
     if (!UUID_RE.test(userId)) return [];
-    const { data, error } = await supabase
-      .from("student_subscriptions")
-      .select(`
-        id, status, sessions_remaining, current_period_start, current_period_end,
-        frozen_at, frozen_until, created_at,
-        subscription_plans ( name, sessions_per_month, price )
-      `)
-      .eq("student_id", userId)
-      .order("created_at", { ascending: false })
-      .limit(20);
-    if (error) throw error;
-    return data || [];
+    return selectUserSubscriptions(userId);
   }
 };
