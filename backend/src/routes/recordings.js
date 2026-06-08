@@ -1,9 +1,10 @@
-const express = require("express");
-const { z } = require("zod");
-const { auth, checkRole } = require("../middleware/auth");
-const { ok, fail } = require("../utils/response");
-const { createRecording, getRecording, canAccessRecording } = require("../data/growthStore");
-const { enqueueJob } = require("../services/infra");
+import express from "express";
+import { z } from "zod";
+import { auth } from "../middleware/auth.js";
+import { checkRole } from "../middleware/checkRole.js";
+import { success, error } from "../utils/response.js";
+import { createRecording, getRecording, canAccessRecording } from "../data/growthStore.js";
+import { enqueueJob } from "../services/infra.js";
 
 const router = express.Router();
 
@@ -13,7 +14,7 @@ router.post("/", auth, checkRole("teacher"), async (req, res) => {
     storage_url: z.string().min(3),
     visibility: z.enum(["enrolled_only", "public", "private"]).default("enrolled_only")
   }).safeParse(req.body);
-  if (!parsed.success) return fail(res, 400, "Validation error", parsed.error.flatten());
+  if (!parsed.success) return error(res, "Validation error", 400, parsed.error.flatten());
 
   const row = await createRecording({
     id: `rec-${Date.now()}`,
@@ -25,15 +26,15 @@ router.post("/", auth, checkRole("teacher"), async (req, res) => {
   });
 
   const queue = await enqueueJob("process-recording", { recording_id: row.id });
-  return ok(res, { recording: row, queue });
+  return success(res, { recording: row, queue });
 });
 
 router.get("/:id/playback", auth, async (req, res) => {
   const row = await getRecording(req.params.id);
-  if (!row) return fail(res, 404, "Recording not found");
+  if (!row) return error(res, "Recording not found", 404);
   const allowed = await canAccessRecording(row, req.user);
-  if (!allowed) return fail(res, 403, "Not allowed to access this recording");
-  return ok(res, { playback_url: row.storage_url, visibility: row.visibility });
+  if (!allowed) return error(res, "Not allowed to access this recording", 403);
+  return success(res, { playback_url: row.storage_url, visibility: row.visibility });
 });
 
-module.exports = router;
+export default router;

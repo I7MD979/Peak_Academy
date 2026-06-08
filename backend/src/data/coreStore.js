@@ -1,5 +1,5 @@
-const { sessions, enrollments, transactions, questions } = require("./mockDb");
-const { supabaseAdmin } = require("../lib/supabase");
+import { sessions, enrollments, transactions, questions } from "./mockDb.js";
+import { supabase as supabaseAdmin } from "../lib/supabase.js";
 
 const parentLinks = [];
 const withdrawals = [];
@@ -228,7 +228,7 @@ async function createAuditLog(payload) {
   return payload;
 }
 
-module.exports = {
+export {
   listSessions,
   getSessionById,
   createSession,

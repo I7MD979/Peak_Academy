@@ -87,10 +87,13 @@ export default function PaymentModal({ session, checkoutOptions = {}, onClose, o
 
       const checkoutUrl = data?.paymob_url || data?.checkout_url;
       if (checkoutUrl) {
-        if (data.transaction_id) {
-          sessionStorage.setItem(`peak-tx-${session.id}`, data.transaction_id);
-        }
-        window.location.href = checkoutUrl;
+        const transactionId = data.transaction_id;
+        const redirectUrl = transactionId
+          ? checkoutUrl.includes("?")
+            ? `${checkoutUrl}&txId=${transactionId}`
+            : `${checkoutUrl}?txId=${transactionId}`
+          : checkoutUrl;
+        window.location.href = redirectUrl;
         if (onClose) onClose();
         return;
       }

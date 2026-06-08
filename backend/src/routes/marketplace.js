@@ -1,8 +1,14 @@
-const express = require("express");
-const { z } = require("zod");
-const { auth, checkRole } = require("../middleware/auth");
-const { ok, fail } = require("../utils/response");
-const { getQuestionPricing, upsertQuestionPricing, createMarketplaceRoute, listTeacherRoutes } = require("../data/growthStore");
+import express from "express";
+import { z } from "zod";
+import { auth } from "../middleware/auth.js";
+import { checkRole } from "../middleware/checkRole.js";
+import { success, error } from "../utils/response.js";
+import {
+  getQuestionPricing,
+  upsertQuestionPricing,
+  createMarketplaceRoute,
+  listTeacherRoutes
+} from "../data/growthStore.js";
 
 const router = express.Router();
 
@@ -12,9 +18,9 @@ router.post("/pricing", auth, checkRole("admin"), async (req, res) => {
     grade: z.enum(["first", "second", "third"]),
     amount: z.number().min(0)
   }).safeParse(req.body);
-  if (!parsed.success) return fail(res, 400, "Validation error", parsed.error.flatten());
+  if (!parsed.success) return error(res, "Validation error", 400, parsed.error.flatten());
   const row = await upsertQuestionPricing({ ...parsed.data, is_active: true });
-  return ok(res, row);
+  return success(res, row);
 });
 
 router.get("/pricing", auth, async (req, res) => {
@@ -22,9 +28,9 @@ router.get("/pricing", auth, async (req, res) => {
     subject: z.string().min(2),
     grade: z.enum(["first", "second", "third"])
   }).safeParse(req.query);
-  if (!parsed.success) return fail(res, 400, "Validation error", parsed.error.flatten());
+  if (!parsed.success) return error(res, "Validation error", 400, parsed.error.flatten());
   const row = await getQuestionPricing(parsed.data.subject, parsed.data.grade);
-  return ok(res, row || { amount: 0, is_active: false });
+  return success(res, row || { amount: 0, is_active: false });
 });
 
 router.post("/route-question", auth, checkRole("student", "admin"), async (req, res) => {
@@ -32,7 +38,7 @@ router.post("/route-question", auth, checkRole("student", "admin"), async (req, 
     question_id: z.string().optional(),
     teacher_id: z.string().min(1)
   }).safeParse(req.body);
-  if (!parsed.success) return fail(res, 400, "Validation error", parsed.error.flatten());
+  if (!parsed.success) return error(res, "Validation error", 400, parsed.error.flatten());
 
   const row = await createMarketplaceRoute({
     id: `mr-${Date.now()}`,
@@ -42,11 +48,11 @@ router.post("/route-question", auth, checkRole("student", "admin"), async (req, 
     status: "assigned",
     created_at: new Date().toISOString()
   });
-  return ok(res, row);
+  return success(res, row);
 });
 
 router.get("/teacher-routes", auth, checkRole("teacher"), async (req, res) => {
-  return ok(res, await listTeacherRoutes(req.user.id));
+  return success(res, await listTeacherRoutes(req.user.id));
 });
 
-module.exports = router;
+export default router;

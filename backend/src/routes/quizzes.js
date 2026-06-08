@@ -1,15 +1,16 @@
-const express = require("express");
-const { z } = require("zod");
-const { auth, checkRole } = require("../middleware/auth");
-const { ok, fail } = require("../utils/response");
-const {
+import express from "express";
+import { z } from "zod";
+import { auth } from "../middleware/auth.js";
+import { checkRole } from "../middleware/checkRole.js";
+import { success, error } from "../utils/response.js";
+import {
   createQuiz,
   addQuizQuestion,
   startQuiz,
   getQuizWithQuestions,
   submitQuizAttempt,
   getQuizAnalytics
-} = require("../data/growthStore");
+} from "../data/growthStore.js";
 
 const router = express.Router();
 
@@ -18,7 +19,7 @@ router.post("/", auth, checkRole("teacher"), async (req, res) => {
     title: z.string().min(3),
     subject: z.string().min(2)
   }).safeParse(req.body);
-  if (!parsed.success) return fail(res, 400, "Validation error", parsed.error.flatten());
+  if (!parsed.success) return error(res, "Validation error", 400, parsed.error.flatten());
   const row = await createQuiz({
     id: `qz-${Date.now()}`,
     teacher_id: req.user.id,
@@ -27,7 +28,7 @@ router.post("/", auth, checkRole("teacher"), async (req, res) => {
     status: "draft",
     created_at: new Date().toISOString()
   });
-  return ok(res, row);
+  return success(res, row);
 });
 
 router.post("/:quizId/questions", auth, checkRole("teacher"), async (req, res) => {
@@ -36,7 +37,7 @@ router.post("/:quizId/questions", auth, checkRole("teacher"), async (req, res) =
     options: z.array(z.string().min(1)).min(2),
     correct_option: z.string().min(1)
   }).safeParse(req.body);
-  if (!parsed.success) return fail(res, 400, "Validation error", parsed.error.flatten());
+  if (!parsed.success) return error(res, "Validation error", 400, parsed.error.flatten());
   const row = await addQuizQuestion({
     id: `qzq-${Date.now()}`,
     quiz_id: req.params.quizId,
@@ -44,26 +45,26 @@ router.post("/:quizId/questions", auth, checkRole("teacher"), async (req, res) =
     options: parsed.data.options,
     correct_option: parsed.data.correct_option
   });
-  return ok(res, row);
+  return success(res, row);
 });
 
 router.post("/:quizId/start", auth, checkRole("teacher"), async (req, res) => {
   const row = await startQuiz(req.params.quizId, new Date().toISOString());
-  if (!row) return fail(res, 404, "Quiz not found");
-  return ok(res, row);
+  if (!row) return error(res, "Quiz not found", 404);
+  return success(res, row);
 });
 
 router.get("/:quizId", auth, async (req, res) => {
   const quiz = await getQuizWithQuestions(req.params.quizId);
-  if (!quiz) return fail(res, 404, "Quiz not found");
-  return ok(res, quiz);
+  if (!quiz) return error(res, "Quiz not found", 404);
+  return success(res, quiz);
 });
 
 router.post("/:quizId/submit", auth, checkRole("student"), async (req, res) => {
   const parsed = z.object({ answers: z.record(z.string(), z.string()) }).safeParse(req.body);
-  if (!parsed.success) return fail(res, 400, "Validation error", parsed.error.flatten());
+  if (!parsed.success) return error(res, "Validation error", 400, parsed.error.flatten());
   const quiz = await getQuizWithQuestions(req.params.quizId);
-  if (!quiz) return fail(res, 404, "Quiz not found");
+  if (!quiz) return error(res, "Quiz not found", 404);
 
   const questions = quiz.live_quiz_questions || [];
   let score = 0;
@@ -79,11 +80,11 @@ router.post("/:quizId/submit", auth, checkRole("student"), async (req, res) => {
     answers: parsed.data.answers,
     submitted_at: new Date().toISOString()
   });
-  return ok(res, row, { analytics: await getQuizAnalytics(req.params.quizId) });
+  return success(res, { ...row, analytics: await getQuizAnalytics(req.params.quizId) });
 });
 
 router.get("/:quizId/analytics", auth, checkRole("teacher", "admin"), async (req, res) => {
-  return ok(res, await getQuizAnalytics(req.params.quizId));
+  return success(res, await getQuizAnalytics(req.params.quizId));
 });
 
-module.exports = router;
+export default router;

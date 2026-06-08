@@ -1,5 +1,5 @@
-const { supabaseAdmin } = require("../lib/supabase");
-const { sessions, enrollments } = require("./mockDb");
+import { supabase as supabaseAdmin } from "../lib/supabase.js";
+import { enrollments } from "./mockDb.js";
 
 const pricingRows = [];
 const marketplaceRoutes = [];
@@ -184,7 +184,7 @@ async function canAccessRecording(recording, user) {
   return Boolean(enrollments.find((e) => e.session_id === recording.session_id && e.student_id === user.id && ["enrolled", "attended"].includes(e.status)));
 }
 
-module.exports = {
+export {
   upsertQuestionPricing,
   getQuestionPricing,
   createMarketplaceRoute,

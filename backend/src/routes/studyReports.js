@@ -1,10 +1,11 @@
-const express = require("express");
-const { z } = require("zod");
-const { auth, checkRole } = require("../middleware/auth");
-const { ok, fail } = require("../utils/response");
-const { listStudentEnrollments } = require("../data/coreStore");
-const { upsertWeeklySubscription, createParentReport } = require("../data/mediumStore");
-const { runWeeklyDigestTick } = require("../services/weeklyEmailScheduler");
+import express from "express";
+import { z } from "zod";
+import { auth } from "../middleware/auth.js";
+import { checkRole } from "../middleware/checkRole.js";
+import { success, error } from "../utils/response.js";
+import { listStudentEnrollments } from "../data/coreStore.js";
+import { upsertWeeklySubscription, createParentReport } from "../data/mediumStore.js";
+import { runWeeklyDigestTick } from "../services/weeklyEmailScheduler.js";
 
 const router = express.Router();
 
@@ -53,7 +54,7 @@ router.post("/parent/weekly-email-subscriptions", auth, checkRole("parent"), asy
     day_of_week: z.number().int().min(0).max(6).default(0),
     hour_utc: z.number().int().min(0).max(23).default(7)
   }).safeParse(req.body);
-  if (!parsed.success) return fail(res, 400, "Validation error", parsed.error.flatten());
+  if (!parsed.success) return error(res, "Validation error", 400, parsed.error.flatten());
 
   const row = await upsertWeeklySubscription({
     parent_id: req.user.id,
@@ -62,12 +63,12 @@ router.post("/parent/weekly-email-subscriptions", auth, checkRole("parent"), asy
     day_of_week: parsed.data.day_of_week,
     hour_utc: parsed.data.hour_utc
   });
-  return ok(res, row);
+  return success(res, row);
 });
 
 router.post("/parent/weekly-email-run", auth, checkRole("admin"), async (req, res) => {
   const sent = await runWeeklyDigestTick();
-  return ok(res, { sent });
+  return success(res, { sent });
 });
 
-module.exports = router;
+export default router;

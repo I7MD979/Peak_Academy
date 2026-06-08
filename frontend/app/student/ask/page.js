@@ -166,10 +166,10 @@ function StudentAskContent() {
       const params = new URLSearchParams(window.location.search);
       if (params.get("paid") !== "1") return;
 
-      const txId = sessionStorage.getItem("peak-tx-question");
+      const txId = params.get("txId") || sessionStorage.getItem("peak-tx-question");
       if (txId) {
-        const fulfilled = await pollQuestionPayment(txId);
         sessionStorage.removeItem("peak-tx-question");
+        const fulfilled = await pollQuestionPayment(txId);
         if (fulfilled) toast.success("تم استلام الدفع وإرسال سؤالك.");
         else toast.message("تم استلام الدفع. إذا لم يظهر سؤالك فوراً، حدّث الصفحة خلال لحظات.");
       } else {
@@ -229,8 +229,12 @@ function StudentAskContent() {
           grade: overview?.grade
         });
         if (!checkoutUrl) throw new Error("لم يتم استلام رابط الدفع");
-        if (transactionId) sessionStorage.setItem("peak-tx-question", transactionId);
-        window.location.href = checkoutUrl;
+        const redirectUrl = transactionId
+          ? checkoutUrl.includes("?")
+            ? `${checkoutUrl}&txId=${transactionId}`
+            : `${checkoutUrl}?txId=${transactionId}`
+          : checkoutUrl;
+        window.location.href = redirectUrl;
       } catch (err) {
         toast.error(err.message || "تعذر بدء الدفع");
       } finally {

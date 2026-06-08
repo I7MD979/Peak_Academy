@@ -1,8 +1,14 @@
-const express = require("express");
-const { z } = require("zod");
-const { auth, checkRole } = require("../middleware/auth");
-const { ok, fail } = require("../utils/response");
-const { createReview, listTeacherReviews, replyToReview, hasStudentAttendedTeacher } = require("../data/mediumStore");
+import express from "express";
+import { z } from "zod";
+import { auth } from "../middleware/auth.js";
+import { checkRole } from "../middleware/checkRole.js";
+import { success, error } from "../utils/response.js";
+import {
+  createReview,
+  listTeacherReviews,
+  replyToReview,
+  hasStudentAttendedTeacher
+} from "../data/mediumStore.js";
 
 const router = express.Router();
 
@@ -13,10 +19,10 @@ router.post("/", auth, checkRole("student"), async (req, res) => {
     rating: z.number().int().min(1).max(5),
     comment: z.string().max(1000).optional()
   }).safeParse(req.body);
-  if (!parsed.success) return fail(res, 400, "Validation error", parsed.error.flatten());
+  if (!parsed.success) return error(res, "Validation error", 400, parsed.error.flatten());
 
   const allowed = await hasStudentAttendedTeacher(req.user.id, parsed.data.teacher_id);
-  if (!allowed) return fail(res, 403, "You can only review teachers after attending");
+  if (!allowed) return error(res, "You can only review teachers after attending", 403);
 
   const review = await createReview({
     id: `rv-${Date.now()}`,
@@ -27,19 +33,19 @@ router.post("/", auth, checkRole("student"), async (req, res) => {
     comment: parsed.data.comment || "",
     created_at: new Date().toISOString()
   });
-  return ok(res, review);
+  return success(res, review);
 });
 
 router.get("/teacher/:teacherId", auth, async (req, res) => {
-  return ok(res, await listTeacherReviews(req.params.teacherId));
+  return success(res, await listTeacherReviews(req.params.teacherId));
 });
 
 router.post("/:id/respond", auth, checkRole("teacher"), async (req, res) => {
   const parsed = z.object({ teacher_reply: z.string().min(2).max(1000) }).safeParse(req.body);
-  if (!parsed.success) return fail(res, 400, "Validation error", parsed.error.flatten());
+  if (!parsed.success) return error(res, "Validation error", 400, parsed.error.flatten());
   const row = await replyToReview(req.params.id, req.user.id, parsed.data.teacher_reply);
-  if (!row) return fail(res, 404, "Review not found");
-  return ok(res, row);
+  if (!row) return error(res, "Review not found", 404);
+  return success(res, row);
 });
 
-module.exports = router;
+export default router;

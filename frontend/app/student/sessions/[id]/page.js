@@ -41,7 +41,9 @@ export default function StudentSessionDetailsRoute({ params }) {
     let active = true;
 
     async function verifyPendingPayment() {
-      const txId = sessionStorage.getItem(sessionDetailTxKey(params.id));
+      const searchParams = new URLSearchParams(window.location.search);
+      const txId = searchParams.get("txId") || sessionStorage.getItem(sessionDetailTxKey(params.id));
+      if (txId) sessionStorage.removeItem(sessionDetailTxKey(params.id));
       if (!txId) return;
 
       try {
@@ -50,10 +52,9 @@ export default function StudentSessionDetailsRoute({ params }) {
           sessionId: params.id
         });
         if (!active) return;
-        sessionStorage.removeItem(sessionDetailTxKey(params.id));
         if (fulfilled) await loadSession();
       } catch {
-        sessionStorage.removeItem(sessionDetailTxKey(params.id));
+        /* txId already cleared */
       }
     }
 

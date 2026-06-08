@@ -345,7 +345,6 @@ async function paymobWebhookHandler(req, res) {
 }
 
 router.post("/webhook", webhookLimiter, paymobWebhookHandler);
-router.get("/webhook", webhookLimiter, paymobWebhookHandler);
 
 router.get("/transactions/:id/status", auth, ownedBy("transactions"), async (req, res) => {
   try {

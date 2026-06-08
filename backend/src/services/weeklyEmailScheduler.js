@@ -1,5 +1,9 @@
-const { listDueWeeklySubscriptions, bumpWeeklySubscription, createNotification } = require("../data/mediumStore");
-const { publish } = require("./notificationHub");
+import {
+  listDueWeeklySubscriptions,
+  bumpWeeklySubscription,
+  createNotification
+} from "../data/mediumStore.js";
+import { publish } from "./notificationHub.js";
 
 async function runWeeklyDigestTick() {
   const due = await listDueWeeklySubscriptions(new Date().toISOString());
@@ -32,4 +36,4 @@ function startWeeklyEmailScheduler() {
   }, 60 * 1000);
 }
 
-module.exports = { startWeeklyEmailScheduler, runWeeklyDigestTick };
+export { startWeeklyEmailScheduler, runWeeklyDigestTick };

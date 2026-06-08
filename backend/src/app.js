@@ -50,6 +50,11 @@ import onboardingRoutes from "./routes/onboarding.js";
 import studentRoutes from "./routes/student.js";
 import teacherRoutes from "./routes/teacher.js";
 import studyRoomsRoutes from "./routes/studyRooms.js";
+import marketplaceRoutes from "./routes/marketplace.js";
+import reviewRoutes from "./routes/reviews.js";
+import quizRoutes from "./routes/quizzes.js";
+import recordingRoutes from "./routes/recordings.js";
+import studyReportsRoutes from "./routes/studyReports.js";
 import enrollmentRoutes from "./routes/enrollments.js";
 import promotionRoutes from "./routes/promotions.js";
 import publicRoutes from "./routes/public.js";
@@ -266,10 +271,6 @@ app.get("/api/diag", async (req, res) => {
     action: needsSql ? "Run backend/supabase/RUN_IN_SQL_EDITOR.sql in Supabase SQL Editor" : null
   };
 
-  if (process.env.NODE_ENV !== "production") {
-    payload.supabase_url = process.env.SUPABASE_URL || null;
-  }
-
   res.status(200).json(payload);
 });
 
@@ -296,6 +297,11 @@ app.use("/api/onboarding", onboardingRoutes);
 app.use("/api/student", studentRoutes);
 app.use("/api/teacher", teacherRoutes);
 app.use("/api/study-rooms", studyRoomsRoutes);
+app.use("/api/marketplace", auth, marketplaceRoutes);
+app.use("/api/reviews", auth, reviewRoutes);
+app.use("/api/quizzes", auth, quizRoutes);
+app.use("/api/recordings", auth, recordingRoutes);
+app.use("/api/study-reports", auth, studyReportsRoutes);
 
 app.use((req, res, next) => {
   const path = req.path || "";

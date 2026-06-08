@@ -1,5 +1,5 @@
-const { supabaseAdmin } = require("../lib/supabase");
-const { listStudentEnrollments } = require("./coreStore");
+import { supabase as supabaseAdmin } from "../lib/supabase.js";
+import { listStudentEnrollments } from "./coreStore.js";
 
 const weeklySubscriptions = [];
 const parentReports = [];
@@ -208,7 +208,7 @@ async function hasStudentAttendedTeacher(studentId, teacherId) {
   return enrollments.some((enrollment) => enrollment.sessions?.teacher_id === teacherId || enrollment.teacher_id === teacherId);
 }
 
-module.exports = {
+export {
   upsertWeeklySubscription,
   createParentReport,
   listDueWeeklySubscriptions,

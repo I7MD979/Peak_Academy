@@ -45,7 +45,8 @@ function StudentSubscriptionContent() {
     if (typeof window === "undefined") return;
     if (searchParams.get("paid") !== "1") return;
 
-    const txId = sessionStorage.getItem(SUBSCRIPTION_TX_STORAGE_KEY);
+    const txId = searchParams.get("txId") || sessionStorage.getItem(SUBSCRIPTION_TX_STORAGE_KEY);
+    if (txId) sessionStorage.removeItem(SUBSCRIPTION_TX_STORAGE_KEY);
     if (!txId) {
       load();
       return;
@@ -56,7 +57,6 @@ function StudentSubscriptionContent() {
       try {
         const statusRes = await paymentsApi.orderStatus(txId);
         if (statusRes?.data?.subscription_activated || statusRes?.data?.paid) {
-          sessionStorage.removeItem(SUBSCRIPTION_TX_STORAGE_KEY);
           if (active) await load();
           return;
         }
@@ -64,7 +64,6 @@ function StudentSubscriptionContent() {
         /* fall back to legacy poll */
       }
       await pollTransactionFulfillment(txId, { kind: "subscription" });
-      sessionStorage.removeItem(SUBSCRIPTION_TX_STORAGE_KEY);
       if (active) await load();
     })();
 
@@ -102,10 +101,11 @@ function StudentSubscriptionContent() {
         if (!data) throw new Error("استجابة غير صالحة من الخادم");
 
         if (data.paymentUrl || data.iframeUrl) {
-          if (data.paymentId) {
-            sessionStorage.setItem(SUBSCRIPTION_TX_STORAGE_KEY, data.paymentId);
-          }
-          window.location.href = data.paymentUrl || data.iframeUrl;
+          const txParam = data.paymentId ? `txId=${data.paymentId}` : "";
+          const sep = (data.paymentUrl || data.iframeUrl || "").includes("?") ? "&" : "?";
+          window.location.href = txParam
+            ? `${data.paymentUrl || data.iframeUrl}${sep}${txParam}`
+            : (data.paymentUrl || data.iframeUrl);
           return;
         }
 
