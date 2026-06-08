@@ -3,37 +3,10 @@ import { enqueueJob } from "../lib/queue.js";
 import { fulfillPaymentV2 } from "../utils/payments-fulfillment.js";
 import { activateSubscriptionFromPayment } from "./subscriptionService.js";
 import { completeOnboardingStep } from "./onboarding.service.js";
+import { findPaymentByReference } from "../utils/payment-lookup.js";
 
 async function findPaymentForWebhook(orderId, provider) {
-  const id = String(orderId);
-
-  let { data: payment } = await supabase
-    .from("payments")
-    .select("*, enrollment:enrollment_id(id, session_id, student_id, status)")
-    .eq("id", id)
-    .eq("provider", provider)
-    .maybeSingle();
-
-  if (payment) return payment;
-
-  ({ data: payment } = await supabase
-    .from("payments")
-    .select("*, enrollment:enrollment_id(id, session_id, student_id, status)")
-    .eq("provider_order_id", id)
-    .eq("provider", provider)
-    .maybeSingle());
-
-  if (payment) return payment;
-
-  if (provider === "paymob" || provider === "vodafone_cash") {
-    ({ data: payment } = await supabase
-      .from("payments")
-      .select("*, enrollment:enrollment_id(id, session_id, student_id, status)")
-      .eq("paymob_order_id", id)
-      .maybeSingle());
-  }
-
-  return payment;
+  return findPaymentByReference(orderId, { provider });
 }
 
 async function markPaymentPaid(paymentId, transactionId, provider, existingPayment) {

@@ -55,15 +55,7 @@ function StudentSubscriptionContent() {
 
     let active = true;
     (async () => {
-      try {
-        const fulfilled = await pollPaymentOrderFulfillment(paymentId);
-        if (fulfilled) {
-          if (active) await load();
-          return;
-        }
-      } catch {
-        /* fall back to legacy transactions table */
-      }
+      await pollPaymentOrderFulfillment(paymentId);
       await pollTransactionFulfillment(paymentId, { kind: "subscription" });
       if (active) await load();
     })();

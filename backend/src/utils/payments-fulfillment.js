@@ -292,29 +292,32 @@ export async function markTransactionFailed(transaction) {
   ]);
 }
 
-export async function handlePaymobWebhook(orderId, paymobTxnId, success) {
-  if (isSchemaV2()) {
-    const payment = await findPaymentByPaymobOrder(orderId);
-    if (!payment) return { processed: false, ok: true };
+export async function handlePaymobWebhook(orderId, paymobTxnId, success, extraOrderId = "") {
+  const payment = await findPaymentByPaymobOrder(orderId);
+  const paymentFromMerchant =
+    !payment && extraOrderId ? await findPaymentByPaymobOrder(extraOrderId) : null;
+  const resolvedPayment = payment?._legacyTransaction ? null : payment || paymentFromMerchant;
 
-    if (payment.status !== "pending") {
+  if (resolvedPayment) {
+    if (resolvedPayment.status !== "pending") {
       return { processed: true, ok: true };
     }
 
     if (!success) {
-      await markPaymentFailedV2(payment);
+      await markPaymentFailedV2(resolvedPayment);
       return { processed: true, ok: true };
     }
 
-    await fulfillPaymentV2(payment, paymobTxnId);
+    await fulfillPaymentV2(resolvedPayment, paymobTxnId);
     return { processed: true, ok: true };
   }
 
-  const { data: transaction } = await supabase
-    .from("transactions")
-    .select("*")
-    .eq("paymob_order_id", String(orderId))
-    .maybeSingle();
+  const legacy = payment?._legacyTransaction;
+  const { findLegacyTransactionByReference } = await import("./payment-lookup.js");
+  const transaction =
+    legacy ||
+    (await findLegacyTransactionByReference(orderId)) ||
+    (extraOrderId ? await findLegacyTransactionByReference(extraOrderId) : null);
 
   if (!transaction) return { processed: false, ok: true };
   if (transaction.status !== "pending") return { processed: true, ok: true };

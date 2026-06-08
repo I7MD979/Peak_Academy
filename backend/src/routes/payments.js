@@ -3,7 +3,11 @@ import { auth } from "../middleware/auth.js";
 import { checkRole } from "../middleware/checkRole.js";
 import { idempotency } from "../middleware/idempotency.js";
 import { createPaymobOrder } from "../services/paymob.service.js";
-import { createPaymentOrder, getPaymentStatus } from "../services/paymentCheckout.service.js";
+import {
+  createPaymentOrder,
+  findPaymentForStudent,
+  getPaymentStatus
+} from "../services/paymentCheckout.service.js";
 import { verifyInstapayPayment } from "../services/paymentWebhook.service.js";
 import { supabase } from "../lib/supabase.js";
 import { paginate, paginationMeta } from "../utils/paginate.js";
@@ -69,11 +73,21 @@ router.post(
   }
 });
 
-router.get(
-  "/orders/:paymentId/status",
-  auth,
-  ownedBy("payments", "student_id", "paymentId"),
-  async (req, res) => {
+async function assertOwnedPayment(req, res, next) {
+  if (req.user?.role === "admin") return next();
+  const payment = await findPaymentForStudent(req.params.paymentId, req.user.id);
+  if (!payment) {
+    return res.status(404).json({
+      success: false,
+      error: "المورد غير موجود",
+      code: "NOT_FOUND"
+    });
+  }
+  req.ownedPayment = payment;
+  next();
+}
+
+router.get("/orders/:paymentId/status", auth, assertOwnedPayment, async (req, res) => {
   try {
     const status = await getPaymentStatus(req.params.paymentId, req.user.id, {
       sync: req.query.sync === "1"
@@ -336,8 +350,14 @@ async function paymobWebhookHandler(req, res) {
     }
 
     const orderId = String(transaction.order?.id ?? "");
+    const merchantOrderId = String(transaction.order?.merchant_order_id ?? "");
     const paymobTxnId = String(transaction.id ?? "");
-    const result = await handlePaymobWebhook(orderId, paymobTxnId, Boolean(transaction?.success));
+    const result = await handlePaymobWebhook(
+      orderId,
+      paymobTxnId,
+      Boolean(transaction?.success),
+      merchantOrderId
+    );
     return res.status(200).json({ success: true, received: true, ...result });
   } catch (err) {
     console.error("[webhook] error:", err.message);

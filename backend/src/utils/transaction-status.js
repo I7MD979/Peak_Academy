@@ -50,5 +50,23 @@ export async function resolveTransactionFulfillment(transaction, userId) {
     return { enrolled: false, question_created: Boolean(question) };
   }
 
+  if (transaction.type === "subscription_payment") {
+    const planId = transaction.metadata?.plan_id;
+    if (!planId) return { enrolled: false, question_created: false, subscription_activated: false };
+
+    const { data: activeSub } = await supabase
+      .from("student_subscriptions")
+      .select("id")
+      .eq("student_id", userId)
+      .eq("status", "active")
+      .maybeSingle();
+
+    return {
+      enrolled: false,
+      question_created: false,
+      subscription_activated: Boolean(activeSub)
+    };
+  }
+
   return { enrolled: false, question_created: false };
 }

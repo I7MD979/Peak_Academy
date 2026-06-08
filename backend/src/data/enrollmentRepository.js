@@ -216,20 +216,17 @@ export async function createSessionPayment({
 }
 
 export async function findPaymentByPaymobOrder(orderId) {
-  if (isSchemaV2()) {
-    const { data } = await supabase
-      .from("payments")
-      .select("*, enrollment:enrollment_id(id, session_id, student_id)")
-      .eq("paymob_order_id", String(orderId))
-      .maybeSingle();
-    return data;
+  const { findPaymentByReference, findLegacyTransactionByReference } = await import(
+    "../utils/payment-lookup.js"
+  );
+  const payment = await findPaymentByReference(orderId);
+  if (payment) return payment;
+
+  if (!isSchemaV2()) {
+    const transaction = await findLegacyTransactionByReference(orderId);
+    return transaction ? { _legacyTransaction: transaction } : null;
   }
-  const { data: transaction } = await supabase
-    .from("transactions")
-    .select("*")
-    .eq("paymob_order_id", String(orderId))
-    .maybeSingle();
-  return transaction ? { _legacyTransaction: transaction } : null;
+  return null;
 }
 
 export async function fulfillPayment(payment, paymobTxnId) {

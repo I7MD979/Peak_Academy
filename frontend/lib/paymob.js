@@ -21,16 +21,20 @@ export const pollTransactionFulfillment = async (
   { kind = "session", maxAttempts = 12, intervalMs = 2500, sessionId = null } = {}
 ) => {
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    const payload = await paymentsApi.transactionStatus(transactionId);
-    const tx = payload?.data?.transaction;
+    try {
+      const payload = await paymentsApi.transactionStatus(transactionId);
+      const tx = payload?.data?.transaction;
 
-    if (tx?.status === "completed") {
-      if (kind === "question" && payload?.data?.question_created) return true;
-      if (kind === "session" && payload?.data?.enrolled) return true;
-      if (kind === "subscription" && payload?.data?.subscription_activated) return true;
+      if (tx?.status === "completed") {
+        if (kind === "question" && payload?.data?.question_created) return true;
+        if (kind === "session" && payload?.data?.enrolled) return true;
+        if (kind === "subscription" && payload?.data?.subscription_activated) return true;
+      }
+
+      if (tx?.status === "failed") return false;
+    } catch (err) {
+      if (err?.status === 404) return false;
     }
-
-    if (tx?.status === "failed") return false;
 
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
   }
@@ -60,9 +64,13 @@ export const pollPaymentOrderFulfillment = async (
   { maxAttempts = 12, intervalMs = 2500 } = {}
 ) => {
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    const sync = attempt === 0;
-    const payload = await paymentsApi.orderStatus(paymentId, { sync });
-    if (payload?.data?.subscription_activated || payload?.data?.paid) return true;
+    try {
+      const sync = attempt === 0;
+      const payload = await paymentsApi.orderStatus(paymentId, { sync });
+      if (payload?.data?.subscription_activated || payload?.data?.paid) return true;
+    } catch (err) {
+      if (err?.status === 404) return false;
+    }
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
   }
   return false;

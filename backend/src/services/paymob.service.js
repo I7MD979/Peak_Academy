@@ -2,7 +2,7 @@ import { safeFetch, paymobIntentionSchema } from "../utils/safeApiClient.js";
 
 const PAYMOB_INTENTION_URL = "https://accept.paymob.com/v1/intention/";
 
-export const createPaymobOrder = async (amountCents, user, { returnUrl } = {}) => {
+export const createPaymobOrder = async (amountCents, user, { returnUrl, specialReference } = {}) => {
   if (!process.env.PAYMOB_API_KEY) {
     throw new Error("PAYMOB_API_KEY is not configured");
   }
@@ -30,7 +30,8 @@ export const createPaymobOrder = async (amountCents, user, { returnUrl } = {}) =
           email: user.email || "customer@peak.com",
           phone_number: user.phone || "01000000000"
         },
-        ...(returnUrl ? { redirection_url: returnUrl } : {})
+        ...(returnUrl ? { redirection_url: returnUrl } : {}),
+        ...(specialReference ? { special_reference: String(specialReference) } : {})
       })
     },
     { timeout: 10_000, responseSchema: paymobIntentionSchema }

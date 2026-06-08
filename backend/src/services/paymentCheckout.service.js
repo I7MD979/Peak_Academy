@@ -1,7 +1,10 @@
 import { supabase } from "../lib/supabase.js";
 import { getCacheEntry, setCacheEntry, invalidate, CACHE } from "../lib/cache.js";
 import { PaymentFactory } from "./payments/PaymentFactory.js";
-import { activateSubscriptionFromPayment } from "./subscriptionService.js";
+import { findPaymentForStudent } from "../utils/payment-lookup.js";
+import { fulfillPaymentV2 } from "../utils/payments-fulfillment.js";
+
+export { findPaymentForStudent };
 
 const IDEM_TTL = 600;
 
@@ -110,30 +113,53 @@ export async function createPaymentOrder({
   return responseData;
 }
 
-export async function getPaymentStatus(paymentId, userId, { sync = false } = {}) {
-  let { data: payment } = await supabase
-    .from("payments")
-    .select("*, enrollment:enrollment_id(id, session_id, student_id, status)")
-    .eq("id", paymentId)
-    .eq("student_id", userId)
-    .maybeSingle();
+async function syncPendingPaymentFromProvider(payment) {
+  const providerName = payment.provider || "paymob";
+  const providerOrderId = payment.provider_order_id || payment.paymob_order_id;
+  if (!providerOrderId) return payment;
 
+  try {
+    const provider = PaymentFactory.getProvider(providerName);
+    if (!provider.getTransactionStatus) return payment;
+
+    const remote = await provider.getTransactionStatus(providerOrderId);
+    if (remote.status === "success") {
+      await fulfillPaymentV2(payment, remote.transactionId);
+      const { data: refreshed } = await supabase
+        .from("payments")
+        .select("*, enrollment:enrollment_id(id, session_id, student_id, status)")
+        .eq("id", payment.id)
+        .maybeSingle();
+      return refreshed || payment;
+    }
+    if (remote.status === "failed") {
+      await supabase.from("payments").update({ status: "failed" }).eq("id", payment.id).eq("status", "pending");
+      const { data: refreshed } = await supabase
+        .from("payments")
+        .select("*, enrollment:enrollment_id(id, session_id, student_id, status)")
+        .eq("id", payment.id)
+        .maybeSingle();
+      return refreshed || payment;
+    }
+  } catch (err) {
+    console.warn("[payment-sync] provider status check failed:", err.message);
+  }
+
+  return payment;
+}
+
+export async function getPaymentStatus(paymentId, userId, { sync = false } = {}) {
+  let payment = await findPaymentForStudent(paymentId, userId);
   if (!payment) return null;
 
   const planId = payment.metadata?.planId || payment.metadata?.plan_id;
   const isSubscriptionPayment = Boolean(planId) && !payment.enrollment_id;
 
-  if (sync && payment.status === "pending" && isSubscriptionPayment) {
-    await activateSubscriptionFromPayment(payment);
-    await invalidate(CACHE.studentSubscription(userId));
-
-    const refreshed = await supabase
-      .from("payments")
-      .select("*, enrollment:enrollment_id(id, session_id, student_id, status)")
-      .eq("id", paymentId)
-      .eq("student_id", userId)
-      .maybeSingle();
-    payment = refreshed.data || payment;
+  if (sync && payment.status === "pending") {
+    payment = await syncPendingPaymentFromProvider(payment);
+    if (payment.status !== "pending") {
+      await invalidate(CACHE.studentSubscription(userId));
+    }
   }
 
   let subscriptionActivated = false;

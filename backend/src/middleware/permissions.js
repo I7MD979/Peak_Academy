@@ -26,6 +26,7 @@ const PERMISSIONS_MATRIX = {
   "POST /api/payments/create-order": ["student"],
   "GET /api/payments/history": ["student", "admin"],
   "GET /api/payments/transactions/:id/status": ["student", "admin"],
+  "GET /api/payments/orders/:paymentId/status": ["student", "admin"],
   "POST /api/payments/validate-promo": ["student"],
 
   "GET /api/subscriptions/plans": ["*"],

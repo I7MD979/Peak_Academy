@@ -16,7 +16,10 @@ export class PaymobProvider extends BasePaymentProvider {
       phone: customer.phone
     };
 
-    const { checkoutUrl, orderId: paymobOrderId } = await createPaymobOrder(amount, user, { returnUrl });
+    const { checkoutUrl, orderId: paymobOrderId } = await createPaymobOrder(amount, user, {
+      returnUrl,
+      specialReference: orderId
+    });
 
     return {
       providerOrderId: paymobOrderId,
