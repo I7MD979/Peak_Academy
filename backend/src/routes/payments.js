@@ -328,7 +328,7 @@ async function paymobWebhookHandler(req, res) {
       return res.status(400).json({ success: false, error: "Invalid transaction" });
     }
 
-    const replayCheck = checkReplayAttack(transaction.id);
+    const replayCheck = await checkReplayAttack(transaction.id);
     if (replayCheck.isReplay) {
       console.warn(`[webhook] replay attack for transaction: ${transaction.id}`);
       return res.status(200).json({ success: true, message: "Already processed" });

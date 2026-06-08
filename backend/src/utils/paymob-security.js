@@ -7,6 +7,7 @@
 import crypto from "crypto";
 import { rateLimit } from "express-rate-limit";
 import { buildPaymobHmacPayload } from "./paymob-hmac.js";
+import { getRedis } from "../lib/redis.js";
 
 /**
  * التحقق من Paymob HMAC — OWASP A08 (timing-safe)
@@ -73,19 +74,30 @@ export function validatePaymobTransaction(transaction) {
 }
 
 const processedTransactions = new Set();
-const TRANSACTION_TTL = 24 * 60 * 60 * 1000;
+const TRANSACTION_TTL_MS = 24 * 60 * 60 * 1000;
+const TRANSACTION_TTL_S = 86400;
 
-export function checkReplayAttack(transactionId) {
-  const key = String(transactionId);
+export async function checkReplayAttack(transactionId) {
+  const key = `paymob:replay:${String(transactionId)}`;
+  const redis = getRedis();
 
-  if (processedTransactions.has(key)) {
-    console.warn(`[paymob] replay attack detected: transaction ${key}`);
-    return { isReplay: true };
+  if (redis) {
+    // SET NX is atomic — returns null if key already exists
+    const result = await redis.set(key, "1", { ex: TRANSACTION_TTL_S, nx: true });
+    if (result === null) {
+      console.warn(`[paymob] replay attack detected: transaction ${transactionId}`);
+      return { isReplay: true };
+    }
+    return { isReplay: false };
   }
 
+  // Fallback: in-memory (single-instance / dev only)
+  if (processedTransactions.has(key)) {
+    console.warn(`[paymob] replay attack detected: transaction ${transactionId}`);
+    return { isReplay: true };
+  }
   processedTransactions.add(key);
-  setTimeout(() => processedTransactions.delete(key), TRANSACTION_TTL);
-
+  setTimeout(() => processedTransactions.delete(key), TRANSACTION_TTL_MS);
   return { isReplay: false };
 }
 

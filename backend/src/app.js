@@ -111,13 +111,7 @@ app.use(
         connectSrc: ["'self'", "https://*.supabase.co", "https://api.paymob.com", "https://api.peak-academy.net"],
         frameSrc: ["'none'"],
         objectSrc: ["'none'"],
-        formAction: [
-          "'self'",
-          "https://peak-academy-kappa.vercel.app",
-          "https://peak-academy.net",
-          "https://www.peak-academy.net",
-          ...(process.env.NODE_ENV !== "production" ? ["http://localhost:3000"] : []),
-        ],
+        formAction: ["'self'", ...allowedOrigins],
         upgradeInsecureRequests: []
       }
     },
