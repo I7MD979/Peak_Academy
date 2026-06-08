@@ -59,7 +59,7 @@ export default function PaymentModal({ session, checkoutOptions = {}, onClose, o
     } finally {
       setPromoLoading(false);
     }
-  }, [promoCode, paymentType, session?.id]);
+  }, [promoCode, paymentType, session]);
 
   useEffect(() => {
     const t = setTimeout(validatePromo, 400);

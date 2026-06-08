@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { Router } from "express";
 import { z } from "zod";
 import { auth } from "../middleware/auth.js";
@@ -9,7 +10,6 @@ import {
   ensureSessionLiveKitRoomOptional,
   ensureLiveKitAccess,
   getLiveKitServerUrl,
-  getRoomUrl,
   isLiveKitConfigured,
   mapLiveKitError,
   muteAllParticipantsInRoom,
@@ -162,6 +162,7 @@ function handleRouteError(res, err, fallbackMessage) {
 async function insertSessionRow(payload) {
   const variants = [
     payload,
+    /* eslint-disable no-unused-vars */
     (({ daily_room_name, description, subject_id, daily_room_url, room_url, ended_at, ...rest }) => rest)(
       payload
     ),
@@ -177,6 +178,7 @@ async function insertSessionRow(payload) {
       ended_at,
       ...rest
     }) => rest)(payload)
+    /* eslint-enable no-unused-vars */
   ];
 
   let lastError = null;
@@ -565,12 +567,6 @@ router.post("/", auth, checkRole("teacher"), allowSchema("sessionCreate"), async
   }
 });
 
-function isOpenSessionStatus(status) {
-  const normalized = String(status || "")
-    .trim()
-    .toLowerCase();
-  return normalized === "live" || normalized === "scheduled";
-}
 
 async function closeOneOpenSessionRow(session) {
   const status = String(session.status || "")

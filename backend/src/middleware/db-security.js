@@ -33,6 +33,7 @@ export function sanitizeDbInput(value) {
     }
   }
 
+  // eslint-disable-next-line no-control-regex
   return value.replace(/\x00/g, "");
 }
 

@@ -32,5 +32,7 @@ export default withSentryConfig(nextConfig, {
   silent: true,
   widenClientFileUpload: true,
   hideSourceMaps: true,
-  disableLogger: true
+  bundleSizeOptimizations: {
+    excludeDebugStatements: true
+  }
 });

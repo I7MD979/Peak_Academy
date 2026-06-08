@@ -52,7 +52,7 @@ export async function GET(request) {
     return NextResponse.redirect(new URL("/auth/login", origin));
   }
 
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   let pendingAuthCookies = [];
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
@@ -174,7 +174,7 @@ export async function POST(request) {
       } catch { /* ignore */ }
     }
 
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     let pendingAuthCookies = [];
     const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
       cookies: {

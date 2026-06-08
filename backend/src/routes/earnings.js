@@ -174,7 +174,7 @@ router.post("/withdraw", auth, checkRole("teacher"), async (req, res) => {
       return error(res, "أدخل رقم حساب أو محفظة صحيحًا (6 أحرف على الأقل)", 400);
     }
 
-    if (!/^[0-9+\-]+$/.test(accountNumber)) {
+    if (!/^[0-9+-]+$/.test(accountNumber)) {
       return error(res, "رقم الحساب يجب أن يحتوي على أرقام فقط", 400);
     }
 

@@ -230,7 +230,7 @@ export async function createSessionPaymentCheckout({
   discountAmount,
   promotionId,
   frontendUrl,
-  studentProfileId
+  studentProfileId: _studentProfileId
 }) {
   const amountCents = Math.round(finalPrice * 100);
   const returnUrl = `${frontendUrl}/student/sessions/${session.id}`;

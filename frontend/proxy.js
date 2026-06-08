@@ -52,7 +52,7 @@ function redirectWithCookies(url, res) {
   return redirect;
 }
 
-export async function middleware(request) {
+export async function proxy(request) {
   const { pathname } = request.nextUrl;
 
   let res = NextResponse.next({

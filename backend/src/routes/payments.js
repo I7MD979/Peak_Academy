@@ -15,7 +15,6 @@ import {
   checkReplayAttack,
   webhookLimiter
 } from "../utils/paymob-security.js";
-import { mapCheckoutResponse } from "../lib/schema.js";
 import { resolveTransactionFulfillment } from "../utils/transaction-status.js";
 import { validatePromoCode, calculateDiscount } from "../utils/promoValidator.js";
 import { getSessionForEnroll, computeSessionCheckout } from "../services/enrollmentService.js";

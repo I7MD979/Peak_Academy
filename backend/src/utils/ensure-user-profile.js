@@ -28,6 +28,7 @@ async function upsertUsersRow(supabase, payload) {
   if (!error) return;
 
   if (isMissingColumnError(error)) {
+    // eslint-disable-next-line no-unused-vars
     const { is_verified, avatar_url, phone_hash, national_id, ...rest } = safePayload;
     ({ error } = await run(rest));
     if (!error) return;
@@ -123,6 +124,7 @@ async function upsertTeacherProfileRow(supabase, row) {
   if (!error) return;
 
   if (isMissingColumnError(error)) {
+    // eslint-disable-next-line no-unused-vars
     const { commission_rate, bio, rating, id_verified, ...rest } = row;
     ({ error } = await run({ user_id: row.user_id, subjects: row.subjects || [] }));
     if (!error) return;

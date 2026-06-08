@@ -545,7 +545,7 @@ router.get("/session-counts", auth, checkRole("teacher"), async (req, res) => {
     );
 
     return success(res, counts);
-  } catch (err) {
+  } catch (_err) {
     return error(res, "تعذر تحميل إحصائيات الجلسات", 500);
   }
 });

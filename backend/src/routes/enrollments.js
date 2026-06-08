@@ -5,7 +5,6 @@ import { success, error } from "../utils/response.js";
 import {
   getSessionForEnroll,
   getEnrollmentOptionsForSession,
-  resolveSessionSubjectId,
   checkFreeTrialUsed
 } from "../services/enrollmentService.js";
 

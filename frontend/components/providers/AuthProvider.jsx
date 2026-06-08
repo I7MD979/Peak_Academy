@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { clearApiCache } from "@/lib/api-cache";
 import { useAuthStore } from "@/store/authStore";
@@ -8,11 +8,7 @@ import { useAuthStore } from "@/store/authStore";
 let authSubscription = null;
 
 export default function AuthProvider({ children }) {
-  const supabaseRef = useRef(null);
-  if (!supabaseRef.current) {
-    supabaseRef.current = createClient();
-  }
-  const supabase = supabaseRef.current;
+  const [supabase] = useState(() => createClient());
 
   const setAuth = useAuthStore((s) => s.setAuth);
   const setLoading = useAuthStore((s) => s.setLoading);
