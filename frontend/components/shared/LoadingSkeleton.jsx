@@ -2,7 +2,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export function StatCardSkeleton() {
   return (
-    <div className="animate-pulse rounded-2xl border border-border bg-card p-5 shadow-sm">
+    <div className="animate-pulse rounded-2xl border border-outline-variant/40 bg-surface-container-low p-5">
       <div className="mb-3 flex items-center justify-between">
         <Skeleton className="h-4 w-24 rounded" />
         <Skeleton className="h-10 w-10 rounded-xl" />
@@ -35,13 +35,13 @@ export default function LoadingSkeleton() {
 
 export function PageLoader() {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-bg">
+    <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background">
       <div className="flex flex-col items-center gap-3">
         <div className="flex items-center gap-2">
           <div className="h-8 w-8 animate-pulse rounded-lg bg-primary" />
           <div className="h-5 w-28 animate-pulse rounded bg-border" />
         </div>
-        <div className="mt-4 h-8 w-8 animate-spin rounded-full border-4 border-border border-t-primary" />
+        <div className="mt-4 h-8 w-8 animate-spin rounded-full border-4 border-outline-variant border-t-peak-orange" />
         <p className="animate-pulse text-sm text-text-muted">جاري التحميل...</p>
       </div>
     </div>
@@ -51,7 +51,7 @@ export function PageLoader() {
 export function SectionLoader({ message = "جاري التحميل..." }) {
   return (
     <div className="flex min-h-[200px] flex-col items-center justify-center gap-3">
-      <div className="h-6 w-6 animate-spin rounded-full border-4 border-border border-t-primary" />
+      <div className="h-6 w-6 animate-spin rounded-full border-4 border-outline-variant border-t-peak-orange" />
       <p className="text-sm text-text-muted">{message}</p>
     </div>
   );
@@ -80,7 +80,7 @@ export function SessionsListSkeleton() {
       {Array.from({ length: 5 }).map((_, i) => (
         <div
           key={i}
-          className="flex animate-pulse items-center gap-4 rounded-2xl border border-border bg-card p-4"
+          className="flex animate-pulse items-center gap-4 rounded-2xl border border-outline-variant/40 bg-surface-container-low p-4"
         >
           <Skeleton className="h-12 w-12 flex-shrink-0 rounded-xl" />
           <div className="flex-1 space-y-2">

@@ -49,7 +49,10 @@ export default function LandingHero({ heroPromo, platformStats }) {
   useEffect(() => {
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) setStatsActive(true);
+        if (entry.isIntersecting) {
+          setStatsActive(true);
+          observer.unobserve(entry.target);
+        }
       },
       { threshold: 0.3 }
     );
@@ -85,7 +88,7 @@ export default function LandingHero({ heroPromo, platformStats }) {
           <h1 className="mb-6 font-black sm:mb-8">
             <span className="landing-hero-display block text-white">مش بس حصص</span>
             <span className="landing-hero-accent flex flex-wrap items-center justify-center gap-2 text-landing-orange sm:gap-4">
-              ده مستقبلك <span className="animate-pulse">↗</span>
+              ده مستقبلك <span className="animate-pulse" aria-hidden="true">↗</span>
             </span>
             <span className="landing-hero-tagline mt-2 block font-bold text-landing-on-dark-muted sm:mt-4">وصل للقمة</span>
           </h1>
@@ -140,7 +143,7 @@ export default function LandingHero({ heroPromo, platformStats }) {
 
           <div
             ref={statsRef}
-            className="grid w-full max-w-2xl grid-cols-3 gap-3 rounded-2xl border border-white/12 bg-landing-navy/50 p-4 pt-6 text-center backdrop-blur-md sm:flex sm:flex-wrap sm:justify-center sm:gap-10 sm:p-5 sm:pt-8 md:gap-16"
+            className="grid w-full max-w-2xl grid-cols-3 gap-3 rounded-2xl border border-white/[0.12] bg-landing-navy/50 p-4 pt-6 text-center backdrop-blur-md sm:flex sm:flex-wrap sm:justify-center sm:gap-10 sm:p-5 sm:pt-8 md:gap-16"
           >
             <div className="min-w-0">
               <div className="mb-0.5 text-2xl font-black text-white sm:mb-1 sm:text-3xl">

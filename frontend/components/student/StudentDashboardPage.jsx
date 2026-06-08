@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+// TODO: move to shared
 import AdminFilterTabs from "@/components/admin/AdminFilterTabs";
 import AdminPageHeader from "@/components/admin/AdminPageHeader";
 import StatsCard from "@/components/admin/StatsCard";
@@ -156,7 +157,7 @@ export default function StudentDashboardPage({
                   <p className={cn("text-sm", studentMuted)}>
                     {profile.grade_label || "حدّد صفك من الملف الشخصي"}
                     {stats?.streak_days > 0 ? (
-                      <span className="ms-2 inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-bold text-amber-400">
+                      <span className="ms-2 inline-flex items-center gap-1 rounded-full bg-warning/15 px-2 py-0.5 text-xs font-bold text-warning">
                         <Icon name="star" size={12} />
                         {stats.streak_days.toLocaleString("ar-EG")} يوم متتالي
                       </span>

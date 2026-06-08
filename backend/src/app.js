@@ -173,7 +173,19 @@ app.get("/api/health", (_req, res) => {
   });
 });
 
-app.get("/api/diag", async (_req, res) => {
+app.get("/api/diag", async (req, res) => {
+  if (process.env.NODE_ENV === "production") {
+    const authHeader = req.headers.authorization || "";
+    if (!authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+    const { resolveAuthUserFromToken } = await import("./middleware/auth.js");
+    const resolved = await resolveAuthUserFromToken(authHeader.slice(7).trim());
+    if (!resolved || resolved.user?.role !== "admin") {
+      return res.status(403).json({ success: false, error: "Admin only" });
+    }
+  }
+
   const { supabase } = await import("./lib/supabase.js");
   const { getCacheMode } = await import("./lib/cache.js");
   const tables = [

@@ -154,16 +154,16 @@ function SidebarPanel({
             />
           </nav>
         ) : null}
-      </div>
 
         {cta ? (
-        <div className="px-4 pb-2">
-          <Link href={cta.href} onClick={onCloseMobile} className={sidebarCtaBtn}>
-            {cta.icon ? <Icon name={cta.icon} size={18} /> : null}
-            <span>{cta.label}</span>
-          </Link>
-        </div>
-      ) : null}
+          <div className="mt-4 px-1">
+            <Link href={cta.href} onClick={onCloseMobile} className={sidebarCtaBtn}>
+              {cta.icon ? <Icon name={cta.icon} size={18} /> : null}
+              <span>{cta.label}</span>
+            </Link>
+          </div>
+        ) : null}
+      </div>
 
       <div className={sidebarFooter}>
         {profileHref ? (

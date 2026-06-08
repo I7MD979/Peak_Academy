@@ -627,7 +627,8 @@ router.put("/withdrawals/:id", auth, checkRole("admin"), async (req, res) => {
         .select("id, teacher_amount")
         .eq("teacher_id", withdrawal.teacher_id)
         .eq("status", "pending")
-        .order("created_at", { ascending: true });
+        .order("created_at", { ascending: true })
+        .limit(1000);
 
       let covered = 0;
       const idsToMark = [];
@@ -857,13 +858,15 @@ router.get("/reports", auth, checkRole("admin"), async (req, res) => {
       .from("teacher_earnings")
       .select("teacher_amount, teacher_id, session_id, created_at")
       .gte("created_at", startIso)
-      .lte("created_at", endIso);
+      .lte("created_at", endIso)
+      .limit(5000);
     const completedSessionsQuery = supabase
       .from("sessions")
       .select("id, subject")
       .eq("status", "completed")
       .gte("scheduled_at", startIso)
-      .lte("scheduled_at", endIso);
+      .lte("scheduled_at", endIso)
+      .limit(5000);
 
     const [
       earningsRes,

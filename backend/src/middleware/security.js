@@ -254,9 +254,14 @@ export function verifyPaymobHMAC(req, res, next) {
       console.error("[security] PAYMOB_HMAC_SECRET not set");
       return res.status(500).json({ success: false, error: "Server misconfiguration" });
     }
+    // Dev/test: skip verification but log warning
+    console.warn("[security] PAYMOB_HMAC_SECRET not set — skipping HMAC check in non-production");
     return next();
   }
 
+  // NOTE: Full HMAC verification is handled inside the webhook route handler
+  // via verifyPaymobHmacStrict (src/utils/paymob-security.js).
+  // This middleware only guards the presence of the secret config.
   next();
 }
 

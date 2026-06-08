@@ -6,8 +6,8 @@ export default function ParentDashboardAlerts({ alerts = [] }) {
       <section className="rounded-2xl border border-warning/35 bg-warning/10 p-4 md:p-5">
         <h3 className="font-black text-warning">تنبيهات تحتاج متابعة</h3>
         <ul className="mt-2 space-y-1 text-sm text-auth-on-surface">
-          {alerts.map((alert, index) => (
-            <li key={index}>• {alert.message}</li>
+          {alerts.map((alert) => (
+            <li key={alert.id ?? alert.message}>• {alert.message}</li>
           ))}
         </ul>
       </section>

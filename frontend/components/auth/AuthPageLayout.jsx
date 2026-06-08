@@ -17,7 +17,7 @@ export default function AuthPageLayout({ children }) {
           "radial-gradient(at 0% 0%, rgba(255,122,0,0.05) 0px, transparent 50%), radial-gradient(at 100% 100%, rgba(193,196,231,0.05) 0px, transparent 50%)"
       }}
     >
-      <header className="fixed top-0 z-50 flex h-14 w-full items-center justify-between border-b border-outline-variant/80 bg-surface-container/90 px-4 backdrop-blur-md sm:h-16 sm:px-6 md:px-8">
+      <header dir="rtl" className="fixed top-0 z-50 flex h-14 w-full items-center justify-between border-b border-outline-variant/80 bg-surface-container/90 px-4 backdrop-blur-md sm:h-16 sm:px-6 md:px-8">
         <PeakLogo href="/" variant="compact" showSubtitle={false} priority />
         <Link
           href="mailto:support@peak-academy.net"

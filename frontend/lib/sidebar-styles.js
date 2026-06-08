@@ -48,6 +48,6 @@ export const sidebarAvatar = cn(
   "border-2 border-outline-variant/50 bg-surface-container-high"
 );
 
-export const sidebarMobileOverlay = "absolute inset-0 bg-black/55 backdrop-blur-[2px]";
+export const sidebarMobileOverlay = "absolute inset-0 bg-black/55 backdrop-blur-sm";
 
 export const sidebarMobilePanel = "absolute inset-y-0 start-0 w-[min(280px,88vw)] shadow-2xl";

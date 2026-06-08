@@ -68,7 +68,7 @@ function SidebarShell({ children, className }) {
   return (
     <aside
       className={cn(
-        "flex h-full w-[260px] flex-col border-l border-white/10 bg-gradient-to-b from-primary via-primary to-[#0f1320] text-white shadow-xl",
+        "flex h-full w-[260px] flex-col border-s border-white/10 bg-gradient-to-b from-primary via-primary to-[#0f1320] text-white shadow-xl",
         className
       )}
     >

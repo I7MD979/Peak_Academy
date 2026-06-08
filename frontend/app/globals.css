@@ -92,11 +92,6 @@ a {
   color: var(--landing-ink-muted);
 }
 
-.landing-section-dark {
-  background: linear-gradient(180deg, var(--landing-navy) 0%, #060a12 100%);
-  color: var(--landing-on-dark);
-}
-
 .landing-section-dark .landing-lead {
   color: var(--landing-on-dark-muted);
 }
@@ -115,49 +110,6 @@ a {
 
 .text-landing-subtle {
   color: var(--landing-ink-subtle);
-}
-
-.landing-section-light {
-  background: linear-gradient(180deg, #ffffff 0%, var(--landing-cream) 55%, #eef1f7 100%);
-}
-
-.landing-section-cream {
-  background: linear-gradient(180deg, var(--landing-cream) 0%, #eef1f7 50%, #e8ecf4 100%);
-}
-
-.landing-pattern-light {
-  background-image:
-    radial-gradient(circle at 15% 10%, var(--landing-orange-soft) 0%, transparent 38%),
-    radial-gradient(circle at 85% 90%, rgba(10, 18, 32, 0.04) 0%, transparent 42%);
-}
-
-.landing-pattern-dots {
-  background-image:
-    radial-gradient(circle at 1px 1px, rgba(10, 18, 32, 0.04) 1px, transparent 0),
-    radial-gradient(circle at 80% 20%, var(--landing-orange-soft) 0%, transparent 28%);
-  background-size: 28px 28px, 100% 100%;
-}
-
-.landing-pattern-dark {
-  background-image:
-    radial-gradient(circle at 10% 0%, var(--landing-orange-glow) 0%, transparent 40%),
-    radial-gradient(circle at 90% 100%, rgba(255, 255, 255, 0.03) 0%, transparent 45%);
-}
-
-.landing-card-light {
-  border: 1px solid rgba(10, 18, 32, 0.07);
-  background: #ffffff;
-  box-shadow:
-    0 1px 2px rgba(10, 18, 32, 0.04),
-    0 16px 44px -16px rgba(10, 18, 32, 0.12);
-  color: var(--landing-ink);
-}
-
-.landing-card-navy {
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: linear-gradient(155deg, var(--landing-navy2) 0%, var(--landing-navy) 100%);
-  box-shadow: 0 20px 50px -18px rgba(8, 13, 22, 0.55);
-  color: #ffffff;
 }
 
 /* Accent line only on featured cards */
@@ -184,144 +136,8 @@ a {
   pointer-events: none;
 }
 
-.landing-section-tag-light {
-  background: var(--landing-orange-soft);
-  border: 1px solid rgba(245, 114, 26, 0.28);
-  border-radius: 999px;
-  padding: 0.25rem 1rem;
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: #c2410c;
-}
-
-.landing-section-tag-dark {
-  background: rgba(245, 114, 26, 0.14);
-  border: 1px solid rgba(245, 114, 26, 0.32);
-  border-radius: 999px;
-  padding: 0.25rem 1rem;
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: #ffd4a8;
-}
-
 .landing-title-mark {
   color: var(--landing-orange);
-}
-
-/* ——— Landing layout system ——— */
-.landing-container {
-  width: 100%;
-  max-width: 75rem;
-  margin-inline: auto;
-  padding-inline: clamp(1rem, 4vw, 2rem);
-}
-
-.landing-section-y {
-  padding-block: clamp(4rem, 8vw, 6.5rem);
-}
-
-.landing-section-head {
-  margin-bottom: clamp(2.5rem, 5vw, 4.5rem);
-  text-align: center;
-}
-
-.landing-h2 {
-  margin-bottom: 1rem;
-  font-size: clamp(1.75rem, 4.2vw, 3rem);
-  font-weight: 900;
-  line-height: 1.15;
-}
-
-.landing-lead {
-  max-width: 32rem;
-  margin-inline: auto;
-  font-size: clamp(0.9375rem, 2vw, 1.125rem);
-  line-height: 1.7;
-}
-
-.landing-hero-display {
-  font-size: clamp(2.25rem, 7vw, 5.5rem);
-  line-height: 1.05;
-  letter-spacing: -0.04em;
-}
-
-.landing-hero-accent {
-  font-size: clamp(2.25rem, 7vw, 5.5rem);
-  line-height: 1.05;
-  letter-spacing: -0.04em;
-}
-
-.landing-hero-tagline {
-  font-size: clamp(1.25rem, 3vw, 2.5rem);
-}
-
-.landing-btn-primary {
-  display: inline-flex;
-  min-height: 3rem;
-  align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  border-radius: 9999px;
-  background-color: #f5721a;
-  padding: 0.875rem 1.75rem;
-  font-size: clamp(0.9375rem, 2vw, 1.125rem);
-  font-weight: 700;
-  color: #ffffff;
-  box-shadow: 0 10px 40px -10px rgba(245, 114, 26, 0.35);
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-
-@media (min-width: 640px) {
-  .landing-btn-primary {
-    min-height: 3.25rem;
-    padding: 1rem 2.5rem;
-  }
-}
-
-@media (min-width: 768px) {
-  .landing-btn-primary {
-    padding: 1.25rem 3rem;
-    font-size: 1.125rem;
-  }
-}
-
-.landing-btn-primary:hover {
-  transform: scale(1.03);
-}
-
-.landing-btn-outline {
-  display: inline-flex;
-  min-height: 3rem;
-  align-items: center;
-  justify-content: center;
-  border-radius: 9999px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.04);
-  padding: 0.875rem 1.75rem;
-  font-size: clamp(0.9375rem, 2vw, 1.125rem);
-  font-weight: 700;
-  color: #ffffff;
-  backdrop-filter: blur(12px);
-  transition: background-color 0.3s ease, border-color 0.3s ease;
-}
-
-@media (min-width: 640px) {
-  .landing-btn-outline {
-    min-height: 3.25rem;
-    padding: 1rem 2.5rem;
-  }
-}
-
-@media (min-width: 768px) {
-  .landing-btn-outline {
-    padding: 1.25rem 3rem;
-    font-size: 1.125rem;
-  }
-}
-
-.landing-btn-outline:hover {
-  border-color: rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.1);
 }
 
 /* ——— Auth pages layout ——— */
@@ -380,13 +196,6 @@ a {
 
 .landing-hero {
   background-color: var(--landing-navy);
-}
-
-.landing-hero-glow {
-  background:
-    radial-gradient(ellipse 65% 50% at 20% 0%, var(--landing-orange-glow), transparent 62%),
-    radial-gradient(ellipse 45% 35% at 100% 40%, rgba(59, 130, 246, 0.07), transparent),
-    radial-gradient(ellipse 35% 28% at 0% 75%, rgba(245, 114, 26, 0.08), transparent);
 }
 
 .landing-pulse-dot {
@@ -501,31 +310,6 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
   background-image:
     radial-gradient(at 0% 0%, rgba(187, 199, 223, 0.03) 0px, transparent 50%),
     radial-gradient(at 100% 100%, rgba(245, 114, 26, 0.03) 0px, transparent 50%);
-}
-
-/* Float animation for hero illustration */
-@keyframes float {
-  0%,
-  100% {
-    transform: translateY(0) scale(1);
-  }
-  50% {
-    transform: translateY(-20px) scale(1.02);
-  }
-}
-.animate-float {
-  animation: float 10s ease-in-out infinite;
-}
-
-/* Scroll reveal */
-.scroll-reveal {
-  opacity: 0;
-  transform: translateY(40px);
-  transition: all 1s cubic-bezier(0.22, 1, 0.36, 1);
-}
-.scroll-reveal.visible {
-  opacity: 1;
-  transform: translateY(0);
 }
 
 /* Material Symbols */

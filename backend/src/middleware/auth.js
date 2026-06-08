@@ -107,15 +107,6 @@ export async function resolveAuthUserFromToken(token) {
       console.warn("[auth] users lookup:", profileError.message);
     }
 
-    if (!profile?.id) {
-      const { data: roleRow } = await supabase
-        .from("users")
-        .select("id, full_name, email, role, avatar_url, phone, is_active")
-        .eq("id", authUser.id)
-        .maybeSingle();
-      if (roleRow?.id) profile = roleRow;
-    }
-
     if (!profile?.id && name.length >= 2) {
       const appMeta = authUser.app_metadata || {};
       const { data: existing } = await supabase

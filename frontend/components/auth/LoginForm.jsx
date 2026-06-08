@@ -119,7 +119,7 @@ export default function LoginForm({ redirectTo: redirectToProp = null, oauthErro
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="example@peakacademy.com"
+            placeholder="example@peak-academy.net"
             required
             autoComplete="email"
             className={authInputClass}
@@ -144,12 +144,12 @@ export default function LoginForm({ redirectTo: redirectToProp = null, oauthErro
               placeholder="••••••••"
               required
               autoComplete="current-password"
-              className={cn(authInputClass, "pl-12 text-start")}
+              className={cn(authInputClass, "ps-12 text-start")}
             />
             <button
               type="button"
               onClick={() => setShowPassword((prev) => !prev)}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant transition-colors hover:text-on-surface"
+              className="absolute start-3 top-1/2 -translate-y-1/2 text-on-surface-variant transition-colors hover:text-on-surface"
               aria-label={showPassword ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"}
             >
               <span className="material-symbols-outlined text-lg">

@@ -239,13 +239,13 @@ export default function RegisterForm({ redirectTo = null, levelParam = null }) {
                   autoComplete="new-password"
                   placeholder="••••••••"
                   dir="ltr"
-                  className={cn(authInputClass, "pl-12 text-start")}
+                  className={cn(authInputClass, "ps-12 text-start")}
                   {...step1Form.register("password")}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant transition-colors hover:text-on-surface"
+                  className="absolute start-3 top-1/2 -translate-y-1/2 text-on-surface-variant transition-colors hover:text-on-surface"
                   aria-label={showPassword ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"}
                 >
                   <span className="material-symbols-outlined text-lg">
@@ -268,13 +268,13 @@ export default function RegisterForm({ redirectTo = null, levelParam = null }) {
                   autoComplete="new-password"
                   placeholder="••••••••"
                   dir="ltr"
-                  className={cn(authInputClass, "pl-12 text-start")}
+                  className={cn(authInputClass, "ps-12 text-start")}
                   {...step1Form.register("confirmPassword")}
                 />
                 <button
                   type="button"
                   onClick={() => setShowConfirm((v) => !v)}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant transition-colors hover:text-on-surface"
+                  className="absolute start-3 top-1/2 -translate-y-1/2 text-on-surface-variant transition-colors hover:text-on-surface"
                   aria-label={showConfirm ? "إخفاء التأكيد" : "إظهار التأكيد"}
                 >
                   <span className="material-symbols-outlined text-lg">

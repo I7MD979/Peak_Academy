@@ -59,6 +59,15 @@ import { mapCheckoutResponse } from "../lib/schema.js";
 import { cancelStudentEnrollment } from "../services/refundService.js";
 import { refundAllSessionEnrollments } from "../services/refundService.js";
 
+const SESSION_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function validateSessionId(req, res, next) {
+  if (!SESSION_UUID_RE.test(req.params.id)) {
+    return error(res, "معرّف الجلسة غير صالح", 400);
+  }
+  next();
+}
+
 const createSessionSchema = z.object({
   title: z.string().min(3, "عنوان الجلسة قصير جداً").max(200),
   subject: z.string().min(1, "المادة مطلوبة").max(100),
@@ -367,7 +376,7 @@ router.get("/", auth, async (req, res) => {
   }
 });
 
-router.get("/:id/waiting-students", auth, checkRole("teacher", "admin"), async (req, res) => {
+router.get("/:id/waiting-students", auth, checkRole("teacher", "admin"), validateSessionId, async (req, res) => {
   try {
     const { data: session } = await supabase
       .from("sessions")
@@ -407,7 +416,7 @@ router.get("/:id/waiting-students", auth, checkRole("teacher", "admin"), async (
   }
 });
 
-router.post("/:id/waiting-heartbeat", auth, checkRole("student"), async (req, res) => {
+router.post("/:id/waiting-heartbeat", auth, checkRole("student"), validateSessionId, async (req, res) => {
   try {
     const { data: session } = await supabase
       .from("sessions")
@@ -427,7 +436,7 @@ router.post("/:id/waiting-heartbeat", auth, checkRole("student"), async (req, re
   }
 });
 
-router.get("/:id/enrollments", auth, checkRole("teacher", "admin"), async (req, res) => {
+router.get("/:id/enrollments", auth, checkRole("teacher", "admin"), validateSessionId, async (req, res) => {
   try {
     const { data: session } = await supabase
       .from("sessions")
@@ -451,7 +460,7 @@ router.get("/:id/enrollments", auth, checkRole("teacher", "admin"), async (req, 
   }
 });
 
-router.get("/:id", auth, async (req, res) => {
+router.get("/:id", auth, validateSessionId, async (req, res) => {
   try {
     if (req.user.role === "student") {
       return error(res, "استخدم /api/student/sessions/:id لعرض تفاصيل الجلسة", 403);
@@ -510,8 +519,9 @@ router.post("/", auth, checkRole("teacher"), async (req, res) => {
       roomWarning = "غرفة الفيديو غير مفعّلة (LIVEKIT_* غير مضبوط على الخادم).";
     }
 
+    const sessionUuid = crypto.randomUUID();
     const insertPayload = {
-      id: `s-${Date.now()}`,
+      id: sessionUuid,
       teacher_id: req.user.id,
       title: body.title,
       subject: body.subject || "general",
@@ -618,7 +628,9 @@ router.post("/close-open", auth, checkRole("teacher", "admin"), async (req, res)
   try {
     let query = supabase
       .from("sessions")
-      .select("id, status, teacher_id, daily_room_name, daily_room_url, room_url");
+      .select("id, status, teacher_id, daily_room_name, daily_room_url, room_url")
+      .in("status", ["live", "scheduled"])
+      .limit(500);
 
     if (req.user.role === "teacher") {
       query = query.eq("teacher_id", req.user.id);
@@ -627,7 +639,7 @@ router.post("/close-open", auth, checkRole("teacher", "admin"), async (req, res)
     const { data: allSessions, error: listError } = await query;
     if (listError) throw listError;
 
-    const rows = (allSessions || []).filter((session) => isOpenSessionStatus(session.status));
+    const rows = allSessions || [];
 
     let ended = 0;
     let cancelled = 0;
@@ -703,7 +715,7 @@ router.post("/purge-daily-rooms", auth, checkRole("teacher", "admin"), async (re
   }
 });
 
-router.post("/:id/mute-all", auth, checkRole("teacher"), async (req, res) => {
+router.post("/:id/mute-all", auth, checkRole("teacher"), validateSessionId, async (req, res) => {
   try {
     if (!(await assertTeacherOwnsSession(req.params.id, req.user.id, res))) return;
 
@@ -715,7 +727,7 @@ router.post("/:id/mute-all", auth, checkRole("teacher"), async (req, res) => {
   }
 });
 
-router.post("/:id/enroll", auth, checkRole("student"), async (req, res) => {
+router.post("/:id/enroll", auth, checkRole("student"), validateSessionId, async (req, res) => {
   try {
     const { payment_id, payment_type, promo_code } = req.body;
     const sessionId = req.params.id;
@@ -880,17 +892,19 @@ router.post("/:id/enroll", auth, checkRole("student"), async (req, res) => {
   }
 });
 
-router.post("/:id/cancel-enrollment", auth, checkRole("student"), async (req, res) => {
+router.post("/:id/cancel-enrollment", auth, checkRole("student"), validateSessionId, async (req, res) => {
   try {
     const result = await cancelStudentEnrollment(req.user.id, req.params.id);
     await safeInvalidateSessionCaches(req.params.id);
     return success(res, result, "تم إلغاء التسجيل");
   } catch (err) {
-    return error(res, err.message || "تعذر إلغاء التسجيل", 400);
+    const isProd = process.env.NODE_ENV === "production";
+    const msg = !isProd && err.message ? err.message : "تعذر إلغاء التسجيل";
+    return error(res, msg, 400);
   }
 });
 
-router.post("/:id/start", auth, checkRole("teacher"), async (req, res) => {
+router.post("/:id/start", auth, checkRole("teacher"), validateSessionId, async (req, res) => {
   try {
     if (!(await assertTeacherOwnsSession(req.params.id, req.user.id, res))) return;
 
@@ -957,7 +971,7 @@ router.post("/:id/start", auth, checkRole("teacher"), async (req, res) => {
   }
 });
 
-router.post("/:id/end", auth, checkRole("teacher"), async (req, res) => {
+router.post("/:id/end", auth, checkRole("teacher"), validateSessionId, async (req, res) => {
   try {
     const teacher = await getTeacherProfileForUser(req.user.id);
     if (!teacher) return error(res, "Teacher profile not found", 404);
@@ -1000,11 +1014,9 @@ router.post("/:id/end", auth, checkRole("teacher"), async (req, res) => {
   }
 });
 
-router.patch("/:id/cancel", auth, checkRole("teacher", "admin"), async (req, res) => {
+router.patch("/:id/cancel", auth, checkRole("teacher", "admin"), validateSessionId, async (req, res) => {
   try {
     const sessionId = req.params.id;
-    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    if (!UUID_RE.test(sessionId)) return error(res, "معرّف الجلسة غير صالح", 400);
 
     const { data: session, error: dbError } = await supabase
       .from("sessions")
@@ -1172,7 +1184,7 @@ async function assertStudentEnrollmentForJoin(userId, sessionId) {
   return { ok: true };
 }
 
-router.post("/:id/join", auth, async (req, res) => {
+router.post("/:id/join", auth, validateSessionId, async (req, res) => {
   try {
     const session = await fetchSessionForJoin(req.params.id);
     if (!session) return error(res, "الحصة غير موجودة", 404);
@@ -1215,7 +1227,7 @@ router.post("/:id/join", auth, async (req, res) => {
   }
 });
 
-router.get("/:id/room", auth, async (req, res) => {
+router.get("/:id/room", auth, validateSessionId, async (req, res) => {
   try {
     const session = await fetchSessionForJoin(req.params.id);
     if (!session) return error(res, "الجلسة غير موجودة", 404);

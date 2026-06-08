@@ -11,8 +11,8 @@ export default function LandingFeatures() {
         </div>
 
         <div className="grid grid-cols-1 gap-5 md:grid-cols-12 md:gap-6 lg:gap-8">
-          <div className="landing-card-accent-top landing-card-accent-featured relative flex flex-col justify-between overflow-hidden rounded-3xl border border-white/12 bg-white/[0.05] p-7 transition-all duration-700 hover:border-landing-orange/25 hover:shadow-2xl sm:p-9 md:col-span-8 md:p-11 lg:p-14">
-            <div className="absolute right-0 top-0 h-full w-full bg-gradient-to-br from-landing-orange/12 via-transparent to-transparent" />
+          <div className="landing-card-accent-top landing-card-accent-featured relative flex flex-col justify-between overflow-hidden rounded-3xl border border-white/[0.12] bg-white/[0.05] p-7 transition-all duration-700 hover:border-landing-orange/25 hover:shadow-2xl sm:p-9 md:col-span-8 md:p-11 lg:p-14">
+            <div className="absolute right-0 top-0 h-full w-full bg-gradient-to-br from-landing-orange/[0.12] via-transparent to-transparent" />
             <div className="relative z-10">
               <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl border border-landing-orange/25 bg-landing-orange/10 text-landing-orange backdrop-blur-xl sm:mb-8 sm:h-16 sm:w-16">
                 <span className="material-symbols-outlined text-2xl sm:text-3xl">person_pin</span>
@@ -36,7 +36,7 @@ export default function LandingFeatures() {
           </div>
 
           <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-7 transition-all duration-700 hover:-translate-y-1 hover:border-landing-orange/25 sm:p-9 md:col-span-4 md:p-10 lg:p-12">
-            <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl bg-white/8 text-landing-orange sm:mb-8 sm:h-14 sm:w-14">
+            <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl bg-white/[0.08] text-landing-orange sm:mb-8 sm:h-14 sm:w-14">
               <span className="material-symbols-outlined text-2xl">monitoring</span>
             </div>
             <h3 className="mb-3 text-xl font-bold text-white sm:mb-4 sm:text-2xl">تقارير المتابعة</h3>
@@ -55,8 +55,8 @@ export default function LandingFeatures() {
             </p>
           </div>
 
-          <div className="rounded-3xl border border-white/8 bg-landing-navy/60 p-7 transition-all duration-700 hover:-translate-y-1 hover:border-white/15 sm:p-9 md:col-span-4 md:p-10 lg:p-12">
-            <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl bg-white/6 text-white sm:mb-8 sm:h-14 sm:w-14">
+          <div className="rounded-3xl border border-white/[0.08] bg-landing-navy/60 p-7 transition-all duration-700 hover:-translate-y-1 hover:border-white/15 sm:p-9 md:col-span-4 md:p-10 lg:p-12">
+            <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl bg-white/[0.06] text-white sm:mb-8 sm:h-14 sm:w-14">
               <span className="material-symbols-outlined text-2xl">savings</span>
             </div>
             <h3 className="mb-3 text-xl font-bold text-white sm:mb-4 sm:text-2xl">تكلفة ذكية</h3>

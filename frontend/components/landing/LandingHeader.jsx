@@ -24,6 +24,18 @@ export default function LandingHeader() {
 
   useEffect(() => {
     document.body.style.overflow = mobileOpen ? "hidden" : "";
+
+    if (mobileOpen) {
+      const onKeyDown = (e) => {
+        if (e.key === "Escape") setMobileOpen(false);
+      };
+      window.addEventListener("keydown", onKeyDown);
+      return () => {
+        document.body.style.overflow = "";
+        window.removeEventListener("keydown", onKeyDown);
+      };
+    }
+
     return () => {
       document.body.style.overflow = "";
     };
@@ -38,13 +50,13 @@ export default function LandingHeader() {
       className={cn(
         "fixed top-0 z-50 w-full border-b transition-all duration-300",
         lightHeader
-          ? "border-landing-ink/8 bg-white/95 shadow-[0_4px_24px_-8px_rgba(8,13,22,0.1)] backdrop-blur-xl"
+          ? "border-landing-ink/[0.08] bg-white/95 shadow-[0_4px_24px_-8px_rgba(8,13,22,0.1)] backdrop-blur-xl"
           : scrolled
             ? "border-white/10 bg-landing-navy/90 backdrop-blur-2xl"
             : "border-white/5 bg-landing-navy/60 backdrop-blur-xl"
       )}
     >
-      <nav className="relative mx-auto flex h-[4.5rem] max-w-[75rem] flex-row-reverse items-center justify-between gap-3 px-4 sm:h-20 sm:gap-4 sm:px-6 md:px-8">
+      <nav className="relative mx-auto flex h-[4.5rem] max-w-[75rem] flex-row items-center justify-between gap-3 px-4 sm:h-20 sm:gap-4 sm:px-6 md:px-8">
         <PeakLogo
           href="/"
           variant="landing"
@@ -103,7 +115,7 @@ export default function LandingHeader() {
         <div
           className={cn(
             "border-t px-5 py-4 md:hidden",
-            lightHeader ? "border-landing-ink/8 bg-white/98" : "border-white/10 bg-landing-navy/95"
+            lightHeader ? "border-landing-ink/[0.08] bg-white/98" : "border-white/10 bg-landing-navy/95"
           )}
         >
           <ul className="space-y-1">

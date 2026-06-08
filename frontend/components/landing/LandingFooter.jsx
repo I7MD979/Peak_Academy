@@ -16,7 +16,7 @@ const legalLinks = [
 
 export default function LandingFooter() {
   return (
-    <footer className="landing-section-dark border-t border-white/8 py-14 sm:py-16 md:py-20">
+    <footer className="landing-section-dark border-t border-white/[0.08] py-14 sm:py-16 md:py-20">
       <div className="landing-container grid grid-cols-1 gap-10 sm:grid-cols-2 sm:gap-12 md:grid-cols-4 md:gap-14">
         <div className="sm:col-span-2">
           <PeakLogo href="/" variant="full" showWordmark theme="dark" className="mb-6 sm:mb-8 md:hidden" />

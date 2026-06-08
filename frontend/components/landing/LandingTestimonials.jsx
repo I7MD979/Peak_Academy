@@ -28,7 +28,7 @@ const testimonials = [
     level: "طالب 1 ثانوي",
     quote: "ساعدتني المنصة على تنظيم وقتي والتفوق في المواد التي كنت أخشاها، شكراً Peak Academy.",
     cardClass: "landing-card-light",
-    accent: "bg-landing-cream text-landing-orange border border-landing-ink/8",
+    accent: "bg-landing-cream text-landing-orange border border-landing-ink/[0.08]",
     nameClass: "text-landing-ink",
     levelClass: "text-landing-ink-muted",
     quoteClass: "text-landing-ink-muted"

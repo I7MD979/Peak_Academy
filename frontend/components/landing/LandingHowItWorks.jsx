@@ -26,7 +26,7 @@ export default function LandingHowItWorks() {
             {steps.map((step) => (
               <div key={step.title} className="group text-center">
                 <div className="relative mx-auto mb-6 h-24 w-24 sm:mb-8 sm:h-28 sm:w-28">
-                  <div className="absolute inset-0 rotate-12 rounded-3xl bg-landing-orange/8 transition-all duration-500 group-hover:rotate-0" />
+                  <div className="absolute inset-0 rotate-12 rounded-3xl bg-landing-orange/[0.08] transition-all duration-500 group-hover:rotate-0" />
                   <div className="landing-card-light relative flex h-full w-full items-center justify-center rounded-3xl">
                     <span className="material-symbols-outlined text-3xl text-landing-orange sm:text-4xl">
                       {step.icon}
