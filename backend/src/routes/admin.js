@@ -367,6 +367,56 @@ router.post("/users/:id/grant-sessions", auth, checkRole("admin"), async (req, r
   }
 });
 
+// ── Assign subscription manually ─────────────────────────────────────────────
+router.post("/users/:id/subscriptions", auth, checkRole("admin"), async (req, res) => {
+  try {
+    if (!UUID_RE.test(req.params.id)) return error(res, "معرّف المستخدم غير صالح", 400);
+    const { plan_id, sessions_override, period_days } = req.body || {};
+    if (!plan_id || !UUID_RE.test(String(plan_id))) return error(res, "معرّف الخطة مطلوب وصالح", 400);
+    const result = await UserService.assignSubscription(
+      req.params.id,
+      { planId: plan_id, sessionsOverride: sessions_override, periodDays: period_days },
+      req.user.id
+    );
+    if (!result.ok) return error(res, result.message, result.status);
+    return success(res, result.data, "تم تعيين الاشتراك بنجاح");
+  } catch (_err) {
+    return error(res, "تعذر تعيين الاشتراك", 500);
+  }
+});
+
+// ── Modify subscription ───────────────────────────────────────────────────────
+router.patch("/users/:id/subscriptions/:subId", auth, checkRole("admin"), async (req, res) => {
+  try {
+    if (!UUID_RE.test(req.params.id)) return error(res, "معرّف المستخدم غير صالح", 400);
+    if (!UUID_RE.test(req.params.subId)) return error(res, "معرّف الاشتراك غير صالح", 400);
+    const { sessions_remaining, current_period_end, plan_id, status } = req.body || {};
+    const result = await UserService.modifySubscription(
+      req.params.id,
+      req.params.subId,
+      { sessions_remaining, current_period_end, plan_id, status },
+      req.user.id
+    );
+    if (!result.ok) return error(res, result.message, result.status);
+    return success(res, result.data, "تم تحديث الاشتراك");
+  } catch (_err) {
+    return error(res, "تعذر تحديث الاشتراك", 500);
+  }
+});
+
+// ── Cancel subscription ───────────────────────────────────────────────────────
+router.delete("/users/:id/subscriptions/:subId", auth, checkRole("admin"), async (req, res) => {
+  try {
+    if (!UUID_RE.test(req.params.id)) return error(res, "معرّف المستخدم غير صالح", 400);
+    if (!UUID_RE.test(req.params.subId)) return error(res, "معرّف الاشتراك غير صالح", 400);
+    const result = await UserService.cancelSubscription(req.params.id, req.params.subId, req.user.id);
+    if (!result.ok) return error(res, result.message, result.status);
+    return success(res, null, "تم إلغاء الاشتراك");
+  } catch (_err) {
+    return error(res, "تعذر إلغاء الاشتراك", 500);
+  }
+});
+
 router.get("/withdrawals/stats", auth, checkRole("admin"), async (_req, res) => {
   try {
     const [total, pending, approved, paid, rejected, pendingRows] = await Promise.all([

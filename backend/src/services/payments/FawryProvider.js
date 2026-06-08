@@ -1,126 +1,148 @@
-import crypto from "crypto";
 import { BasePaymentProvider } from "./BasePaymentProvider.js";
 
-const FAWRY_BASE_URL = process.env.FAWRY_BASE_URL || "https://atfawry.fawrystaging.com";
-
+// Fawry payments go through Paymob's Fawry integration.
+// Flow: auth → register order → payment key (Fawry integration) → pay (AGGREGATOR) → reference code.
 export class FawryProvider extends BasePaymentProvider {
-  constructor() {
-    super();
-    this.merchantCode = process.env.FAWRY_MERCHANT_CODE;
-    this.securityKey = process.env.FAWRY_SECURITY_KEY;
-
-    if (!this.merchantCode || !this.securityKey) {
-      throw new Error("FAWRY_MERCHANT_CODE and FAWRY_SECURITY_KEY are required");
-    }
-  }
-
-  _generateSignature({ merchantRefNum, customerProfileId, chargeItems }) {
-    const itemsStr = chargeItems
-      .map((item) => `${item.itemId}${item.quantity}${item.price.toFixed(2)}`)
-      .join("");
-    const str = `${this.merchantCode}${merchantRefNum}${customerProfileId}${itemsStr}${this.securityKey}`;
-    return crypto.createHash("sha256").update(str).digest("hex");
-  }
-
-  async createOrder({ amount, orderId, userId, customer, metadata = {} }) {
-    const amountEGP = (amount / 100).toFixed(2);
-
-    const chargeItems = [
-      {
-        itemId: orderId,
-        description: metadata.description || "Peak Academy Subscription",
-        price: parseFloat(amountEGP),
-        quantity: 1
-      }
-    ];
-
-    const paymentExpiry = Date.now() + 3 * 24 * 60 * 60 * 1000;
-    const frontendUrl = (process.env.FRONTEND_URL || "http://localhost:3000").replace(/\/$/, "");
-
-    const body = {
-      merchantCode: this.merchantCode,
-      merchantRefNum: orderId,
-      customerProfileId: userId,
-      customerName: customer.name || "Customer",
-      customerEmail: customer.email,
-      customerMobile: customer.phone?.replace(/^0/, "+20"),
-      paymentExpiry,
-      chargeItems,
-      returnUrl: `${frontendUrl}/payment/callback?provider=fawry`,
-      authCaptureModePayment: false
-    };
-
-    body.signature = this._generateSignature({
-      merchantRefNum: orderId,
-      customerProfileId: userId,
-      chargeItems
-    });
-
-    const response = await fetch(`${FAWRY_BASE_URL}/ECommerceWeb/Fawry/payments/charge`, {
+  async _paymobAuth() {
+    const res = await fetch("https://accept.paymob.com/api/auth/tokens", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body)
+      body: JSON.stringify({ api_key: process.env.PAYMOB_API_KEY })
     });
+    if (!res.ok) throw new Error("Paymob auth failed");
+    const data = await res.json();
+    return data.token;
+  }
 
-    const data = await response.json();
+  async _registerOrder(authToken, { amount, orderId }) {
+    const res = await fetch("https://accept.paymob.com/api/ecommerce/orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        auth_token: authToken,
+        delivery_needed: false,
+        amount_cents: amount,
+        currency: "EGP",
+        merchant_order_id: orderId,
+        items: []
+      })
+    });
+    if (!res.ok) throw new Error("Paymob order registration failed");
+    return res.json();
+  }
 
-    if (data.statusCode !== 200 && data.type !== "ChargeResponse") {
-      throw new Error(`Fawry error: ${data.statusDescription || "Unknown error"}`);
+  async _getPaymentKey(authToken, { paymobOrderId, amount, customer, integrationId }) {
+    const res = await fetch("https://accept.paymob.com/api/acceptance/payment_keys", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        auth_token: authToken,
+        amount_cents: amount,
+        expiration: 3 * 24 * 3600,
+        order_id: paymobOrderId,
+        currency: "EGP",
+        integration_id: parseInt(integrationId, 10),
+        billing_data: {
+          first_name: customer.name?.split(" ")[0] || "Customer",
+          last_name: customer.name?.split(" ").slice(1).join(" ") || "NA",
+          email: customer.email || "NA",
+          phone_number: customer.phone || "NA",
+          apartment: "NA",
+          building: "NA",
+          floor: "NA",
+          street: "NA",
+          city: "Cairo",
+          country: "EG",
+          state: "NA",
+          postal_code: "NA"
+        }
+      })
+    });
+    if (!res.ok) throw new Error("Paymob payment key failed");
+    const data = await res.json();
+    return data.token;
+  }
+
+  async createOrder({ amount, orderId, customer, metadata: _metadata = {} }) {
+    const integrationId =
+      process.env.PAYMOB_INTEGRATION_ID_FAWRY ||
+      process.env.PAYMOB_FAWRY_INTEGRATION_ID;
+
+    if (!integrationId) {
+      throw new Error("PAYMOB_INTEGRATION_ID_FAWRY is not configured");
+    }
+    if (!process.env.PAYMOB_API_KEY) {
+      throw new Error("PAYMOB_API_KEY is not configured");
     }
 
-    const referenceCode = data.referenceNumber;
-    const expiresAt = new Date(paymentExpiry);
+    const authToken = await this._paymobAuth();
+    const paymobOrder = await this._registerOrder(authToken, { amount, orderId });
+    const paymentKey = await this._getPaymentKey(authToken, {
+      paymobOrderId: paymobOrder.id,
+      amount,
+      customer,
+      integrationId
+    });
+
+    // Get Fawry reference code via AGGREGATOR pay call
+    const payRes = await fetch("https://accept.paymob.com/api/acceptance/payments/pay", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        source: { identifier: "AGGREGATOR", subtype: "AGGREGATOR" },
+        payment_token: paymentKey
+      })
+    });
+    const payData = await payRes.json();
+
+    const referenceCode = String(
+      payData.bill_reference ||
+      payData.reference_number ||
+      paymobOrder.id
+    );
+    const expiresAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
 
     return {
-      providerOrderId: referenceCode,
+      providerOrderId: String(paymobOrder.id),
       referenceCode,
       expiresAt,
       paymentMethod: "fawry",
-      instructions: `احتفظ برقم الاستعلام: ${referenceCode}\nادفع في أي منفذ فوري أو من تطبيق فوري قبل ${expiresAt.toLocaleDateString("ar-EG")}`,
-      metadata: { fawryResponse: data }
+      amountEGP: (amount / 100).toFixed(2),
+      instructions: `احتفظ برقم المرجع: ${referenceCode}\nادفع في أي منفذ فوري أو من تطبيق فوري قبل ${expiresAt.toLocaleDateString("ar-EG")}`,
+      metadata: { paymobOrderId: paymobOrder.id, referenceCode, fawryResponse: payData }
     };
   }
 
   async handleWebhook(payload, signature) {
-    const expected = crypto
-      .createHash("sha256")
-      .update(
-        `${this.merchantCode}${payload.merchantRefNum}${payload.paymentAmount}${payload.orderStatus}${this.securityKey}`
-      )
-      .digest("hex");
-
-    const isValid = expected === signature;
+    // Fawry webhooks through Paymob use the standard Paymob HMAC format
+    const { verifyPaymobHmacStrict } = await import("../../utils/paymob-security.js");
+    const obj = payload?.obj || payload;
+    const hmacResult = verifyPaymobHmacStrict(payload, signature);
+    const isSuccess = obj?.success === true || obj?.success === "true";
 
     return {
-      isValid,
-      orderId: payload.merchantRefNum,
-      transactionId: payload.fawryRefNumber,
-      status:
-        payload.orderStatus === "PAID" ? "success" : payload.orderStatus === "FAILED" ? "failed" : "pending",
-      amount: Math.round(parseFloat(payload.paymentAmount) * 100),
-      metadata: payload
+      isValid: hmacResult.valid,
+      orderId: String(obj?.order?.merchant_order_id || obj?.order?.id || ""),
+      transactionId: String(obj?.id || ""),
+      status: isSuccess ? "success" : obj?.pending ? "pending" : "failed",
+      amount: parseInt(obj?.amount_cents || 0, 10),
+      metadata: obj
     };
   }
 
-  async getTransactionStatus(referenceNumber) {
-    const signature = crypto
-      .createHash("sha256")
-      .update(`${this.merchantCode}${referenceNumber}${this.securityKey}`)
-      .digest("hex");
-
-    const url = new URL(`${FAWRY_BASE_URL}/ECommerceWeb/Fawry/payments/status/v2`);
-    url.searchParams.set("merchantCode", this.merchantCode);
-    url.searchParams.set("merchantRefNum", referenceNumber);
-    url.searchParams.set("signature", signature);
-
-    const response = await fetch(url.toString());
-    const data = await response.json();
+  async getTransactionStatus(paymobOrderId) {
+    const authToken = await this._paymobAuth();
+    const res = await fetch(`https://accept.paymob.com/api/ecommerce/orders/${paymobOrderId}`, {
+      headers: { Authorization: `Bearer ${authToken}` }
+    });
+    if (!res.ok) return { status: "pending", transactionId: "", amount: 0, metadata: {} };
+    const data = await res.json();
+    const tx = data.transactions?.[0];
 
     return {
-      status:
-        data.paymentStatus === "PAID" ? "success" : data.paymentStatus === "FAILED" ? "failed" : "pending",
-      transactionId: data.fawryRefNumber,
-      amount: Math.round(parseFloat(data.paymentAmount || 0) * 100),
+      status: tx?.success ? "success" : tx?.pending ? "pending" : "failed",
+      transactionId: String(tx?.id || ""),
+      amount: parseInt(data.amount_cents || 0, 10),
       metadata: data
     };
   }

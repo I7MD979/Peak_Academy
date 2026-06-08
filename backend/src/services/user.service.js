@@ -179,5 +179,138 @@ export const UserService = {
   async deleteOwnAccount(userId) {
     await UserRepository.softDelete(userId);
     return { ok: true };
+  },
+
+  /** Admin: manually assign a subscription plan to a student. */
+  async assignSubscription(studentId, { planId, sessionsOverride, periodDays = 30 }, _actorId) {
+    const student = await UserRepository.findById(studentId);
+    if (!student) return { ok: false, status: 404, message: "الطالب غير موجود" };
+    if (student.role !== "student") return { ok: false, status: 400, message: "يمكن تعيين الاشتراكات للطلاب فقط" };
+
+    const { data: plan, error: planErr } = await supabase
+      .from("subscription_plans")
+      .select("id, name, sessions_per_month")
+      .eq("id", planId)
+      .maybeSingle();
+    if (planErr) throw planErr;
+    if (!plan) return { ok: false, status: 404, message: "الخطة غير موجودة" };
+
+    const safeSessionsOverride = sessionsOverride != null ? Number(sessionsOverride) : null;
+    if (safeSessionsOverride !== null && (!Number.isInteger(safeSessionsOverride) || safeSessionsOverride < 0 || safeSessionsOverride > 9999)) {
+      return { ok: false, status: 400, message: "عدد الحصص غير صالح" };
+    }
+    const safePeriodDays = Math.min(Math.max(Number(periodDays) || 30, 1), 3650);
+
+    // Cancel any existing active subscription
+    await supabase
+      .from("student_subscriptions")
+      .update({ status: "cancelled" })
+      .eq("student_id", studentId)
+      .eq("status", "active");
+
+    const now = new Date();
+    const periodEnd = new Date(now.getTime() + safePeriodDays * 24 * 60 * 60 * 1000);
+
+    const { data: sub, error: insertErr } = await supabase
+      .from("student_subscriptions")
+      .insert({
+        student_id: studentId,
+        plan_id: planId,
+        status: "active",
+        sessions_remaining: safeSessionsOverride ?? plan.sessions_per_month,
+        current_period_start: now.toISOString(),
+        current_period_end: periodEnd.toISOString()
+      })
+      .select("*, subscription_plans(name, sessions_per_month, price)")
+      .single();
+    if (insertErr) throw insertErr;
+
+    await invalidate(CACHE.studentSubscription(studentId));
+    return { ok: true, data: sub };
+  },
+
+  /** Admin: modify an existing subscription (sessions, expiry, plan, status). */
+  async modifySubscription(studentId, subId, changes, _actorId) {
+    const student = await UserRepository.findById(studentId);
+    if (!student) return { ok: false, status: 404, message: "الطالب غير موجود" };
+
+    const { data: sub, error: subErr } = await supabase
+      .from("student_subscriptions")
+      .select("id, student_id, status, sessions_remaining")
+      .eq("id", subId)
+      .eq("student_id", studentId)
+      .maybeSingle();
+    if (subErr) throw subErr;
+    if (!sub) return { ok: false, status: 404, message: "الاشتراك غير موجود" };
+
+    const updates = {};
+
+    if (changes.sessions_remaining !== undefined) {
+      const n = Number(changes.sessions_remaining);
+      if (!Number.isInteger(n) || n < 0 || n > 9999) {
+        return { ok: false, status: 400, message: "عدد الحصص المتبقية غير صالح" };
+      }
+      updates.sessions_remaining = n;
+    }
+
+    if (changes.current_period_end !== undefined) {
+      const d = new Date(changes.current_period_end);
+      if (isNaN(d.getTime())) return { ok: false, status: 400, message: "تاريخ الانتهاء غير صالح" };
+      updates.current_period_end = d.toISOString();
+    }
+
+    if (changes.plan_id !== undefined) {
+      const { data: plan } = await supabase
+        .from("subscription_plans")
+        .select("id")
+        .eq("id", changes.plan_id)
+        .maybeSingle();
+      if (!plan) return { ok: false, status: 404, message: "الخطة غير موجودة" };
+      updates.plan_id = changes.plan_id;
+    }
+
+    const ALLOWED_STATUSES = new Set(["active", "frozen", "cancelled", "expired"]);
+    if (changes.status !== undefined) {
+      if (!ALLOWED_STATUSES.has(changes.status)) return { ok: false, status: 400, message: "حالة غير صالحة" };
+      updates.status = changes.status;
+    }
+
+    if (!Object.keys(updates).length) return { ok: false, status: 400, message: "لا توجد بيانات للتحديث" };
+
+    const { data: updated, error: updateErr } = await supabase
+      .from("student_subscriptions")
+      .update(updates)
+      .eq("id", subId)
+      .select("*, subscription_plans(name, sessions_per_month, price)")
+      .single();
+    if (updateErr) throw updateErr;
+
+    await invalidate(CACHE.studentSubscription(studentId));
+    return { ok: true, data: updated };
+  },
+
+  /** Admin: cancel a subscription immediately. */
+  async cancelSubscription(studentId, subId, _actorId) {
+    const student = await UserRepository.findById(studentId);
+    if (!student) return { ok: false, status: 404, message: "الطالب غير موجود" };
+
+    const { data: sub, error: subErr } = await supabase
+      .from("student_subscriptions")
+      .select("id, status")
+      .eq("id", subId)
+      .eq("student_id", studentId)
+      .maybeSingle();
+    if (subErr) throw subErr;
+    if (!sub) return { ok: false, status: 404, message: "الاشتراك غير موجود" };
+    if (sub.status === "cancelled") return { ok: false, status: 400, message: "الاشتراك ملغي بالفعل" };
+
+    const { error: updateErr } = await supabase
+      .from("student_subscriptions")
+      .update({ status: "cancelled", sessions_remaining: 0 })
+      .eq("id", subId);
+    if (updateErr) throw updateErr;
+
+    await invalidate(CACHE.studentSubscription(studentId));
+    return { ok: true };
   }
 };

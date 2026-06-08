@@ -2,13 +2,13 @@ import { safeFetch, paymobIntentionSchema } from "../utils/safeApiClient.js";
 
 const PAYMOB_INTENTION_URL = "https://accept.paymob.com/v1/intention/";
 
-export const createPaymobOrder = async (amountCents, user, { returnUrl, specialReference } = {}) => {
+export const createPaymobOrder = async (amountCents, user, { returnUrl, specialReference, integrationId: customIntegrationId } = {}) => {
   if (!process.env.PAYMOB_API_KEY) {
     throw new Error("PAYMOB_API_KEY is not configured");
   }
 
-  const integrationId = Number(process.env.PAYMOB_INTEGRATION_ID_CARD);
-  if (!integrationId) throw new Error("PAYMOB_INTEGRATION_ID_CARD is not configured");
+  const integrationId = customIntegrationId || Number(process.env.PAYMOB_INTEGRATION_ID_CARD);
+  if (!integrationId) throw new Error("Paymob integration ID is not configured");
 
   const { ok, data } = await safeFetch(
     "paymob",

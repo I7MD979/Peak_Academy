@@ -456,7 +456,19 @@ export const dashboardApi = {
     apiRequest(`/admin/users/${userId}/grant-sessions`, {
       method: "POST",
       body: JSON.stringify({ sessions })
-    })
+    }),
+  adminAssignSubscription: (userId, body) =>
+    apiRequest(`/admin/users/${userId}/subscriptions`, {
+      method: "POST",
+      body: JSON.stringify(body)
+    }),
+  adminModifySubscription: (userId, subId, body) =>
+    apiRequest(`/admin/users/${userId}/subscriptions/${subId}`, {
+      method: "PATCH",
+      body: JSON.stringify(body)
+    }),
+  adminCancelSubscription: (userId, subId) =>
+    apiRequest(`/admin/users/${userId}/subscriptions/${subId}`, { method: "DELETE" })
 };
 
 
