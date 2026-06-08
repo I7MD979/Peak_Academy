@@ -25,8 +25,8 @@ export default function LandingPricing({ plans }) {
                 key={plan.id || plan.label}
                 className={`relative flex h-full flex-col overflow-visible rounded-3xl p-6 transition-all duration-500 sm:p-7 md:p-8 ${
                   plan.featured
-                    ? "landing-card-accent-top border-2 border-landing-orange bg-white pt-10 shadow-[0_24px_60px_-16px_rgba(245,114,26,0.28)] xl:scale-[1.03]"
-                    : "landing-card-light landing-card-accent-top border-2 border-landing-ink/12 hover:-translate-y-1 hover:border-landing-ink/22 hover:shadow-[0_20px_50px_-14px_rgba(10,18,32,0.16)]"
+                    ? "landing-card-accent-top landing-card-accent-featured border-2 border-landing-orange bg-white pt-10 shadow-[0_24px_60px_-16px_rgba(245,114,26,0.28)] xl:scale-[1.03]"
+                    : "landing-card-light border-2 border-landing-ink/12 hover:-translate-y-1 hover:border-landing-ink/22 hover:shadow-[0_20px_50px_-14px_rgba(10,18,32,0.16)]"
                 }`}
               >
                 {plan.featured && plan.featuredLabel ? (

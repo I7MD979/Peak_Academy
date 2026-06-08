@@ -5,7 +5,7 @@ const testimonials = [
     level: "طالب 3 ثانوي",
     quote:
       "تجربة الأونلاين في Peak Academy مختلفة تماماً، شعرت باهتمام حقيقي وتفاعل لم أجده في أي منصة أخرى.",
-    cardClass: "landing-card-light landing-card-accent-top",
+    cardClass: "landing-card-light",
     accent: "bg-landing-orange text-white",
     nameClass: "text-landing-ink",
     levelClass: "text-landing-ink-muted",
@@ -16,7 +16,7 @@ const testimonials = [
     name: "سارة علي",
     level: "طالبة 2 إعدادي",
     quote: "المدرسون رائعون جداً، والتفاعل المباشر مكنّني من طرح كافة أسئلتي بكل أريحية.",
-    cardClass: "landing-card-navy landing-card-accent-top",
+    cardClass: "landing-card-navy",
     accent: "bg-white/10 text-landing-orange border border-landing-orange/25",
     nameClass: "text-white",
     levelClass: "text-landing-on-dark-subtle",

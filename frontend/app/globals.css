@@ -160,19 +160,28 @@ a {
   color: #ffffff;
 }
 
+/* Accent line only on featured cards */
 .landing-card-accent-top {
   position: relative;
   overflow: visible;
 }
 
 .landing-card-accent-top::before {
+  content: none;
+}
+
+.landing-card-accent-featured::before {
   content: "";
   position: absolute;
   top: 0;
   right: 0;
   left: 0;
-  height: 4px;
-  background: linear-gradient(90deg, var(--landing-navy), var(--landing-orange) 45%, #ffb366);
+  height: 3px;
+  background: linear-gradient(90deg, #f5721a 0%, #ff9a4d 100%);
+  border-radius: inherit;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  pointer-events: none;
 }
 
 .landing-section-tag-light {
@@ -769,21 +778,6 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
 .landing-card-navy {
   background: #0f1a2e;
   border: 1px solid rgba(255, 255, 255, 0.08);
-}
-.landing-card-accent-top {
-  position: relative;
-}
-.landing-card-accent-top::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: linear-gradient(90deg, #f5721a, #ff9a4d);
-  border-radius: inherit;
-  border-bottom-left-radius: 0;
-  border-bottom-right-radius: 0;
 }
 
 /* Patterns */
