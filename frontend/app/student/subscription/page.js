@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import StudentSubscriptionView from "@/components/student/StudentSubscriptionPage";
 import { PageLoader } from "@/components/shared/LoadingSkeleton";
 import { paymentsApi, subscriptionsApi, newIdempotencyKey } from "@/lib/api";
-import { pollPaymentOrderFulfillment, pollTransactionFulfillment } from "@/lib/paymob";
+import { pollPaymentOrderFulfillment } from "@/lib/paymob";
 import {
   findAutostartPlan,
   resolveSubscriptionPaymentId,
@@ -56,7 +56,6 @@ function StudentSubscriptionContent() {
     let active = true;
     (async () => {
       await pollPaymentOrderFulfillment(paymentId);
-      await pollTransactionFulfillment(paymentId, { kind: "subscription" });
       if (active) await load();
     })();
 
@@ -95,11 +94,11 @@ function StudentSubscriptionContent() {
         if (!data) throw new Error("استجابة غير صالحة من الخادم");
 
         if (data.paymentUrl || data.iframeUrl) {
-          const txParam = data.paymentId ? `txId=${data.paymentId}` : "";
-          const sep = (data.paymentUrl || data.iframeUrl || "").includes("?") ? "&" : "?";
-          window.location.href = txParam
-            ? `${data.paymentUrl || data.iframeUrl}${sep}${txParam}`
-            : (data.paymentUrl || data.iframeUrl);
+          // Store payment ID before redirect so the return polling uses the correct UUID
+          if (data.paymentId) {
+            sessionStorage.setItem(SUBSCRIPTION_TX_STORAGE_KEY, data.paymentId);
+          }
+          window.location.href = data.paymentUrl || data.iframeUrl;
           return;
         }
 
