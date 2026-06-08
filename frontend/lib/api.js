@@ -442,7 +442,31 @@ export const dashboardApi = {
   },
   parentReport: (studentId) => apiRequest(`/parent/report/${studentId}`),
   myProfile: () => fetchMe(),
-  updateMyProfile: (body) => authApi.updateProfile(body)
+  updateMyProfile: (body) => authApi.updateProfile(body),
+
+  // ── User management (boilerplate additions) ──────────────────────────────
+  adminUserDetail: (userId) => apiRequest(`/admin/users/${userId}`),
+  adminEditUser: (userId, body) =>
+    apiRequest(`/admin/users/${userId}`, { method: "PATCH", body: JSON.stringify(body) }),
+  adminDeleteUser: (userId) =>
+    apiRequest(`/admin/users/${userId}`, { method: "DELETE" }),
+  adminUserSubscriptions: (userId) => apiRequest(`/admin/users/${userId}/subscriptions`),
+  adminGrantSessions: (userId, sessions) =>
+    apiRequest(`/admin/users/${userId}/grant-sessions`, {
+      method: "POST",
+      body: JSON.stringify({ sessions })
+    })
+};
+
+
+export const accountApi = {
+  me: () => apiRequest("/account/me"),
+  updateProfile: (body) =>
+    apiRequest("/account/profile", { method: "PATCH", body: JSON.stringify(body) }),
+  subscriptions: () => apiRequest("/account/subscriptions"),
+  activity: () => apiRequest("/account/activity"),
+  deleteAccount: () =>
+    apiRequest("/account", { method: "DELETE", body: JSON.stringify({ confirm: true }) })
 };
 
 export const notificationsApi = {

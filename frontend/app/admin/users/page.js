@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import AdminActionsMenu from "@/components/admin/AdminActionsMenu";
 import AdminConfirmDialog from "@/components/admin/AdminConfirmDialog";
 import AdminUserDetailsModal from "@/components/admin/AdminUserDetailsModal";
+import AdminUserEditModal from "@/components/admin/AdminUserEditModal";
 import AdminUsersView from "@/components/admin/AdminUsersPage";
 import StatusBadge from "@/components/admin/StatusBadge";
 import { useAuth } from "@/hooks/useAuth";
@@ -22,12 +23,7 @@ const roleBadgeClass = {
 
 function RoleBadge({ role }) {
   return (
-    <span
-      className={cn(
-        "rounded-full px-2.5 py-1 text-xs font-bold",
-        roleBadgeClass[role] || "bg-surface-container-highest text-on-surface-variant"
-      )}
-    >
+    <span className={cn("rounded-full px-2.5 py-1 text-xs font-bold", roleBadgeClass[role] || "bg-surface-container-highest text-on-surface-variant")}>
       {ROLE_LABELS_AR[role] || role || "—"}
     </span>
   );
@@ -62,7 +58,11 @@ export default function AdminUsersPage() {
   const [createdFrom, setCreatedFrom] = useState("");
   const [createdTo, setCreatedTo] = useState("");
 
+  // modal states
   const [selectedUser, setSelectedUser] = useState(null);
+  const [selectedDetail, setSelectedDetail] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [editUser, setEditUser] = useState(null);
   const [confirmAction, setConfirmAction] = useState(null);
 
   useEffect(() => {
@@ -111,13 +111,8 @@ export default function AdminUsersPage() {
     }
   }, [page, roleFilter, search, statusFilter, createdFrom, createdTo]);
 
-  useEffect(() => {
-    loadStats();
-  }, [loadStats]);
-
-  useEffect(() => {
-    loadUsers();
-  }, [loadUsers]);
+  useEffect(() => { loadStats(); }, [loadStats]);
+  useEffect(() => { loadUsers(); }, [loadUsers]);
 
   const refreshAll = useCallback(async () => {
     await Promise.all([loadStats(), loadUsers()]);
@@ -128,6 +123,22 @@ export default function AdminUsersPage() {
     setSelectedUser((prev) => (prev?.id === userId ? { ...prev, ...patch } : prev));
   }, []);
 
+  // ── Open detail view ──────────────────────────────────────────────────────
+  const openDetail = useCallback(async (user) => {
+    setSelectedUser(user);
+    setSelectedDetail(null);
+    setDetailLoading(true);
+    try {
+      const res = await dashboardApi.adminUserDetail(user.id);
+      setSelectedDetail(res?.data || null);
+    } catch {
+      setSelectedDetail(null);
+    } finally {
+      setDetailLoading(false);
+    }
+  }, []);
+
+  // ── Actions ───────────────────────────────────────────────────────────────
   const handleVerify = async (user) => {
     if (user.role !== "teacher" || user.is_verified === true) return;
     setMutatingId(user.id);
@@ -148,11 +159,9 @@ export default function AdminUsersPage() {
       toast.error("لا يمكن تنفيذ هذا الإجراء على هذا الحساب");
       return;
     }
-
     const isSuspended = user.is_active === false;
     setMutatingId(user.id);
     const updater = isSuspended ? dashboardApi.adminActivateUser : dashboardApi.adminSuspendUser;
-
     try {
       await updater(user.id);
       patchUser(user.id, { is_active: isSuspended });
@@ -166,12 +175,34 @@ export default function AdminUsersPage() {
     }
   };
 
+  const executeDelete = async (user) => {
+    if (!canModifyUser(user, currentUserId)) {
+      toast.error("لا يمكن حذف هذا الحساب");
+      return;
+    }
+    setMutatingId(user.id);
+    try {
+      await dashboardApi.adminDeleteUser(user.id);
+      setUsers((prev) => prev.filter((u) => u.id !== user.id));
+      setTotalUsers((prev) => Math.max(0, prev - 1));
+      setSelectedUser(null);
+      toast.success("تم حذف الحساب");
+      await loadStats();
+    } catch (err) {
+      toast.error(err.message || "فشل حذف الحساب");
+    } finally {
+      setMutatingId("");
+      setConfirmAction(null);
+    }
+  };
+
   const handleStatFilter = ({ role, status }) => {
     setPage(1);
     setRoleFilter(role);
     setStatusFilter(status);
   };
 
+  // ── Column definitions ────────────────────────────────────────────────────
   const columns = useMemo(
     () => [
       {
@@ -181,7 +212,7 @@ export default function AdminUsersPage() {
           <button
             type="button"
             className="flex w-full items-center gap-3 text-start"
-            onClick={() => setSelectedUser(row)}
+            onClick={() => openDetail(row)}
           >
             <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-md-primary/15 text-sm font-black text-md-primary">
               {row.avatar_url ? (
@@ -193,9 +224,7 @@ export default function AdminUsersPage() {
             </div>
             <div className="min-w-0">
               <p className="truncate font-bold text-on-surface">{row.full_name || "—"}</p>
-              <p className="truncate text-xs text-on-surface-variant" dir="ltr">
-                {row.email || "—"}
-              </p>
+              <p className="truncate text-xs text-on-surface-variant" dir="ltr">{row.email || "—"}</p>
             </div>
           </button>
         )
@@ -207,12 +236,7 @@ export default function AdminUsersPage() {
         render: (row) => {
           if (row.role !== "teacher") return <span className="text-xs text-on-surface-variant">—</span>;
           return (
-            <span
-              className={cn(
-                "rounded-full px-2.5 py-1 text-xs font-bold",
-                row.is_verified ? "bg-success/10 text-success" : "bg-warning/10 text-warning"
-              )}
-            >
+            <span className={cn("rounded-full px-2.5 py-1 text-xs font-bold", row.is_verified ? "bg-success/10 text-success" : "bg-warning/10 text-warning")}>
               {row.is_verified ? "موثّق" : "بانتظار التوثيق"}
             </span>
           );
@@ -234,11 +258,10 @@ export default function AdminUsersPage() {
           const isSelf = row.id === currentUserId;
 
           const items = [
-            {
-              label: "عرض الملف",
-              icon: "user",
-              onClick: () => setSelectedUser(row)
-            },
+            { label: "عرض الملف", icon: "user", onClick: () => openDetail(row) },
+            modifiable
+              ? { label: "تعديل البيانات", icon: "edit", onClick: () => setEditUser(row) }
+              : null,
             canVerify
               ? {
                   label: "توثيق المدرس",
@@ -257,18 +280,19 @@ export default function AdminUsersPage() {
                   onClick: () => setConfirmAction({ type: "suspend", user: row })
                 }
               : isSelf
-                ? {
-                    label: "حسابك الحالي",
-                    disabled: true,
-                    show: true
-                  }
+                ? { label: "حسابك الحالي", disabled: true }
                 : row.role === "admin"
-                  ? {
-                      label: "حساب مشرف",
-                      disabled: true,
-                      show: true
-                    }
-                  : null
+                  ? { label: "حساب مشرف", disabled: true }
+                  : null,
+            modifiable
+              ? {
+                  label: "حذف الحساب",
+                  icon: "trash",
+                  tone: "danger",
+                  disabled: busy,
+                  onClick: () => setConfirmAction({ type: "delete", user: row })
+                }
+              : null
           ].filter(Boolean);
 
           return (
@@ -281,13 +305,14 @@ export default function AdminUsersPage() {
         }
       }
     ],
-    [currentUserId, mutatingId]
+    [currentUserId, mutatingId, openDetail]
   );
 
   const confirmUser = confirmAction?.user;
   const confirmType = confirmAction?.type;
   const isSuspend = confirmType === "suspend" && confirmUser?.is_active !== false;
   const isVerify = confirmType === "verify";
+  const isDelete = confirmType === "delete";
 
   return (
     <>
@@ -301,30 +326,14 @@ export default function AdminUsersPage() {
         searchInput={searchInput}
         onSearchChange={setSearchInput}
         roleFilter={roleFilter}
-        onRoleFilterChange={(v) => {
-          setPage(1);
-          setRoleFilter(v);
-        }}
+        onRoleFilterChange={(v) => { setPage(1); setRoleFilter(v); }}
         statusFilter={statusFilter}
-        onStatusFilterChange={(v) => {
-          setPage(1);
-          setStatusFilter(v);
-        }}
+        onStatusFilterChange={(v) => { setPage(1); setStatusFilter(v); }}
         createdFrom={createdFrom}
-        onCreatedFromChange={(v) => {
-          setPage(1);
-          setCreatedFrom(v);
-        }}
+        onCreatedFromChange={(v) => { setPage(1); setCreatedFrom(v); }}
         createdTo={createdTo}
-        onCreatedToChange={(v) => {
-          setPage(1);
-          setCreatedTo(v);
-        }}
-        onClearDates={() => {
-          setPage(1);
-          setCreatedFrom("");
-          setCreatedTo("");
-        }}
+        onCreatedToChange={(v) => { setPage(1); setCreatedTo(v); }}
+        onClearDates={() => { setPage(1); setCreatedFrom(""); setCreatedTo(""); }}
         page={page}
         totalPages={totalPages}
         totalUsers={totalUsers}
@@ -335,38 +344,62 @@ export default function AdminUsersPage() {
 
       <AdminUserDetailsModal
         user={selectedUser}
-        busy={mutatingId === selectedUser?.id}
+        detail={selectedDetail}
+        busy={mutatingId === selectedUser?.id || detailLoading}
         currentUserId={currentUserId}
-        onClose={() => setSelectedUser(null)}
+        onClose={() => { setSelectedUser(null); setSelectedDetail(null); }}
         onVerify={(user) => setConfirmAction({ type: "verify", user })}
         onSuspendToggle={(user) => setConfirmAction({ type: "suspend", user })}
+        onEdit={(user) => setEditUser(user)}
       />
+
+      {editUser ? (
+        <AdminUserEditModal
+          user={editUser}
+          onClose={() => setEditUser(null)}
+          onSaved={(updated) => {
+            patchUser(updated.id, updated);
+            setEditUser(null);
+          }}
+        />
+      ) : null}
 
       <AdminConfirmDialog
         open={Boolean(confirmUser)}
         title={
           isVerify
             ? "توثيق المدرس"
-            : isSuspend
-              ? "تعليق الحساب"
-              : "تفعيل الحساب"
+            : isDelete
+              ? "حذف الحساب"
+              : isSuspend
+                ? "تعليق الحساب"
+                : "تفعيل الحساب"
         }
         description={
           isVerify
             ? `هل تريد توثيق حساب المدرس ${confirmUser?.full_name || ""}؟ سيظهر كمدرس معتمد على المنصة.`
-            : isSuspend
-              ? `هل تريد تعليق حساب ${confirmUser?.full_name || "هذا المستخدم"}؟ لن يتمكن من تسجيل الدخول.`
-              : `هل تريد تفعيل حساب ${confirmUser?.full_name || "هذا المستخدم"}؟`
+            : isDelete
+              ? `هل تريد حذف حساب ${confirmUser?.full_name || "هذا المستخدم"}؟ هذا الإجراء يوقف الحساب ولا يمكن التراجع عنه بسهولة.`
+              : isSuspend
+                ? `هل تريد تعليق حساب ${confirmUser?.full_name || "هذا المستخدم"}؟ لن يتمكن من تسجيل الدخول.`
+                : `هل تريد تفعيل حساب ${confirmUser?.full_name || "هذا المستخدم"}؟`
         }
         confirmLabel={
-          isVerify ? "توثيق المدرس" : isSuspend ? "تعليق الحساب" : "تفعيل الحساب"
+          isVerify
+            ? "توثيق المدرس"
+            : isDelete
+              ? "حذف الحساب"
+              : isSuspend
+                ? "تعليق الحساب"
+                : "تفعيل الحساب"
         }
-        tone={isVerify ? "primary" : isSuspend ? "danger" : "success"}
+        tone={isVerify ? "primary" : isDelete || isSuspend ? "danger" : "success"}
         loading={mutatingId === confirmUser?.id}
         onClose={() => setConfirmAction(null)}
         onConfirm={() => {
           if (!confirmUser) return;
           if (isVerify) handleVerify(confirmUser);
+          else if (isDelete) executeDelete(confirmUser);
           else executeSuspendToggle(confirmUser);
         }}
       />

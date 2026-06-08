@@ -14,7 +14,6 @@ import { formatCurrencyEgp } from "@/lib/format";
 import { formatSubscriptionPeriodEnd, isPlanHighlighted } from "@/lib/student-subscription";
 import { cn } from "@/lib/utils";
 import CheckoutPaymentStep from "@/components/payment/CheckoutPaymentStep";
-
 export default function StudentSubscriptionPage({
   plans = [],
   subscription = null,
@@ -51,13 +50,15 @@ export default function StudentSubscriptionPage({
       />
 
       {subscription ? (
-        <section className="rounded-2xl border border-success/40 bg-success/10 p-5">
-          <p className="font-bold text-success">
-            خطتك: {subscription.plan?.name || "نشط"} — {subscription.sessions_remaining} حصة متبقية
-          </p>
-          <p className={cn("mt-1 text-sm", studentMuted)}>
-            ينتهي الدور الحالي: {formatSubscriptionPeriodEnd(subscription.current_period_end)}
-          </p>
+        <section className="rounded-2xl border border-success/40 bg-success/10 p-5 space-y-3">
+          <div>
+            <p className="font-bold text-success">
+              خطتك: {subscription.plan?.name || "نشط"} — {subscription.sessions_remaining} حصة متبقية
+            </p>
+            <p className={cn("mt-1 text-sm", studentMuted)}>
+              ينتهي الدور الحالي: {formatSubscriptionPeriodEnd(subscription.current_period_end)}
+            </p>
+          </div>
         </section>
       ) : (
         <section className={cn(studentCardSolid, "p-5")}>

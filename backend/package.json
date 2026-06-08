@@ -46,6 +46,7 @@
     "jsonwebtoken": "^9.0.3",
     "livekit-server-sdk": "^2.15.4",
     "resend": "^3.5.0",
+    "stripe": "^17.7.0",
     "validator": "^13.15.35",
     "ws": "^8.21.0",
     "zod": "^4.4.3"

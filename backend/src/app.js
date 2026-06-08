@@ -58,6 +58,7 @@ import studyReportsRoutes from "./routes/studyReports.js";
 import enrollmentRoutes from "./routes/enrollments.js";
 import promotionRoutes from "./routes/promotions.js";
 import publicRoutes from "./routes/public.js";
+import accountRoutes from "./routes/account.js";
 import { captureException, setupExpressSentry } from "./lib/sentry.js";
 
 const app = express();
@@ -296,6 +297,7 @@ app.use("/api/reviews", auth, reviewRoutes);
 app.use("/api/quizzes", auth, quizRoutes);
 app.use("/api/recordings", auth, recordingRoutes);
 app.use("/api/study-reports", auth, studyReportsRoutes);
+app.use("/api/account", auth, accountRoutes);
 
 app.use((req, res, next) => {
   const path = req.path || "";

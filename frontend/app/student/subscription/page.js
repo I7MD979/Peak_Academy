@@ -83,6 +83,7 @@ function StudentSubscriptionContent() {
         const amount = Number(plan?.price || 0);
         setSelectedPlanAmount(amount);
 
+        // ── Paymob / other providers path ─────────────────────────────────
         const idempotencyKey = newIdempotencyKey("sub");
         const res = await paymentsApi.createOrder(
           {

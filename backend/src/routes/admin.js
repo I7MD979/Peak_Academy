@@ -9,6 +9,7 @@ import { enqueueJob } from "../lib/queue.js";
 import { cleanupOrphanedLiveKitRooms, isLiveKitConfigured } from "../services/livekit.service.js";
 import { querySessionsList } from "../utils/session-select.js";
 import { isValidGrade, VALID_SCHOOL_LEVELS } from "../lib/grades.js";
+import { UserService } from "../services/user.service.js";
 
 const router = Router();
 
@@ -39,26 +40,6 @@ function assertSupabaseResults(results) {
   }
 }
 
-async function fetchUserForAdminAction(userId) {
-  const { data, error: dbError } = await supabase
-    .from("users")
-    .select("id, role, is_active, is_verified, full_name")
-    .eq("id", userId)
-    .maybeSingle();
-  if (dbError) throw dbError;
-  return data;
-}
-
-function assertCanModifyUser(target, actorId, actionLabel) {
-  if (!target) return { ok: false, status: 404, message: "المستخدم غير موجود" };
-  if (target.id === actorId) {
-    return { ok: false, status: 403, message: `لا يمكنك ${actionLabel} حسابك الشخصي` };
-  }
-  if (target.role === "admin") {
-    return { ok: false, status: 403, message: `لا يمكن ${actionLabel} حساب مشرف` };
-  }
-  return { ok: true };
-}
 
 async function fetchAdminDashboardStats() {
   const [users, liveSessions, scheduledSessions, revenue, withdrawals] = await Promise.all([
@@ -290,49 +271,48 @@ router.get("/users", auth, checkRole("admin"), async (req, res) => {
   }
 });
 
+// ── User detail ──────────────────────────────────────────────────────────────
+router.get("/users/:id", auth, checkRole("admin"), async (req, res) => {
+  try {
+    if (!UUID_RE.test(req.params.id)) return error(res, "معرّف المستخدم غير صالح", 400);
+    const result = await UserService.getUserDetail(req.params.id);
+    if (!result) return error(res, "المستخدم غير موجود", 404);
+    return success(res, result);
+  } catch (_err) {
+    return error(res, "تعذر تحميل تفاصيل المستخدم", 500);
+  }
+});
+
+// ── Edit user (name / phone) ─────────────────────────────────────────────────
+router.patch("/users/:id", auth, checkRole("admin"), async (req, res) => {
+  try {
+    if (!UUID_RE.test(req.params.id)) return error(res, "معرّف المستخدم غير صالح", 400);
+    const result = await UserService.updateUser(req.params.id, req.body || {}, req.user.id);
+    if (!result.ok) return error(res, result.message, result.status);
+    return success(res, result.data, "تم تحديث بيانات المستخدم");
+  } catch (_err) {
+    return error(res, "تعذر تحديث المستخدم", 500);
+  }
+});
+
+// ── Verify teacher ───────────────────────────────────────────────────────────
 router.put("/users/:id/verify", auth, checkRole("admin"), async (req, res) => {
   try {
     if (!UUID_RE.test(req.params.id)) return error(res, "معرّف المستخدم غير صالح", 400);
-
-    const userRow = await fetchUserForAdminAction(req.params.id);
-
-    if (!userRow) return error(res, "المستخدم غير موجود", 404);
-    if (userRow.role !== "teacher") {
-      return error(res, "يمكن توثيق حسابات المدرسين فقط", 400);
-    }
-    if (userRow.is_verified === true) {
-      return error(res, "المدرس موثّق بالفعل", 400);
-    }
-
-    const { error: teacherError } = await supabase
-      .from("teacher_profiles")
-      .update({ id_verified: true })
-      .eq("user_id", req.params.id);
-    const { error: userError } = await supabase
-      .from("users")
-      .update({ is_verified: true })
-      .eq("id", req.params.id);
-
-    if (teacherError) throw teacherError;
-    if (userError) throw userError;
-
+    const result = await UserService.verifyTeacher(req.params.id, req.user.id);
+    if (!result.ok) return error(res, result.message, result.status);
     return success(res, null, "تم توثيق المدرس بنجاح");
   } catch (_err) {
     return error(res, "تعذر توثيق المدرس", 500);
   }
 });
 
+// ── Suspend / Activate ───────────────────────────────────────────────────────
 router.put("/users/:id/suspend", auth, checkRole("admin"), async (req, res) => {
   try {
     if (!UUID_RE.test(req.params.id)) return error(res, "معرّف المستخدم غير صالح", 400);
-
-    const target = await fetchUserForAdminAction(req.params.id);
-    const guard = assertCanModifyUser(target, req.user.id, "تعليق");
-    if (!guard.ok) return error(res, guard.message, guard.status);
-    if (target.is_active === false) return error(res, "الحساب موقوف بالفعل", 400);
-
-    const { error: dbError } = await supabase.from("users").update({ is_active: false }).eq("id", req.params.id);
-    if (dbError) throw dbError;
+    const result = await UserService.setUserStatus(req.params.id, false, req.user.id);
+    if (!result.ok) return error(res, result.message, result.status);
     return success(res, null, "تم تعليق الحساب بنجاح");
   } catch (_err) {
     return error(res, "تعذر تعليق الحساب", 500);
@@ -342,17 +322,48 @@ router.put("/users/:id/suspend", auth, checkRole("admin"), async (req, res) => {
 router.put("/users/:id/activate", auth, checkRole("admin"), async (req, res) => {
   try {
     if (!UUID_RE.test(req.params.id)) return error(res, "معرّف المستخدم غير صالح", 400);
-
-    const target = await fetchUserForAdminAction(req.params.id);
-    const guard = assertCanModifyUser(target, req.user.id, "تفعيل");
-    if (!guard.ok) return error(res, guard.message, guard.status);
-    if (target.is_active !== false) return error(res, "الحساب نشط بالفعل", 400);
-
-    const { error: dbError } = await supabase.from("users").update({ is_active: true }).eq("id", req.params.id);
-    if (dbError) throw dbError;
+    const result = await UserService.setUserStatus(req.params.id, true, req.user.id);
+    if (!result.ok) return error(res, result.message, result.status);
     return success(res, null, "تم تفعيل الحساب بنجاح");
   } catch (_err) {
     return error(res, "تعذر تفعيل الحساب", 500);
+  }
+});
+
+// ── Soft delete ───────────────────────────────────────────────────────────────
+router.delete("/users/:id", auth, checkRole("admin"), async (req, res) => {
+  try {
+    if (!UUID_RE.test(req.params.id)) return error(res, "معرّف المستخدم غير صالح", 400);
+    const result = await UserService.deleteUser(req.params.id, req.user.id);
+    if (!result.ok) return error(res, result.message, result.status);
+    return success(res, null, "تم حذف الحساب");
+  } catch (_err) {
+    return error(res, "تعذر حذف الحساب", 500);
+  }
+});
+
+// ── Subscription history ──────────────────────────────────────────────────────
+router.get("/users/:id/subscriptions", auth, checkRole("admin"), async (req, res) => {
+  try {
+    if (!UUID_RE.test(req.params.id)) return error(res, "معرّف المستخدم غير صالح", 400);
+    const result = await UserService.getUserSubscriptions(req.params.id);
+    if (!result.ok) return error(res, result.message, result.status);
+    return success(res, result.data);
+  } catch (_err) {
+    return error(res, "تعذر تحميل الاشتراكات", 500);
+  }
+});
+
+// ── Grant bonus sessions ──────────────────────────────────────────────────────
+router.post("/users/:id/grant-sessions", auth, checkRole("admin"), async (req, res) => {
+  try {
+    if (!UUID_RE.test(req.params.id)) return error(res, "معرّف المستخدم غير صالح", 400);
+    const sessions = parseInt(req.body?.sessions, 10);
+    const result = await UserService.grantSessions(req.params.id, sessions, req.user.id);
+    if (!result.ok) return error(res, result.message, result.status);
+    return success(res, result.data, `تم منح ${result.data.granted} حصة بنجاح`);
+  } catch (_err) {
+    return error(res, "تعذر منح الحصص", 500);
   }
 });
 

@@ -1,7 +1,6 @@
 import js from "@eslint/js";
 
 export default [
-  { ignores: ["src/data/usersStore.js", "src/utils/audit.js"] },
   js.configs.recommended,
   {
     files: ["src/**/*.js"],
