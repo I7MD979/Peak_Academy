@@ -27,6 +27,9 @@ import { incrementAttendeeStreaks, recordSessionEarnings } from "../utils/sessio
 import { getSessionStartAvailability } from "../utils/session-start.js";
 import { reconcileCompletedTransaction } from "../utils/payments-fulfillment.js";
 import { CACHE, withCache, safeInvalidateSessionCaches, invalidatePattern } from "../lib/cache.js";
+import { allowSchema } from "../middleware/allowlist.js";
+import { enrollmentLimiter, listLimiter, enforcePagination } from "../middleware/resourceLimits.js";
+import { enrollmentVelocity, detectSuspiciousActivity } from "../middleware/businessRules.js";
 import {
   clampSessionDuration,
   fetchSessionForJoin,
@@ -241,7 +244,7 @@ async function attachLiveKitRoomToSession(sessionId, maxStudents, existingRoom =
   return room;
 }
 
-router.get("/", auth, async (req, res) => {
+router.get("/", auth, listLimiter, enforcePagination, async (req, res) => {
   try {
     if (req.user.role === "student") {
       return error(res, "استخدم /api/student/sessions لعرض الجلسات", 403);
@@ -490,7 +493,7 @@ router.get("/:id", auth, validateSessionId, async (req, res) => {
   }
 });
 
-router.post("/", auth, checkRole("teacher"), async (req, res) => {
+router.post("/", auth, checkRole("teacher"), allowSchema("sessionCreate"), async (req, res) => {
   try {
     const parsed = createSessionSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -727,7 +730,16 @@ router.post("/:id/mute-all", auth, checkRole("teacher"), validateSessionId, asyn
   }
 });
 
-router.post("/:id/enroll", auth, checkRole("student"), validateSessionId, async (req, res) => {
+router.post(
+  "/:id/enroll",
+  auth,
+  checkRole("student"),
+  validateSessionId,
+  enrollmentLimiter,
+  enrollmentVelocity,
+  detectSuspiciousActivity,
+  allowSchema("enrollSession"),
+  async (req, res) => {
   try {
     const { payment_id, payment_type, promo_code } = req.body;
     const sessionId = req.params.id;

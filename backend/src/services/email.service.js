@@ -104,6 +104,22 @@ export async function sendPaymentFailed({ to, studentName, sessionTitle }) {
   });
 }
 
+export async function sendDunningEmail({ to, name, attempt, isLastAttempt, renewUrl }) {
+  const urgency = isLastAttempt
+    ? "هذه آخر تذكير — سيتم إيقاف اشتراكك قريباً إذا لم تُجدد."
+    : `تذكير ${attempt} من 3 — يرجى تجديد اشتراكك لتجنب انقطاع الخدمة.`;
+
+  return sendEmail({
+    to,
+    subject: isLastAttempt ? "⚠️ آخر تذكير — اشتراك Peak Academy" : "تذكير تجديد الاشتراك — Peak Academy",
+    html: emailShell(`
+      <p>أهلاً ${name || ""}،</p>
+      <p>${urgency}</p>
+      <a href="${renewUrl || "https://peak-academy.net/student/subscription"}" style="display:inline-block;background:#f5721a;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;margin:16px 0">جدّد اشتراكك الآن</a>
+    `)
+  });
+}
+
 export async function sendWithdrawalProcessed({ to, teacherName, amount, status }) {
   const approved = status === "approved" || status === "paid";
   const statusText = approved

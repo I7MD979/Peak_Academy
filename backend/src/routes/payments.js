@@ -1,6 +1,10 @@
 import { Router } from "express";
 import { auth } from "../middleware/auth.js";
+import { checkRole } from "../middleware/checkRole.js";
+import { idempotency } from "../middleware/idempotency.js";
 import { createPaymobOrder } from "../services/paymob.service.js";
+import { createPaymentOrder, getPaymentStatus } from "../services/paymentCheckout.service.js";
+import { verifyInstapayPayment } from "../services/paymentWebhook.service.js";
 import { supabase } from "../lib/supabase.js";
 import { paginate, paginationMeta } from "../utils/paginate.js";
 import { success, error, paginated } from "../utils/response.js";
@@ -15,8 +19,135 @@ import { mapCheckoutResponse } from "../lib/schema.js";
 import { resolveTransactionFulfillment } from "../utils/transaction-status.js";
 import { validatePromoCode, calculateDiscount } from "../utils/promoValidator.js";
 import { getSessionForEnroll, computeSessionCheckout } from "../services/enrollmentService.js";
+import { ownedBy } from "../middleware/ownership.js";
+import { allowSchema } from "../middleware/allowlist.js";
+import { paymentLimiter } from "../middleware/resourceLimits.js";
+import { paymentVelocity } from "../middleware/businessRules.js";
 
 const router = Router();
+
+router.post(
+  "/create-order",
+  auth,
+  paymentLimiter,
+  paymentVelocity,
+  idempotency({ required: true }),
+  allowSchema("paymentCreateOrder"),
+  async (req, res) => {
+  try {
+    const {
+      provider = "paymob",
+      planId,
+      subscriptionId,
+      enrollmentId,
+      amount,
+      amount_egp,
+      promotionId,
+      metadata = {}
+    } = req.body;
+
+    const amountEgp = Number(amount_egp ?? amount);
+    const idempotencyKey = req.idempotencyKey || req.headers["x-idempotency-key"];
+
+    const result = await createPaymentOrder({
+      user: req.user,
+      provider,
+      amountEgp,
+      planId,
+      subscriptionId,
+      enrollmentId,
+      promotionId,
+      metadata,
+      idempotencyKey
+    });
+
+    return res.json(result);
+  } catch (err) {
+    if (err.code === "INVALID_PROVIDER") {
+      return error(res, err.message, 400, null, err.code);
+    }
+    return error(res, err.message || "فشل إنشاء طلب الدفع", 500);
+  }
+});
+
+router.get(
+  "/orders/:paymentId/status",
+  auth,
+  ownedBy("payments", "student_id", "paymentId"),
+  async (req, res) => {
+  try {
+    const status = await getPaymentStatus(req.params.paymentId, req.user.id);
+    if (!status) return error(res, "الدفعة غير موجودة", 404);
+    return success(res, status);
+  } catch (err) {
+    return error(res, err.message || "فشل جلب حالة الدفع", 500);
+  }
+});
+
+router.post("/verify-instapay/:paymentId", auth, checkRole("admin"), async (req, res) => {
+  try {
+    const { bankTransactionRef } = req.body;
+    const result = await verifyInstapayPayment({
+      paymentId: req.params.paymentId,
+      adminId: req.user.id,
+      bankTransactionRef
+    });
+    return success(res, result, "تم التحقق من الدفع بنجاح");
+  } catch (err) {
+    return error(res, err.message || "فشل التحقق", err.status || 500);
+  }
+});
+
+router.post("/upload-instapay-receipt", auth, allowSchema("instapayReceipt"), async (req, res) => {
+  try {
+    const { paymentId, referenceCode, image_base64, content_type } = req.body;
+    if (!paymentId || !referenceCode || !image_base64) {
+      return error(res, "paymentId و referenceCode و image_base64 مطلوبة", 400);
+    }
+
+    const allowed = ["image/jpeg", "image/png", "image/webp"];
+    const mime = String(content_type || "image/jpeg").toLowerCase();
+    if (!allowed.includes(mime)) {
+      return error(res, "نوع الصورة غير مدعوم", 400);
+    }
+
+    const buffer = Buffer.from(String(image_base64), "base64");
+    if (buffer.length > 3 * 1024 * 1024) {
+      return error(res, "حجم الصورة كبير جداً", 400);
+    }
+
+    const ext = mime === "image/png" ? "png" : mime === "image/webp" ? "webp" : "jpg";
+    const storagePath = `instapay/${req.user.id}/${paymentId}.${ext}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("receipts")
+      .upload(storagePath, buffer, { upsert: true, contentType: mime });
+
+    if (uploadError) {
+      return error(res, "تعذر رفع الإيصال. تأكد من إعداد bucket الإيصالات", 500);
+    }
+
+    const { data: urlData } = supabase.storage.from("receipts").getPublicUrl(storagePath);
+
+    const { data: receipt, error: insertError } = await supabase
+      .from("instapay_receipts")
+      .insert({
+        payment_id: paymentId,
+        user_id: req.user.id,
+        reference_code: referenceCode,
+        receipt_url: urlData?.publicUrl || null,
+        status: "pending"
+      })
+      .select("*")
+      .single();
+
+    if (insertError) throw insertError;
+
+    return success(res, receipt, "تم رفع الإيصال");
+  } catch (err) {
+    return error(res, err.message || "فشل رفع الإيصال", 500);
+  }
+});
 
 router.post("/validate-promo", auth, async (req, res) => {
   try {
@@ -58,7 +189,14 @@ router.post("/validate-promo", auth, async (req, res) => {
   }
 });
 
-router.post("/initiate", auth, async (req, res) => {
+router.post(
+  "/initiate",
+  auth,
+  paymentLimiter,
+  paymentVelocity,
+  idempotency({ required: true }),
+  allowSchema("paymentInitiate"),
+  async (req, res) => {
   try {
     const { amount, session_id, type = "session_payment", subject, content, grade, promo_code } = req.body;
 
@@ -209,13 +347,12 @@ async function paymobWebhookHandler(req, res) {
 router.post("/webhook", webhookLimiter, paymobWebhookHandler);
 router.get("/webhook", webhookLimiter, paymobWebhookHandler);
 
-router.get("/transactions/:id/status", auth, async (req, res) => {
+router.get("/transactions/:id/status", auth, ownedBy("transactions"), async (req, res) => {
   try {
     const { data: transaction } = await supabase
       .from("transactions")
       .select("*")
       .eq("id", req.params.id)
-      .eq("user_id", req.user.id)
       .maybeSingle();
 
     if (!transaction) {

@@ -15,6 +15,8 @@ import {
 } from "../utils/ensure-user-profile.js";
 import { ensureReferralCode } from "../services/referralService.js";
 import { isValidGrade } from "../lib/grades.js";
+import { encryptUserFields } from "../utils/encryption.js";
+import { allowSchema } from "../middleware/allowlist.js";
 
 const router = Router();
 
@@ -171,13 +173,15 @@ router.post("/setup-profile", oauthLimiter, authSlowDown, authLimiter, uniformAu
 
     await supabase
       .from("users")
-      .update({
-        role,
-        full_name: fullName,
-        phone: phone || null,
-        is_active: true,
-        is_verified: true
-      })
+      .update(
+        encryptUserFields({
+          role,
+          full_name: fullName,
+          phone: phone || null,
+          is_active: true,
+          is_verified: true
+        })
+      )
       .eq("id", req.user.id);
 
     await syncAuthUserMetadata(req.user.id, {
@@ -238,7 +242,7 @@ router.post("/setup-profile", oauthLimiter, authSlowDown, authLimiter, uniformAu
   }
 });
 
-router.put("/profile", auth, async (req, res) => {
+router.put("/profile", auth, allowSchema("userProfile"), async (req, res) => {
   try {
     const fullName = String(req.body.full_name || "").trim();
     const phone = String(req.body.phone || "").trim();

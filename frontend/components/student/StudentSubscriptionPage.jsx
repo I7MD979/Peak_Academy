@@ -13,6 +13,7 @@ import {
 import { formatCurrencyEgp } from "@/lib/format";
 import { formatSubscriptionPeriodEnd, isPlanHighlighted } from "@/lib/student-subscription";
 import { cn } from "@/lib/utils";
+import CheckoutPaymentStep from "@/components/payment/CheckoutPaymentStep";
 
 export default function StudentSubscriptionPage({
   plans = [],
@@ -23,7 +24,11 @@ export default function StudentSubscriptionPage({
   error = "",
   showSubscriptionCta = false,
   searchParams = null,
-  onPurchase
+  onPurchase,
+  paymentProvider = "paymob",
+  onPaymentProviderChange,
+  checkoutResult = null,
+  selectedPlanAmount = null
 }) {
   return (
     <PageContainer>
@@ -77,6 +82,26 @@ export default function StudentSubscriptionPage({
         <div className={studentErrorBox}>
           <p className="text-sm font-bold text-danger">{error}</p>
         </div>
+      ) : null}
+
+      {!subscription && !checkoutResult ? (
+        <section className="space-y-3">
+          <p className="text-sm font-bold text-auth-on-surface-variant">طريقة الدفع</p>
+          <CheckoutPaymentStep
+            selectedProvider={paymentProvider}
+            onProviderChange={onPaymentProviderChange}
+            checkoutResult={null}
+          />
+        </section>
+      ) : null}
+
+      {checkoutResult ? (
+        <CheckoutPaymentStep
+          selectedProvider={paymentProvider}
+          onProviderChange={onPaymentProviderChange}
+          checkoutResult={checkoutResult}
+          amountCents={selectedPlanAmount ? Math.round(selectedPlanAmount * 100) : null}
+        />
       ) : null}
 
       <div className="grid gap-4 md:grid-cols-2">

@@ -1,6 +1,7 @@
 import { supabase } from "../lib/supabase.js";
 import { publishNotification } from "./notificationHub.js";
 import { isMissingTableError } from "../utils/db-errors.js";
+import { getCacheEntry, setCacheEntry, invalidate } from "../lib/cache.js";
 
 function warnMissingNotifications(err) {
   if (process.env.NODE_ENV !== "production" && isMissingTableError(err)) {
@@ -10,19 +11,39 @@ function warnMissingNotifications(err) {
   }
 }
 
-export async function createUserNotification({ userId, type, title, body, data = null }) {
+export async function createUserNotification({
+  userId,
+  type,
+  title,
+  body,
+  data = null,
+  titleAr,
+  bodyAr,
+  actionUrl,
+  metadata = null
+}) {
   const row = {
     id: `ntf-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     user_id: userId,
     type: type || "general",
-    title,
-    body: body || "",
+    title: titleAr || title,
+    body: bodyAr || body || "",
+    title_ar: titleAr || title,
+    body_ar: bodyAr || body || "",
+    action_url: actionUrl || null,
+    metadata: metadata || (data ? { data } : {}),
     is_read: false,
     created_at: new Date().toISOString()
   };
 
   const { data: inserted, error } = await supabase.from("notifications").insert(row).select("*").single();
   if (error) throw error;
+
+  try {
+    await invalidate(`notif:count:${userId}`);
+  } catch {
+    /* optional cache */
+  }
 
   publishNotification(userId, { ...inserted, data });
   return inserted;
@@ -47,6 +68,19 @@ export async function listUserNotifications(userId, { limit = 50 } = {}) {
 }
 
 export async function countUnreadNotifications(userId) {
+  try {
+    const cached = await getCacheEntry(`notif:count:${userId}`);
+    if (cached !== null && cached !== undefined && typeof cached === "number") {
+      return cached;
+    }
+    if (cached === "0" || cached === 0) return 0;
+    if (cached === "1" || typeof cached === "string" && /^\d+$/.test(cached)) {
+      return parseInt(cached, 10);
+    }
+  } catch {
+    /* optional cache */
+  }
+
   const { count, error } = await supabase
     .from("notifications")
     .select("*", { count: "exact", head: true })
@@ -60,7 +94,13 @@ export async function countUnreadNotifications(userId) {
     }
     throw error;
   }
-  return count || 0;
+  const result = count || 0;
+  try {
+    await setCacheEntry(`notif:count:${userId}`, 60, result);
+  } catch {
+    /* optional cache */
+  }
+  return result;
 }
 
 export async function markNotificationRead(id, userId) {

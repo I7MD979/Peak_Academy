@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import Icon from "@/components/shared/Icon";
 import { paymentsApi, sessionsApi } from "@/lib/api";
 import { formatCurrencyEgp } from "@/lib/format";
+import PaymentMethodSelector from "@/components/payment/PaymentMethodSelector";
 
 const PAYMENT_TYPES = [
   { id: "pay_per_session", label: "دفع الحصة" },
@@ -19,6 +20,7 @@ export default function PaymentModal({ session, checkoutOptions = {}, onClose, o
   const [promoPreview, setPromoPreview] = useState(null);
   const [promoLoading, setPromoLoading] = useState(false);
   const [paymentType, setPaymentType] = useState("pay_per_session");
+  const [gatewayProvider, setGatewayProvider] = useState("paymob");
 
   const originalPrice = Number(session?.price_per_student || 0);
   const freeTrialAvailable = checkoutOptions.free_trial_available;
@@ -155,6 +157,13 @@ export default function PaymentModal({ session, checkoutOptions = {}, onClose, o
           ))}
         </div>
       </div>
+
+      {paymentType === "pay_per_session" && displayFinal > 0 ? (
+        <div className="space-y-2">
+          <p className="text-xs font-bold text-text-muted">بوابة الدفع</p>
+          <PaymentMethodSelector selected={gatewayProvider} onChange={setGatewayProvider} />
+        </div>
+      ) : null}
 
       {paymentType === "pay_per_session" ? (
         <>

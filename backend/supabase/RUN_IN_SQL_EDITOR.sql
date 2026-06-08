@@ -266,6 +266,16 @@ alter table public.transactions add column if not exists promotion_id uuid refer
 alter table public.transactions add column if not exists discount_amount numeric(10,2) not null default 0;
 alter table public.transactions add column if not exists original_amount numeric(10,2);
 
+-- === Payment providers (20260620) ===
+-- Run: backend/supabase/migrations/20260620_payment_providers.sql
+
+-- === SaaS features (20260620) ===
+-- Run: backend/supabase/migrations/20260620_saas_features.sql
+
+-- === Security standards (20260621) ===
+-- Run: backend/supabase/migrations/20260621_audit_logs.sql
+-- Run: backend/supabase/migrations/20260621_encrypted_fields.sql
+
 -- === Master Prompt v2 (after core tables above) ===
 -- Run full script: backend/supabase/migrations/20260609_master_schema_v2.sql
 -- Then optional UUID map: backend/supabase/migrations/20260610_master_schema_uuid.sql

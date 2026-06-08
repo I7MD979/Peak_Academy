@@ -1,15 +1,20 @@
 import { Router } from "express";
 import { auth } from "../middleware/auth.js";
 import { checkRole } from "../middleware/checkRole.js";
+import { idempotency } from "../middleware/idempotency.js";
 import { success, error } from "../utils/response.js";
 import {
   listActivePlans,
   createSubscriptionPurchaseCheckout
 } from "../services/subscriptionService.js";
+import { freezeSubscription, unfreezeSubscription } from "../services/subscriptionFreeze.service.js";
 import { getActiveSubscription } from "../services/enrollmentService.js";
 import { countPaidSessionEnrollments } from "../services/subscriptionService.js";
 import { ensureReferralCode } from "../services/referralService.js";
 import { CACHE, withCache } from "../lib/cache.js";
+import { allowSchema } from "../middleware/allowlist.js";
+import { paymentLimiter } from "../middleware/resourceLimits.js";
+import { preventDuplicateSubscription, paymentVelocity } from "../middleware/businessRules.js";
 
 const router = Router();
 
@@ -41,7 +46,16 @@ router.get("/me", auth, checkRole("student"), async (req, res) => {
   }
 });
 
-router.post("/purchase", auth, checkRole("student"), async (req, res) => {
+router.post(
+  "/purchase",
+  auth,
+  checkRole("student"),
+  paymentLimiter,
+  preventDuplicateSubscription,
+  paymentVelocity,
+  idempotency({ required: true }),
+  allowSchema("subscriptionPurchase"),
+  async (req, res) => {
   try {
     const { plan_id, promo_code } = req.body;
     if (!plan_id) return error(res, "معرّف الخطة مطلوب", 400);
@@ -61,6 +75,27 @@ router.post("/purchase", auth, checkRole("student"), async (req, res) => {
     });
   } catch (err) {
     return error(res, err.message || "فشل بدء شراء الاشتراك", 500);
+  }
+});
+
+router.post("/freeze", auth, checkRole("student"), async (req, res) => {
+  try {
+    const { days, reason } = req.body;
+    if (!days) return error(res, "عدد الأيام مطلوب", 400);
+
+    const result = await freezeSubscription(req.user.id, { days: Number(days), reason });
+    return success(res, result);
+  } catch (err) {
+    return error(res, err.message || "فشل تجميد الاشتراك", err.status || 500);
+  }
+});
+
+router.post("/unfreeze", auth, checkRole("student"), async (req, res) => {
+  try {
+    const result = await unfreezeSubscription(req.user.id);
+    return success(res, result);
+  } catch (err) {
+    return error(res, err.message || "فشل إلغاء التجميد", err.status || 500);
   }
 });
 

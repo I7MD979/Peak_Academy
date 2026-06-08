@@ -5,6 +5,9 @@ import cookieParser from "cookie-parser";
 import { limiter } from "./middleware/rateLimit.js";
 import { timeout } from "./middleware/timeout.js";
 import { requestId } from "./middleware/requestId.js";
+import { auditLog } from "./middleware/auditLog.js";
+import { enforceSameSiteCookies, validateOrigin, generateCsrfToken } from "./middleware/csrf.js";
+import { signResponses, responseEnvelope } from "./middleware/responseIntegrity.js";
 import {
   blockPathTraversal,
   enforceHttps,
@@ -19,11 +22,22 @@ import {
   validateInputLengths,
   bodySizeLimit
 } from "./middleware/security.js";
+import { stripOwnershipFields } from "./middleware/ownership.js";
+import { checkPermission } from "./middleware/permissions.js";
+import {
+  apiVersioning,
+  protectDebugEndpoints,
+  requireJsonContentType,
+  createApiManifestHandler
+} from "./middleware/apiInventory.js";
+import { auth } from "./middleware/auth.js";
+import { checkRole } from "./middleware/checkRole.js";
 
 import authRoutes from "./routes/auth.js";
 import googleAuthRoutes from "./routes/google-auth.js";
 import sessionRoutes from "./routes/sessions.js";
 import paymentRoutes from "./routes/payments.js";
+import webhooksRoutes from "./routes/webhooks.js";
 import earningRoutes from "./routes/earnings.js";
 import questionRoutes from "./routes/questions.js";
 import parentRoutes from "./routes/parent.js";
@@ -31,6 +45,8 @@ import adminRoutes from "./routes/admin.js";
 import adminPromotionsRoutes from "./routes/adminPromotions.js";
 import subscriptionRoutes from "./routes/subscriptions.js";
 import notificationRoutes from "./routes/notifications.js";
+import featureFlagsRoutes from "./routes/featureFlags.js";
+import onboardingRoutes from "./routes/onboarding.js";
 import studentRoutes from "./routes/student.js";
 import teacherRoutes from "./routes/teacher.js";
 import studyRoomsRoutes from "./routes/studyRooms.js";
@@ -66,6 +82,8 @@ function getAllowedOrigins() {
 const allowedOrigins = getAllowedOrigins();
 
 app.use(requestId);
+app.use(responseEnvelope);
+app.use(signResponses);
 
 // ── Layer 1: Transport Security ──────────
 app.use(enforceHttps);
@@ -122,10 +140,25 @@ app.use(
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Request-ID"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-Request-ID",
+      "X-Idempotency-Key",
+      "X-CSRF-Token",
+      "x-csrf-token"
+    ],
     maxAge: 86400
   })
 );
+
+// ── Layer 3b: CSRF & Origin ──────────────
+app.use(enforceSameSiteCookies);
+app.use(validateOrigin([...allowedOrigins]));
+
+// ── Layer 3c: API Inventory (OWASP API9) ─
+app.use(apiVersioning);
+app.use(protectDebugEndpoints);
 
 // ── Layer 4: Body Parsing ──────────────────
 // Larger limits for routes that need binary/base64 payloads
@@ -133,6 +166,7 @@ app.use(["/api/auth/avatar", "/auth/avatar"], express.json({ limit: "3mb" }));
 app.use(["/api/payments/webhook", "/payments/webhook"], express.json({ limit: "512kb" }));
 app.use(express.json({ limit: bodySizeLimit }));
 app.use(express.urlencoded({ extended: false, limit: bodySizeLimit }));
+app.use(requireJsonContentType);
 
 // ── Layer 5: Security Middleware (OWASP A03, CWE-20) ──
 app.use(blockPathTraversal);
@@ -142,12 +176,16 @@ app.use(hppProtection);
 app.use(validateInputLengths);
 app.use(blockSSRF);
 app.use(sanitizeLogging);
+app.use(stripOwnershipFields);
 
 // ── Layer 6: Rate Limiting (OWASP A07) ────
 app.use(timeout);
 app.use(["/api", "/auth"], limiter);
 
-// ── Layer 7: Monitoring (NIST AU-2) ───────
+// ── Layer 8: Audit Logging (NIST AU-2) ────
+app.use(auditLog);
+
+// ── Layer 9: Monitoring (NIST AU-2) ───────
 app.use(securityLogger);
 
 export const API_VERSION = "2026-06-09-schema-v2";
@@ -162,6 +200,9 @@ function getSupabaseProjectRef() {
   const match = url.match(/https:\/\/([^.]+)\.supabase\.co/);
   return match?.[1] || null;
 }
+
+app.get("/api/auth/csrf-token", generateCsrfToken);
+app.get("/api/admin/api-manifest", auth, checkRole("admin"), createApiManifestHandler(app));
 
 app.get("/api/health", (_req, res) => {
   res.status(200).json({
@@ -239,16 +280,19 @@ app.use("/api/auth", authRoutes);
 app.use("/auth", authRoutes);
 app.use("/api/sessions", sessionRoutes);
 app.use("/api/payments", paymentRoutes);
+app.use("/api/webhooks", webhooksRoutes);
 app.use("/api/enrollments", enrollmentRoutes);
 app.use("/api/promotions", promotionRoutes);
 app.use("/api/earnings", earningRoutes);
 app.use("/api/questions", questionRoutes);
 app.use("/api/parent", parentRoutes);
 app.use("/api/public", publicRoutes);
-app.use("/api/admin", adminRoutes);
-app.use("/api/admin", adminPromotionsRoutes);
+app.use("/api/admin", auth, checkPermission, adminRoutes);
+app.use("/api/admin", auth, checkPermission, adminPromotionsRoutes);
 app.use("/api/subscriptions", subscriptionRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/feature-flags", featureFlagsRoutes);
+app.use("/api/onboarding", onboardingRoutes);
 app.use("/api/student", studentRoutes);
 app.use("/api/teacher", teacherRoutes);
 app.use("/api/study-rooms", studyRoomsRoutes);

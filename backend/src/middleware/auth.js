@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabase.js";
+import { decryptIfNeeded } from "../utils/encryption.js";
 import { verifySupabaseAccessToken } from "../lib/verify-supabase-jwt.js";
 import {
   ensureUserProfile,
@@ -74,7 +75,7 @@ function buildReqUser(authUser, profile) {
     email: profile?.email || authUser.email || "",
     role,
     full_name: fullName.length >= 2 ? fullName : "مستخدم بيك",
-    phone: profile?.phone || (meta.phone ? String(meta.phone).trim() : null),
+    phone: decryptIfNeeded(profile?.phone) || (meta.phone ? String(meta.phone).trim() : null),
     avatar_url: profile?.avatar_url || meta.avatar_url || null,
     is_active: profile?.is_active ?? true
   };

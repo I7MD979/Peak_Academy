@@ -1,3 +1,5 @@
+import { encryptUserFields, decryptUserFields } from "./encryption.js";
+
 const VALID_ROLES = ["student", "teacher", "parent", "admin"];
 const VALID_GRADES = ["first", "second", "third"];
 
@@ -19,13 +21,14 @@ function isMissingColumnError(err) {
 }
 
 async function upsertUsersRow(supabase, payload) {
+  const safePayload = payload.phone ? encryptUserFields(payload) : payload;
   const run = (row) => supabase.from("users").upsert(row, { onConflict: "id" });
 
-  let { error } = await run(payload);
+  let { error } = await run(safePayload);
   if (!error) return;
 
   if (isMissingColumnError(error)) {
-    const { is_verified, avatar_url, ...rest } = payload;
+    const { is_verified, avatar_url, phone_hash, national_id, ...rest } = safePayload;
     ({ error } = await run(rest));
     if (!error) return;
   }
@@ -37,7 +40,7 @@ async function upsertUsersRow(supabase, payload) {
       .eq("id", payload.id)
       .maybeSingle();
     if (existing?.email) {
-      ({ error } = await run({ ...payload, email: existing.email }));
+      ({ error } = await run({ ...safePayload, email: existing.email }));
       if (!error) return;
     }
   }
@@ -261,7 +264,7 @@ async function fetchUsersRow(supabase, userId) {
     .eq("id", userId)
     .maybeSingle();
 
-  if (!full.error && full.data) return full.data;
+  if (!full.error && full.data) return decryptUserFields(full.data);
 
   const minimal = await supabase
     .from("users")
@@ -276,7 +279,7 @@ async function fetchUsersRow(supabase, userId) {
     return null;
   }
 
-  return { ...minimal.data, avatar_url: null, is_verified: false };
+  return decryptUserFields({ ...minimal.data, avatar_url: null, is_verified: false });
 }
 
 export async function fetchFullUserProfile(supabase, userId) {
@@ -295,7 +298,7 @@ export async function fetchFullUserProfile(supabase, userId) {
   }
 
   return {
-    ...user,
+    ...decryptUserFields(user),
     student_profile,
     teacher_profile,
     profile_complete: isRoleProfileComplete(user.role, { student_profile, teacher_profile })

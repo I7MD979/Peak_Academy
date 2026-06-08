@@ -3,6 +3,7 @@ import {
   sendEnrollmentConfirmation,
   sendSessionReminder,
   sendPaymentFailed,
+  sendDunningEmail,
   sendWithdrawalProcessed
 } from "../services/email.service.js";
 import { buildParentReport } from "../services/report.service.js";
@@ -63,6 +64,19 @@ export async function handleEmailJob(name, payload) {
       sessionTitle: payload.sessionTitle || payload.session_title,
       startTime: payload.startTime || payload.start_time,
       roomUrl: payload.roomUrl || payload.room_url
+    });
+  }
+
+  if (name === "dunning-email") {
+    const to = resolveEmail(payload);
+    if (!to) return { skipped: true, reason: "missing_email" };
+
+    return sendDunningEmail({
+      to,
+      name: payload.name,
+      attempt: payload.attempt,
+      isLastAttempt: payload.isLastAttempt,
+      renewUrl: payload.renewUrl
     });
   }
 

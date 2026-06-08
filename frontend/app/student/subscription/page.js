@@ -4,7 +4,7 @@ import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import StudentSubscriptionView from "@/components/student/StudentSubscriptionPage";
 import { PageLoader } from "@/components/shared/LoadingSkeleton";
-import { subscriptionsApi } from "@/lib/api";
+import { paymentsApi, subscriptionsApi, newIdempotencyKey } from "@/lib/api";
 import { pollTransactionFulfillment } from "@/lib/paymob";
 import {
   findAutostartPlan,
@@ -19,6 +19,9 @@ function StudentSubscriptionContent() {
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState(null);
   const [error, setError] = useState("");
+  const [paymentProvider, setPaymentProvider] = useState("paymob");
+  const [checkoutResult, setCheckoutResult] = useState(null);
+  const [selectedPlanAmount, setSelectedPlanAmount] = useState(null);
   const autoStartedRef = useRef(false);
 
   const load = useCallback(async () => {
@@ -50,6 +53,16 @@ function StudentSubscriptionContent() {
 
     let active = true;
     (async () => {
+      try {
+        const statusRes = await paymentsApi.orderStatus(txId);
+        if (statusRes?.data?.subscription_activated || statusRes?.data?.paid) {
+          sessionStorage.removeItem(SUBSCRIPTION_TX_STORAGE_KEY);
+          if (active) await load();
+          return;
+        }
+      } catch {
+        /* fall back to legacy poll */
+      }
       await pollTransactionFulfillment(txId, { kind: "subscription" });
       sessionStorage.removeItem(SUBSCRIPTION_TX_STORAGE_KEY);
       if (active) await load();
@@ -65,11 +78,58 @@ function StudentSubscriptionContent() {
       try {
         setPurchasing(planId);
         setError("");
-        const res = await subscriptionsApi.purchase(planId, promoCode.trim() || undefined);
-        const url = res?.data?.checkout_url;
+        setCheckoutResult(null);
+
+        const plan = plans.find((p) => p.id === planId);
+        const amount = Number(plan?.price || 0);
+        setSelectedPlanAmount(amount);
+
+        const idempotencyKey = newIdempotencyKey("sub");
+        const res = await paymentsApi.createOrder(
+          {
+            provider: paymentProvider,
+            planId,
+            amount,
+            metadata: {
+              type: "subscription_payment",
+              promo_code: promoCode.trim() || undefined
+            }
+          },
+          idempotencyKey
+        );
+
+        const data = res?.data;
+        if (!data) throw new Error("استجابة غير صالحة من الخادم");
+
+        if (data.paymentUrl || data.iframeUrl) {
+          if (data.paymentId) {
+            sessionStorage.setItem(SUBSCRIPTION_TX_STORAGE_KEY, data.paymentId);
+          }
+          window.location.href = data.paymentUrl || data.iframeUrl;
+          return;
+        }
+
+        if (data.referenceCode || data.provider === "fawry" || data.provider === "instapay") {
+          setCheckoutResult({
+            provider: data.provider || paymentProvider,
+            referenceCode: data.referenceCode,
+            ipaAlias: data.ipaAlias,
+            amountEGP: data.amountEGP,
+            expiresAt: data.expiresAt,
+            paymentId: data.paymentId,
+            instructions: data.instructions
+          });
+          if (data.paymentId) {
+            sessionStorage.setItem(SUBSCRIPTION_TX_STORAGE_KEY, data.paymentId);
+          }
+          return;
+        }
+
+        const legacy = await subscriptionsApi.purchase(planId, promoCode.trim() || undefined);
+        const url = legacy?.data?.checkout_url;
         if (url) {
-          if (res?.data?.transaction_id) {
-            sessionStorage.setItem(SUBSCRIPTION_TX_STORAGE_KEY, res.data.transaction_id);
+          if (legacy?.data?.transaction_id) {
+            sessionStorage.setItem(SUBSCRIPTION_TX_STORAGE_KEY, legacy.data.transaction_id);
           }
           window.location.href = url;
         }
@@ -79,7 +139,7 @@ function StudentSubscriptionContent() {
         setPurchasing(null);
       }
     },
-    [promoCode]
+    [promoCode, paymentProvider, plans]
   );
 
   useEffect(() => {
@@ -110,6 +170,10 @@ function StudentSubscriptionContent() {
       showSubscriptionCta={Boolean(me?.show_subscription_cta)}
       searchParams={searchParams}
       onPurchase={handlePurchase}
+      paymentProvider={paymentProvider}
+      onPaymentProviderChange={setPaymentProvider}
+      checkoutResult={checkoutResult}
+      selectedPlanAmount={selectedPlanAmount}
     />
   );
 }

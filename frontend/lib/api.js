@@ -47,6 +47,13 @@ async function getAuthToken() {
   return null;
 }
 
+export function newIdempotencyKey(prefix = "pay") {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+    return `${prefix}-${crypto.randomUUID()}`;
+  }
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 async function performApiFetch(path, options = {}, tokenOverride = null) {
   let token = tokenOverride ?? (await getAuthToken());
 
@@ -203,6 +210,7 @@ export const paymentsApi = {
   initiate: (amount, sessionId, promoCode) =>
     apiRequest("/payments/initiate", {
       method: "POST",
+      headers: { "X-Idempotency-Key": newIdempotencyKey("session") },
       body: JSON.stringify({
         amount: Number(amount),
         session_id: sessionId,
@@ -213,6 +221,7 @@ export const paymentsApi = {
   initiateQuestion: (amount, { subject, content, grade }) =>
     apiRequest("/payments/initiate", {
       method: "POST",
+      headers: { "X-Idempotency-Key": newIdempotencyKey("question") },
       body: JSON.stringify({
         amount: Number(amount),
         type: "question_payment",
@@ -222,6 +231,18 @@ export const paymentsApi = {
       })
     }),
   transactionStatus: (transactionId) => apiRequest(`/payments/transactions/${transactionId}/status`),
+  orderStatus: (paymentId) => apiRequest(`/payments/orders/${paymentId}/status`),
+  createOrder: (body, idempotencyKey) =>
+    apiRequest("/payments/create-order", {
+      method: "POST",
+      headers: idempotencyKey ? { "X-Idempotency-Key": idempotencyKey } : {},
+      body: JSON.stringify(body)
+    }),
+  uploadInstapayReceipt: (body) =>
+    apiRequest("/payments/upload-instapay-receipt", {
+      method: "POST",
+      body: JSON.stringify(body)
+    }),
   history: (query = "") => apiRequest(withQuery("/payments/history", query))
 };
 
@@ -295,6 +316,7 @@ export const subscriptionsApi = {
   purchase: (planId, promoCode) =>
     apiRequest("/subscriptions/purchase", {
       method: "POST",
+      headers: { "X-Idempotency-Key": newIdempotencyKey("sub") },
       body: JSON.stringify({ plan_id: planId, promo_code: promoCode || undefined })
     })
 };

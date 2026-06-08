@@ -30,6 +30,7 @@ const { initSentry } = await import("./lib/sentry.js");
 const { startWorkers, shutdownWorkers } = await import("./lib/queue.js");
 const { getCacheMode } = await import("./lib/cache.js");
 const { startSubscriptionResetScheduler } = await import("./services/subscriptionScheduler.js");
+const { startDunningScheduler } = await import("./jobs/schedulers/dunning.scheduler.js");
 
 await initSentry();
 
@@ -55,6 +56,7 @@ startWorkers().catch((err) => {
 });
 
 startSubscriptionResetScheduler();
+startDunningScheduler();
 
 await import("./jobs/sessionReminders.js");
 

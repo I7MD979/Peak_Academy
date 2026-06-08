@@ -38,6 +38,18 @@ async function getRedisClient() {
         async del(...keys) {
           if (keys.length) await upstash.del(...keys);
         },
+        async setNxEx(key, ttlSeconds, value = "1") {
+          const result = await upstash.set(key, value, { nx: true, ex: ttlSeconds });
+          return result === "OK" || result === true;
+        },
+        async getString(key) {
+          const value = await upstash.get(key);
+          if (value === null || value === undefined) return null;
+          return typeof value === "string" ? value : JSON.stringify(value);
+        },
+        async setexString(key, ttl, value) {
+          await upstash.set(key, value, { ex: ttl });
+        },
         async scanKeys(prefix) {
           try {
             const keys = await upstash.keys(`${prefix}*`);
@@ -45,6 +57,12 @@ async function getRedisClient() {
           } catch {
             return [];
           }
+        },
+        async incr(key) {
+          return upstash.incr(key);
+        },
+        async expire(key, ttl) {
+          await upstash.expire(key, ttl);
         }
       };
       redisMode = "upstash";
@@ -57,7 +75,15 @@ async function getRedisClient() {
   if (isEnabled("FF_REDIS_CACHE_ENABLED") && process.env.REDIS_URL) {
     try {
       const IORedis = (await import("ioredis")).default;
-      const client = new IORedis(process.env.REDIS_URL, { maxRetriesPerRequest: 2 });
+      const client = new IORedis(process.env.REDIS_URL, {
+        maxRetriesPerRequest: 2,
+        connectTimeout: 3000,
+        commandTimeout: 2500,
+        lazyConnect: true
+      });
+      await client.connect().catch(() => {
+        throw new Error("ioredis connect failed");
+      });
       redisClient = {
         async get(key) {
           const value = await client.get(key);
@@ -79,6 +105,16 @@ async function getRedisClient() {
         async del(...keys) {
           if (keys.length) await client.del(...keys);
         },
+        async setNxEx(key, ttlSeconds, value = "1") {
+          const result = await client.set(key, value, "EX", ttlSeconds, "NX");
+          return result === "OK";
+        },
+        async getString(key) {
+          return client.get(key);
+        },
+        async setexString(key, ttl, value) {
+          await client.setex(key, ttl, value);
+        },
         async scanKeys(prefix) {
           const found = [];
           let cursor = "0";
@@ -88,6 +124,12 @@ async function getRedisClient() {
             found.push(...keys);
           } while (cursor !== "0");
           return found;
+        },
+        async incr(key) {
+          return client.incr(key);
+        },
+        async expire(key, ttl) {
+          await client.expire(key, ttl);
         }
       };
       redisMode = "ioredis";
@@ -114,6 +156,23 @@ async function getRedisClient() {
     async del(...keys) {
       for (const key of keys) memoryStore.delete(key);
     },
+    async setNxEx(key, ttlSeconds, value = "1") {
+      if (memoryStore.has(key)) return false;
+      memoryStore.set(key, { value, expiresAt: Date.now() + ttlSeconds * 1000 });
+      return true;
+    },
+    async getString(key) {
+      const entry = memoryStore.get(key);
+      if (!entry) return null;
+      if (entry.expiresAt <= Date.now()) {
+        memoryStore.delete(key);
+        return null;
+      }
+      return typeof entry.value === "string" ? entry.value : JSON.stringify(entry.value);
+    },
+    async setexString(key, ttl, value) {
+      memoryStore.set(key, { value, expiresAt: Date.now() + ttl * 1000 });
+    },
     async scanKeys(prefix) {
       const now = Date.now();
       const keys = [];
@@ -125,10 +184,65 @@ async function getRedisClient() {
         if (key.startsWith(prefix)) keys.push(key);
       }
       return keys;
+    },
+    async incr(key) {
+      const now = Date.now();
+      const entry = memoryStore.get(key);
+      if (entry && entry.expiresAt <= now) memoryStore.delete(key);
+      const current = entry && entry.expiresAt > now ? parseInt(entry.value, 10) || 0 : 0;
+      const next = current + 1;
+      const expiresAt = entry?.expiresAt > now ? entry.expiresAt : now + 3600 * 1000;
+      memoryStore.set(key, { value: String(next), expiresAt });
+      return next;
+    },
+    async expire(key, ttl) {
+      const entry = memoryStore.get(key);
+      const expiresAt = Date.now() + ttl * 1000;
+      if (entry) {
+        entry.expiresAt = expiresAt;
+      } else {
+        memoryStore.set(key, { value: "0", expiresAt });
+      }
     }
   };
   return redisClient;
 }
+
+/** Redis-like adapter for idempotency middleware */
+export const redis = {
+  async get(key) {
+    const client = await getRedisClient();
+    if (client.getString) return client.getString(key);
+    const value = await client.get(key);
+    return value === null || value === undefined ? null : JSON.stringify(value);
+  },
+  async setex(key, ttl, value) {
+    const client = await getRedisClient();
+    if (client.setexString) return client.setexString(key, ttl, value);
+    await client.setex(key, ttl, value);
+  },
+  async del(...keys) {
+    const client = await getRedisClient();
+    await client.del(...keys);
+  },
+  async set(key, value, exFlag, ttl, nxFlag) {
+    if (exFlag !== "EX" || nxFlag !== "NX" || typeof ttl !== "number") return null;
+    const client = await getRedisClient();
+    if (client.setNxEx) {
+      const ok = await client.setNxEx(key, ttl, value);
+      return ok ? "OK" : null;
+    }
+    return null;
+  },
+  async incr(key) {
+    const client = await getRedisClient();
+    return client.incr(key);
+  },
+  async expire(key, ttl) {
+    const client = await getRedisClient();
+    await client.expire(key, ttl);
+  }
+};
 
 export const CACHE = {
   TTL: {

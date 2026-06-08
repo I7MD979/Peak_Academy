@@ -101,4 +101,38 @@ export async function creditReferrerOnFirstPaidEnrollment(userId, promotionId) {
       .update({ sessions_remaining: (activeSub.sessions_remaining || 0) + 1 })
       .eq("id", activeSub.id);
   }
+
+  await supabase
+    .from("referral_codes")
+    .update({ conversions: (refCode.conversions || refCode.total_referrals || 0) + 1 })
+    .eq("id", refCode.id);
+
+  await supabase.from("referrals").upsert(
+    {
+      referrer_id: refCode.owner_id,
+      referred_id: userId,
+      referral_code_id: refCode.id,
+      status: "rewarded",
+      rewarded_at: new Date().toISOString()
+    },
+    { onConflict: "referred_id" }
+  );
+}
+
+export async function trackReferralClick(code) {
+  const { data: refCode } = await supabase
+    .from("referral_codes")
+    .select("id, clicks")
+    .eq("code", code)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (!refCode) return null;
+
+  await supabase
+    .from("referral_codes")
+    .update({ clicks: (refCode.clicks || 0) + 1 })
+    .eq("id", refCode.id);
+
+  return refCode;
 }
