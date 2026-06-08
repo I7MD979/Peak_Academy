@@ -53,3 +53,17 @@ export const pollTransactionEnrollment = (transactionId, options = {}) =>
 
 export const pollQuestionPayment = (transactionId, options = {}) =>
   pollTransactionFulfillment(transactionId, { ...options, kind: "question" });
+
+/** Poll V2 payments table (create-order flow) until subscription is active. */
+export const pollPaymentOrderFulfillment = async (
+  paymentId,
+  { maxAttempts = 12, intervalMs = 2500 } = {}
+) => {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const sync = attempt === 0;
+    const payload = await paymentsApi.orderStatus(paymentId, { sync });
+    if (payload?.data?.subscription_activated || payload?.data?.paid) return true;
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+  return false;
+};

@@ -75,7 +75,9 @@ router.get(
   ownedBy("payments", "student_id", "paymentId"),
   async (req, res) => {
   try {
-    const status = await getPaymentStatus(req.params.paymentId, req.user.id);
+    const status = await getPaymentStatus(req.params.paymentId, req.user.id, {
+      sync: req.query.sync === "1"
+    });
     if (!status) return error(res, "الدفعة غير موجودة", 404);
     return success(res, status);
   } catch (err) {

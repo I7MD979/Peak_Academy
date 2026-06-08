@@ -24,6 +24,54 @@ export async function getPlanById(planId) {
   return data;
 }
 
+/** Fulfill a V2 `payments` row for subscription checkout (webhook or return sync). */
+export async function activateSubscriptionFromPayment(payment, paymobTxnId = "") {
+  if (!payment) return { activated: false };
+  if (payment.status === "paid") return { activated: true, duplicate: true };
+
+  const meta = payment.metadata || {};
+  const planId = meta.planId || meta.plan_id;
+  if (!planId) return { activated: false };
+
+  const txnId = paymobTxnId ? String(paymobTxnId) : payment.paymob_transaction_id || payment.provider_txn_id || "";
+
+  await supabase
+    .from("payments")
+    .update({
+      status: "paid",
+      paymob_transaction_id: txnId || payment.paymob_transaction_id,
+      provider_txn_id: txnId || payment.provider_txn_id,
+      paid_at: new Date().toISOString()
+    })
+    .eq("id", payment.id)
+    .eq("status", "pending");
+
+  const fakeTransaction = {
+    user_id: payment.student_id,
+    metadata: {
+      plan_id: planId,
+      bonus_sessions: meta.bonus_sessions || 0
+    },
+    paymob_order_id: payment.provider_order_id || payment.paymob_order_id,
+    promotion_id: payment.promotion_id,
+    discount_amount: payment.discount_amount || 0
+  };
+
+  const result = await activateSubscriptionFromTransaction(fakeTransaction);
+  if (payment.promotion_id && result.activated) {
+    const { recordPromoUse } = await import("../utils/promoValidator.js");
+    await recordPromoUse(payment.promotion_id, payment.student_id, null, payment.discount_amount || 0);
+  }
+
+  if (result.activated) {
+    const { completeOnboardingStep } = await import("./onboarding.service.js");
+    await completeOnboardingStep(payment.student_id, "first_payment").catch(() => {});
+    await invalidateSubscriptionCaches(payment.student_id);
+  }
+
+  return result;
+}
+
 export async function activateSubscriptionFromTransaction(transaction) {
   const planId = transaction.metadata?.plan_id;
   if (!planId) return { activated: false };

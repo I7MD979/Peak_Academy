@@ -1,7 +1,10 @@
 import { supabase } from "../lib/supabase.js";
 import { enqueueJob } from "../lib/queue.js";
 import { recordPromoUse } from "./promoValidator.js";
-import { activateSubscriptionFromTransaction } from "../services/subscriptionService.js";
+import {
+  activateSubscriptionFromTransaction,
+  activateSubscriptionFromPayment
+} from "../services/subscriptionService.js";
 import { creditReferrerOnFirstPaidEnrollment } from "../services/referralService.js";
 import { isSchemaV2 } from "../lib/schema.js";
 import { findPaymentByPaymobOrder, fulfillPayment } from "../data/enrollmentRepository.js";
@@ -40,6 +43,13 @@ async function notifyEnrollmentLegacy(transaction, sessionId) {
 export async function fulfillPaymentV2(payment, paymobTxnId) {
   if (payment.status !== "pending") {
     return { ok: true, duplicate: payment.status === "paid" };
+  }
+
+  const meta = payment.metadata || {};
+  const planId = meta.planId || meta.plan_id;
+  if (planId && !payment.enrollment_id) {
+    const subResult = await activateSubscriptionFromPayment(payment, paymobTxnId);
+    return { ok: true, subscription_activated: Boolean(subResult.activated) };
   }
 
   const result = await fulfillPayment(payment, paymobTxnId);

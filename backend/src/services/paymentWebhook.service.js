@@ -1,8 +1,7 @@
 import { supabase } from "../lib/supabase.js";
 import { enqueueJob } from "../lib/queue.js";
 import { fulfillPaymentV2 } from "../utils/payments-fulfillment.js";
-import { activateSubscriptionFromTransaction } from "./subscriptionService.js";
-import { recordPromoUse } from "../utils/promoValidator.js";
+import { activateSubscriptionFromPayment } from "./subscriptionService.js";
 import { completeOnboardingStep } from "./onboarding.service.js";
 
 async function findPaymentForWebhook(orderId, provider) {
@@ -58,24 +57,7 @@ async function fulfillSubscriptionPayment(payment, transactionId) {
   const planId = meta.planId || meta.plan_id;
   if (!planId) return { type: "generic" };
 
-  await markPaymentPaid(payment.id, transactionId, payment.provider, payment);
-
-  const fakeTransaction = {
-    user_id: payment.student_id,
-    metadata: {
-      plan_id: planId,
-      bonus_sessions: meta.bonus_sessions || 0
-    },
-    paymob_order_id: payment.provider_order_id || payment.paymob_order_id,
-    promotion_id: payment.promotion_id,
-    discount_amount: payment.discount_amount || 0
-  };
-
-  const result = await activateSubscriptionFromTransaction(fakeTransaction);
-  if (payment.promotion_id) {
-    await recordPromoUse(payment.promotion_id, payment.student_id, null, payment.discount_amount || 0);
-  }
-  await completeOnboardingStep(payment.student_id, "first_payment").catch(() => {});
+  const result = await activateSubscriptionFromPayment(payment, transactionId);
   return { type: "subscription", ...result };
 }
 

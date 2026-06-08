@@ -1,6 +1,7 @@
 import { supabase } from "../lib/supabase.js";
-import { getCacheEntry, setCacheEntry } from "../lib/cache.js";
+import { getCacheEntry, setCacheEntry, invalidate, CACHE } from "../lib/cache.js";
 import { PaymentFactory } from "./payments/PaymentFactory.js";
+import { activateSubscriptionFromPayment } from "./subscriptionService.js";
 
 const IDEM_TTL = 600;
 
@@ -109,8 +110,8 @@ export async function createPaymentOrder({
   return responseData;
 }
 
-export async function getPaymentStatus(paymentId, userId) {
-  const { data: payment } = await supabase
+export async function getPaymentStatus(paymentId, userId, { sync = false } = {}) {
+  let { data: payment } = await supabase
     .from("payments")
     .select("*, enrollment:enrollment_id(id, session_id, student_id, status)")
     .eq("id", paymentId)
@@ -119,10 +120,32 @@ export async function getPaymentStatus(paymentId, userId) {
 
   if (!payment) return null;
 
-  const subscriptionActivated =
-    payment.status === "paid" &&
-    (payment.metadata?.planId || payment.metadata?.plan_id) &&
-    !payment.enrollment_id;
+  const planId = payment.metadata?.planId || payment.metadata?.plan_id;
+  const isSubscriptionPayment = Boolean(planId) && !payment.enrollment_id;
+
+  if (sync && payment.status === "pending" && isSubscriptionPayment) {
+    await activateSubscriptionFromPayment(payment);
+    await invalidate(CACHE.studentSubscription(userId));
+
+    const refreshed = await supabase
+      .from("payments")
+      .select("*, enrollment:enrollment_id(id, session_id, student_id, status)")
+      .eq("id", paymentId)
+      .eq("student_id", userId)
+      .maybeSingle();
+    payment = refreshed.data || payment;
+  }
+
+  let subscriptionActivated = false;
+  if (isSubscriptionPayment && payment.status === "paid") {
+    const { data: activeSub } = await supabase
+      .from("student_subscriptions")
+      .select("id")
+      .eq("student_id", userId)
+      .eq("status", "active")
+      .maybeSingle();
+    subscriptionActivated = Boolean(activeSub);
+  }
 
   return {
     payment,

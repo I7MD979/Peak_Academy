@@ -231,7 +231,8 @@ export const paymentsApi = {
       })
     }),
   transactionStatus: (transactionId) => apiRequest(`/payments/transactions/${transactionId}/status`),
-  orderStatus: (paymentId) => apiRequest(`/payments/orders/${paymentId}/status`),
+  orderStatus: (paymentId, { sync = false } = {}) =>
+    apiRequest(`/payments/orders/${paymentId}/status${sync ? "?sync=1" : ""}`),
   createOrder: (body, idempotencyKey) =>
     apiRequest("/payments/create-order", {
       method: "POST",

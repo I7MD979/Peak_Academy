@@ -2,6 +2,16 @@
 
 export const SUBSCRIPTION_TX_STORAGE_KEY = "peak-sub-tx";
 
+/** Resolve our payment/transaction id after Paymob return (txId, payment_id, or sessionStorage). */
+export function resolveSubscriptionPaymentId(searchParams) {
+  if (!searchParams) return null;
+  return (
+    searchParams.get("txId") ||
+    searchParams.get("payment_id") ||
+    (typeof window !== "undefined" ? sessionStorage.getItem(SUBSCRIPTION_TX_STORAGE_KEY) : null)
+  );
+}
+
 export function readSubscriptionSearchParam(searchParams, key) {
   return searchParams?.get?.(key) ?? "";
 }

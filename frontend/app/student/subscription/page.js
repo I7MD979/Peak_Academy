@@ -5,9 +5,10 @@ import { useSearchParams } from "next/navigation";
 import StudentSubscriptionView from "@/components/student/StudentSubscriptionPage";
 import { PageLoader } from "@/components/shared/LoadingSkeleton";
 import { paymentsApi, subscriptionsApi, newIdempotencyKey } from "@/lib/api";
-import { pollTransactionFulfillment } from "@/lib/paymob";
+import { pollPaymentOrderFulfillment, pollTransactionFulfillment } from "@/lib/paymob";
 import {
   findAutostartPlan,
+  resolveSubscriptionPaymentId,
   SUBSCRIPTION_TX_STORAGE_KEY
 } from "@/lib/student-subscription";
 
@@ -45,9 +46,9 @@ function StudentSubscriptionContent() {
     if (typeof window === "undefined") return;
     if (searchParams.get("paid") !== "1") return;
 
-    const txId = searchParams.get("txId") || sessionStorage.getItem(SUBSCRIPTION_TX_STORAGE_KEY);
-    if (txId) sessionStorage.removeItem(SUBSCRIPTION_TX_STORAGE_KEY);
-    if (!txId) {
+    const paymentId = resolveSubscriptionPaymentId(searchParams);
+    if (paymentId) sessionStorage.removeItem(SUBSCRIPTION_TX_STORAGE_KEY);
+    if (!paymentId) {
       load();
       return;
     }
@@ -55,15 +56,15 @@ function StudentSubscriptionContent() {
     let active = true;
     (async () => {
       try {
-        const statusRes = await paymentsApi.orderStatus(txId);
-        if (statusRes?.data?.subscription_activated || statusRes?.data?.paid) {
+        const fulfilled = await pollPaymentOrderFulfillment(paymentId);
+        if (fulfilled) {
           if (active) await load();
           return;
         }
       } catch {
-        /* fall back to legacy poll */
+        /* fall back to legacy transactions table */
       }
-      await pollTransactionFulfillment(txId, { kind: "subscription" });
+      await pollTransactionFulfillment(paymentId, { kind: "subscription" });
       if (active) await load();
     })();
 
