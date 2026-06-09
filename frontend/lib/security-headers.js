@@ -104,6 +104,8 @@ export function buildContentSecurityPolicy(nonce) {
   return directives.join("; ");
 }
 
+const HSTS_VALUE = "max-age=63072000; includeSubDomains; preload";
+
 const BASE_SECURITY_HEADERS = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "DENY" },
@@ -116,6 +118,10 @@ const BASE_SECURITY_HEADERS = [
   { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
   { key: "Cross-Origin-Opener-Policy", value: "same-origin" }
 ];
+
+function isSeoMetadataPath(pathname = "/") {
+  return pathname === "/robots.txt" || pathname === "/sitemap.xml";
+}
 
 function cacheHeadersForPath(pathname = "/") {
   const isAuth =
@@ -145,9 +151,19 @@ function cacheHeadersForPath(pathname = "/") {
   return [];
 }
 
+function productionSecurityHeaders(pathname = "/") {
+  if (process.env.NODE_ENV !== "production") return [];
+
+  const headers = [{ key: "Strict-Transport-Security", value: HSTS_VALUE }];
+  if (isSeoMetadataPath(pathname)) {
+    headers.push({ key: "Content-Security-Policy", value: buildStaticAssetCsp() });
+  }
+  return headers;
+}
+
 /** Headers for next.config (no per-request nonce). CSP is applied in proxy. */
 export function baseHeadersForPath(pathname = "/") {
-  return [...BASE_SECURITY_HEADERS, ...cacheHeadersForPath(pathname)];
+  return [...BASE_SECURITY_HEADERS, ...productionSecurityHeaders(pathname), ...cacheHeadersForPath(pathname)];
 }
 
 /** @deprecated Use baseHeadersForPath in next.config; CSP via applySecurityHeaders in proxy. */
@@ -188,10 +204,15 @@ export function applySecurityHeaders(response, pathname = "/", nonce = "") {
   for (const { key, value } of BASE_SECURITY_HEADERS) {
     response.headers.set(key, value);
   }
+  for (const { key, value } of productionSecurityHeaders(pathname)) {
+    response.headers.set(key, value);
+  }
   for (const { key, value } of cacheHeadersForPath(pathname)) {
     response.headers.set(key, value);
   }
-  if (nonce) {
+  if (isSeoMetadataPath(pathname)) {
+    response.headers.set("Content-Security-Policy", buildStaticAssetCsp());
+  } else if (nonce) {
     response.headers.set("Content-Security-Policy", buildContentSecurityPolicy(nonce));
   }
   return response;
