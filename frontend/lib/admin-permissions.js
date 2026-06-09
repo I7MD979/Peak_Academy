@@ -2,16 +2,21 @@
 export const PERMISSIONS = {
   DASHBOARD:            "dashboard",
   USERS_READ:           "users.read",
-  USERS_WRITE:          "users.write",
+  USERS_EDIT:           "users.edit",
+  USERS_DELETE:         "users.delete",
   USERS_SUBSCRIPTIONS:  "users.subscriptions",
   SESSIONS_READ:        "sessions.read",
   WITHDRAWALS_READ:     "withdrawals.read",
   WITHDRAWALS_WRITE:    "withdrawals.write",
   REPORTS:              "reports",
   PLANS_READ:           "plans.read",
-  PLANS_WRITE:          "plans.write",
+  PLANS_CREATE:         "plans.create",
+  PLANS_EDIT:           "plans.edit",
+  PLANS_DELETE:         "plans.delete",
   PROMOTIONS_READ:      "promotions.read",
-  PROMOTIONS_WRITE:     "promotions.write",
+  PROMOTIONS_CREATE:    "promotions.create",
+  PROMOTIONS_EDIT:      "promotions.edit",
+  PROMOTIONS_DELETE:    "promotions.delete",
   LANDING:              "landing",
 };
 
@@ -29,7 +34,8 @@ export const PERMISSION_GROUPS = [
     label: "المستخدمون",
     permissions: [
       { key: PERMISSIONS.USERS_READ,          label: "عرض قائمة المستخدمين وتفاصيلهم" },
-      { key: PERMISSIONS.USERS_WRITE,         label: "تعديل بيانات المستخدمين وتعليق الحسابات" },
+      { key: PERMISSIONS.USERS_EDIT,          label: "تعديل بيانات المستخدمين والتحقق منهم وتعليق حساباتهم" },
+      { key: PERMISSIONS.USERS_DELETE,        label: "حذف حسابات المستخدمين" },
       { key: PERMISSIONS.USERS_SUBSCRIPTIONS, label: "إدارة اشتراكات الطلاب (إضافة / تعديل / إلغاء)" },
     ]
   },
@@ -51,12 +57,22 @@ export const PERMISSION_GROUPS = [
   },
   {
     key: "plans",
-    label: "الخطط والعروض",
+    label: "خطط الاشتراك",
     permissions: [
-      { key: PERMISSIONS.PLANS_READ,      label: "عرض خطط الاشتراك" },
-      { key: PERMISSIONS.PLANS_WRITE,     label: "إنشاء وتعديل وإيقاف خطط الاشتراك" },
-      { key: PERMISSIONS.PROMOTIONS_READ, label: "عرض العروض والخصومات" },
-      { key: PERMISSIONS.PROMOTIONS_WRITE,"label": "إنشاء وتعديل وحذف العروض" },
+      { key: PERMISSIONS.PLANS_READ,   label: "عرض خطط الاشتراك" },
+      { key: PERMISSIONS.PLANS_CREATE, label: "إنشاء خطط اشتراك جديدة" },
+      { key: PERMISSIONS.PLANS_EDIT,   label: "تعديل وإيقاف خطط الاشتراك" },
+      { key: PERMISSIONS.PLANS_DELETE, label: "حذف خطط الاشتراك" },
+    ]
+  },
+  {
+    key: "promotions",
+    label: "العروض والخصومات",
+    permissions: [
+      { key: PERMISSIONS.PROMOTIONS_READ,   label: "عرض العروض والخصومات" },
+      { key: PERMISSIONS.PROMOTIONS_CREATE, label: "إنشاء عروض وخصومات جديدة" },
+      { key: PERMISSIONS.PROMOTIONS_EDIT,   label: "تعديل العروض والخصومات" },
+      { key: PERMISSIONS.PROMOTIONS_DELETE, label: "حذف العروض والخصومات" },
     ]
   },
   {

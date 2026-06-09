@@ -289,7 +289,7 @@ router.get("/users/:id", auth, requirePermission("users.read"), async (req, res)
 });
 
 // ── Edit user (name / phone) ─────────────────────────────────────────────────
-router.patch("/users/:id", auth, requirePermission("users.write"), async (req, res) => {
+router.patch("/users/:id", auth, requirePermission("users.edit"), async (req, res) => {
   try {
     if (!UUID_RE.test(req.params.id)) return error(res, "معرّف المستخدم غير صالح", 400);
     const result = await UserService.updateUser(req.params.id, req.body || {}, req.user.id);
@@ -301,7 +301,7 @@ router.patch("/users/:id", auth, requirePermission("users.write"), async (req, r
 });
 
 // ── Verify teacher ───────────────────────────────────────────────────────────
-router.put("/users/:id/verify", auth, requirePermission("users.write"), async (req, res) => {
+router.put("/users/:id/verify", auth, requirePermission("users.edit"), async (req, res) => {
   try {
     if (!UUID_RE.test(req.params.id)) return error(res, "معرّف المستخدم غير صالح", 400);
     const result = await UserService.verifyTeacher(req.params.id, req.user.id);
@@ -313,7 +313,7 @@ router.put("/users/:id/verify", auth, requirePermission("users.write"), async (r
 });
 
 // ── Suspend / Activate ───────────────────────────────────────────────────────
-router.put("/users/:id/suspend", auth, requirePermission("users.write"), async (req, res) => {
+router.put("/users/:id/suspend", auth, requirePermission("users.edit"), async (req, res) => {
   try {
     if (!UUID_RE.test(req.params.id)) return error(res, "معرّف المستخدم غير صالح", 400);
     const result = await UserService.setUserStatus(req.params.id, false, req.user.id);
@@ -324,7 +324,7 @@ router.put("/users/:id/suspend", auth, requirePermission("users.write"), async (
   }
 });
 
-router.put("/users/:id/activate", auth, requirePermission("users.write"), async (req, res) => {
+router.put("/users/:id/activate", auth, requirePermission("users.edit"), async (req, res) => {
   try {
     if (!UUID_RE.test(req.params.id)) return error(res, "معرّف المستخدم غير صالح", 400);
     const result = await UserService.setUserStatus(req.params.id, true, req.user.id);
@@ -336,7 +336,7 @@ router.put("/users/:id/activate", auth, requirePermission("users.write"), async 
 });
 
 // ── Soft delete ───────────────────────────────────────────────────────────────
-router.delete("/users/:id", auth, requirePermission("users.write"), async (req, res) => {
+router.delete("/users/:id", auth, requirePermission("users.delete"), async (req, res) => {
   try {
     if (!UUID_RE.test(req.params.id)) return error(res, "معرّف المستخدم غير صالح", 400);
     const result = await UserService.deleteUser(req.params.id, req.user.id);
@@ -1270,7 +1270,7 @@ router.get("/plans", auth, requirePermission("plans.read"), async (req, res) => 
   }
 });
 
-router.post("/plans", auth, requirePermission("plans.write"), async (req, res) => {
+router.post("/plans", auth, requirePermission("plans.create"), async (req, res) => {
   try {
     const validated = validatePlanBody(req.body || {});
     if (!validated.ok) {
@@ -1299,7 +1299,7 @@ router.post("/plans", auth, requirePermission("plans.write"), async (req, res) =
   }
 });
 
-router.put("/plans/:id", auth, requirePermission("plans.write"), async (req, res) => {
+router.put("/plans/:id", auth, requirePermission("plans.edit"), async (req, res) => {
   try {
     const planId = req.params.id;
     if (!UUID_RE.test(planId)) {
@@ -1346,7 +1346,7 @@ router.put("/plans/:id", auth, requirePermission("plans.write"), async (req, res
   }
 });
 
-router.delete("/plans/:id", auth, requirePermission("plans.write"), async (req, res) => {
+router.delete("/plans/:id", auth, requirePermission("plans.delete"), async (req, res) => {
   try {
     const planId = req.params.id;
     if (!UUID_RE.test(planId)) {
@@ -1656,9 +1656,14 @@ router.get("/staff/:id/permissions", auth, checkRole("admin"), async (req, res) 
 
 // ── Set staff member's permissions (admin only) ───────────────────────────────
 const VALID_ASSIGNABLE = new Set([
-  "dashboard", "users.read", "users.write", "users.subscriptions",
-  "sessions.read", "withdrawals.read", "withdrawals.write",
-  "reports", "plans.read", "plans.write", "promotions.read", "promotions.write", "landing"
+  "dashboard",
+  "users.read", "users.edit", "users.delete", "users.subscriptions",
+  "sessions.read",
+  "withdrawals.read", "withdrawals.write",
+  "reports",
+  "plans.read", "plans.create", "plans.edit", "plans.delete",
+  "promotions.read", "promotions.create", "promotions.edit", "promotions.delete",
+  "landing"
 ]);
 
 router.put("/staff/:id/permissions", auth, checkRole("admin"), async (req, res) => {

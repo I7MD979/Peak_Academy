@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { auth } from "../middleware/auth.js";
-import { checkRole } from "../middleware/checkRole.js";
+import { requirePermission } from "../middleware/requirePermission.js";
 import { supabase } from "../lib/supabase.js";
 import { paginate, paginationMeta } from "../utils/paginate.js";
 import { success, error, paginated } from "../utils/response.js";
@@ -79,9 +79,7 @@ const promoUpdateSchema = promoBaseSchema.partial().superRefine((data, ctx) => {
   }
 });
 
-router.use(auth, checkRole("admin"));
-
-router.get("/promotions/stats", async (_req, res) => {
+router.get("/promotions/stats", auth, requirePermission("promotions.read"), async (_req, res) => {
   try {
     const nowIso = new Date().toISOString();
 
@@ -123,7 +121,7 @@ router.get("/promotions/stats", async (_req, res) => {
   }
 });
 
-router.get("/promotions", async (req, res) => {
+router.get("/promotions", auth, requirePermission("promotions.read"), async (req, res) => {
   try {
     const page = Math.max(Number(req.query.page) || 1, 1);
     const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
@@ -162,7 +160,7 @@ router.get("/promotions", async (req, res) => {
   }
 });
 
-router.post("/promotions", async (req, res) => {
+router.post("/promotions", auth, requirePermission("promotions.create"), async (req, res) => {
   try {
     const parsed = promoSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -199,7 +197,7 @@ router.post("/promotions", async (req, res) => {
   }
 });
 
-router.get("/promotions/:id/uses", async (req, res) => {
+router.get("/promotions/:id/uses", auth, requirePermission("promotions.read"), async (req, res) => {
   try {
     const promoId = req.params.id;
     if (!UUID_RE.test(promoId)) {
@@ -229,7 +227,7 @@ router.get("/promotions/:id/uses", async (req, res) => {
   }
 });
 
-router.put("/promotions/:id", async (req, res) => {
+router.put("/promotions/:id", auth, requirePermission("promotions.edit"), async (req, res) => {
   try {
     const promoId = req.params.id;
     if (!UUID_RE.test(promoId)) {
@@ -269,7 +267,7 @@ router.put("/promotions/:id", async (req, res) => {
   }
 });
 
-router.delete("/promotions/:id", async (req, res) => {
+router.delete("/promotions/:id", auth, requirePermission("promotions.delete"), async (req, res) => {
   try {
     const promoId = req.params.id;
     if (!UUID_RE.test(promoId)) {
@@ -292,7 +290,7 @@ router.delete("/promotions/:id", async (req, res) => {
   }
 });
 
-router.post("/early-bird/activate", async (req, res) => {
+router.post("/early-bird/activate", auth, requirePermission("promotions.create"), async (req, res) => {
   try {
     const discountPercent = Number(req.body?.discount_percent ?? 15);
     const hours = Number(req.body?.hours ?? 48);
