@@ -1,5 +1,5 @@
 import { withSentryConfig } from "@sentry/nextjs";
-import { baseHeadersForPath } from "./lib/security-headers.js";
+import { baseHeadersForPath, buildStaticAssetCsp } from "./lib/security-headers.js";
 
 const API_UPSTREAM =
   process.env.API_UPSTREAM_URL?.replace(/\/$/, "") ||
@@ -10,7 +10,16 @@ const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   async headers() {
+    const staticAssetHeaders = [
+      { key: "Content-Security-Policy", value: buildStaticAssetCsp() },
+      ...baseHeadersForPath("/")
+    ];
+
     return [
+      {
+        source: "/_next/:path*",
+        headers: staticAssetHeaders
+      },
       {
         source: "/:path*",
         headers: baseHeadersForPath("/")

@@ -13,11 +13,7 @@ import LandingScrollEffects from "@/components/landing/LandingScrollEffects";
 
 export default function LandingPage({ heroPromo, platformStats, stats, plans, promoCodes }) {
   return (
-    <main
-      dir="rtl"
-      className="landing-page overflow-x-hidden font-cairo"
-      style={{ fontFamily: "Cairo, sans-serif" }}
-    >
+    <main dir="rtl" className="landing-page overflow-x-hidden font-cairo">
       <LandingScrollEffects />
       <LandingHeader />
       <LandingHero heroPromo={heroPromo} platformStats={platformStats} />

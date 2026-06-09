@@ -79,6 +79,10 @@ export function buildContentSecurityPolicy(nonce) {
     imgSrc.push(supabase);
   }
 
+  const styleSrc = isProd
+    ? ["'self'", `'nonce-${nonce}'`]
+    : ["'self'", `'nonce-${nonce}'`, "'unsafe-inline'"];
+
   const directives = [
     "default-src 'self'",
     "base-uri 'self'",
@@ -86,7 +90,7 @@ export function buildContentSecurityPolicy(nonce) {
     "frame-ancestors 'none'",
     "object-src 'none'",
     `script-src ${scriptSrc.join(" ")}`,
-    "style-src 'self' 'unsafe-inline'",
+    `style-src ${styleSrc.join(" ")}`,
     "font-src 'self' data:",
     `img-src ${imgSrc.join(" ")}`,
     `connect-src ${connectSrc.join(" ")}`,
@@ -119,15 +123,26 @@ function cacheHeadersForPath(pathname = "/") {
     pathname === "/onboarding" ||
     pathname.startsWith("/onboarding/");
 
-  if (!isAuth) return [];
+  if (isAuth) {
+    return [
+      {
+        key: "Cache-Control",
+        value: "private, no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
+      },
+      { key: "Pragma", value: "no-cache" }
+    ];
+  }
 
-  return [
-    {
-      key: "Cache-Control",
-      value: "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
-    },
-    { key: "Pragma", value: "no-cache" }
-  ];
+  if (pathname === "/") {
+    return [
+      {
+        key: "Cache-Control",
+        value: "private, no-cache, must-revalidate, max-age=0"
+      }
+    ];
+  }
+
+  return [];
 }
 
 /** Headers for next.config (no per-request nonce). CSP is applied in proxy. */
@@ -142,19 +157,30 @@ export function headersForPath(pathname = "/") {
 
 export const CSRF_COOKIE_NAME = "csrf_token";
 
-export function ensureCsrfCookie(request, response) {
-  const existing = request.cookies.get(CSRF_COOKIE_NAME)?.value;
-  if (existing) return existing;
+function generateCsrfToken() {
+  return crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "");
+}
 
-  const token = crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "");
-  response.cookies.set(CSRF_COOKIE_NAME, token, {
+export function shouldIssueCsrfCookie(pathname = "/") {
+  return pathname.startsWith("/auth/") || pathname === "/onboarding" || pathname.startsWith("/onboarding/");
+}
+
+export function issueCsrfCookie(response, request, pathname, csrfToken) {
+  if (!shouldIssueCsrfCookie(pathname)) return;
+  if (request.cookies.get(CSRF_COOKIE_NAME)?.value) return;
+
+  response.cookies.set(CSRF_COOKIE_NAME, csrfToken, {
     path: "/",
     sameSite: "strict",
     secure: process.env.NODE_ENV === "production",
-    httpOnly: false,
+    httpOnly: true,
     maxAge: 60 * 60 * 8
   });
-  return token;
+}
+
+/** Minimal CSP for static/binary responses (satisfies scanners on asset URLs). */
+export function buildStaticAssetCsp() {
+  return "default-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'";
 }
 
 /** Apply security headers onto a NextResponse (proxy). */
@@ -175,7 +201,11 @@ export function createRequestSecurityContext(request) {
   const nonce = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))));
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
-  return { nonce, requestHeaders };
+
+  const csrfToken = request.cookies.get(CSRF_COOKIE_NAME)?.value || generateCsrfToken();
+  requestHeaders.set("x-csrf-token", csrfToken);
+
+  return { nonce, requestHeaders, csrfToken };
 }
 
 export const SENSITIVE_QUERY_KEYS = new Set([

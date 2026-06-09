@@ -9,7 +9,7 @@ import {
 import {
   applySecurityHeaders,
   createRequestSecurityContext,
-  ensureCsrfCookie,
+  issueCsrfCookie,
   SENSITIVE_QUERY_KEYS
 } from "./lib/security-headers.js";
 
@@ -56,8 +56,17 @@ function roleAllowedForPath(userRole, requiredRole) {
   return userRole === requiredRole;
 }
 
+function isMalformedAssetPath(pathname) {
+  const lower = pathname.toLowerCase();
+  return (
+    lower.includes("%2f") ||
+    (lower.includes("&w=") && !lower.startsWith("/_next/image")) ||
+    (lower.includes("&q=") && !lower.startsWith("/_next/image"))
+  );
+}
+
 function finalizeResponse(response, request, pathname, ctx) {
-  ensureCsrfCookie(request, response);
+  issueCsrfCookie(response, request, pathname, ctx.csrfToken);
   return applySecurityHeaders(response, pathname, ctx.nonce);
 }
 
@@ -85,6 +94,10 @@ function stripSensitiveQueryParams(request) {
 export async function proxy(request) {
   const { pathname } = request.nextUrl;
   const ctx = createRequestSecurityContext(request);
+
+  if (isMalformedAssetPath(pathname)) {
+    return finalizeResponse(new NextResponse(null, { status: 404 }), request, pathname, ctx);
+  }
 
   const sensitiveRedirect = stripSensitiveQueryParams(request);
   if (sensitiveRedirect) {
