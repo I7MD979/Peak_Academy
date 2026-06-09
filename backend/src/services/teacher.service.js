@@ -41,56 +41,108 @@ export async function getTeacherProfile(userId, res, errorFn) {
 }
 
 export async function getTeacherBalance(teacherId) {
-  const [{ data: earnings }, { data: withdrawals }] = await Promise.all([
-    supabase.from("teacher_earnings").select("teacher_amount, status, created_at").eq("teacher_id", teacherId),
+  const now   = new Date();
+  const month = now.toISOString().slice(0, 7);
+
+  const [
+    { data: earnings },
+    { data: withdrawals },
+    { data: currentPayout },
+    { data: roomEarnings },
+  ] = await Promise.all([
+    supabase
+      .from("teacher_earnings")
+      .select("teacher_amount, status, created_at")
+      .eq("teacher_id", teacherId),
+
     supabase
       .from("withdrawal_requests")
       .select("amount, status, requested_at")
+      .eq("teacher_id", teacherId),
+
+    supabase
+      .from("monthly_payouts")
+      .select("total_amount, status, payout_month, session_teacher_cut, room_commission")
       .eq("teacher_id", teacherId)
+      .eq("payout_month", month)
+      .maybeSingle(),
+
+    supabase
+      .from("room_commission_earnings")
+      .select("commission_amount, status, period_month")
+      .eq("teacher_id", teacherId)
+      .eq("status", "pending"),
   ]);
 
-  const earningRows = earnings || [];
+  const earningRows    = earnings    || [];
   const withdrawalRows = withdrawals || [];
+  const roomRows       = roomEarnings || [];
 
-  const totalEarnings = earningRows.reduce((sum, row) => sum + Number(row.teacher_amount || 0), 0);
-  const pendingEarnings = earningRows
-    .filter((row) => row.status === "pending")
-    .reduce((sum, row) => sum + Number(row.teacher_amount || 0), 0);
-  const paidEarnings = earningRows
-    .filter((row) => row.status === "paid")
-    .reduce((sum, row) => sum + Number(row.teacher_amount || 0), 0);
+  const sessionPending = earningRows
+    .filter((r) => r.status === "pending")
+    .reduce((s, r) => s + Number(r.teacher_amount || 0), 0);
+
+  const sessionPaid = earningRows
+    .filter((r) => r.status === "paid")
+    .reduce((s, r) => s + Number(r.teacher_amount || 0), 0);
+
+  const roomPending = roomRows
+    .reduce((s, r) => s + Number(r.commission_amount || 0), 0);
+
+  const totalPending = round2(sessionPending + roomPending);
 
   const lockedInWithdrawals = withdrawalRows
-    .filter((row) => row.status === "pending" || row.status === "approved")
-    .reduce((sum, row) => sum + Number(row.amount || 0), 0);
+    .filter((r) => r.status === "pending" || r.status === "approved")
+    .reduce((s, r) => s + Number(r.amount || 0), 0);
 
   const withdrawnTotal = withdrawalRows
-    .filter((row) => row.status === "paid")
-    .reduce((sum, row) => sum + Number(row.amount || 0), 0);
+    .filter((r) => r.status === "paid")
+    .reduce((s, r) => s + Number(r.amount || 0), 0);
 
-  const availableBalance = Math.max(0, pendingEarnings - lockedInWithdrawals);
+  const availableBalance = Math.max(0, round2(totalPending - lockedInWithdrawals));
 
-  const monthStart = new Date();
-  monthStart.setDate(1);
-  monthStart.setHours(0, 0, 0, 0);
+  const today        = now.getDate();
+  const isWindowOpen = today === 26 || today === 27;
+  const payoutDay    = 27;
 
-  const thisMonthEarnings = earningRows
-    .filter((row) => new Date(row.created_at).getTime() >= monthStart.getTime())
-    .reduce((sum, row) => sum + Number(row.teacher_amount || 0), 0);
+  const daysUntilPayout = today <= payoutDay
+    ? payoutDay - today
+    : (new Date(now.getFullYear(), now.getMonth() + 1, payoutDay) - now) / (1000 * 60 * 60 * 24);
 
-  const pendingWithdrawalCount = withdrawalRows.filter((row) => row.status === "pending").length;
+  const pendingWithdrawalCount = withdrawalRows.filter((r) => r.status === "pending").length;
 
   return {
-    total_earnings: totalEarnings,
-    pending_earnings: pendingEarnings,
-    paid_earnings: paidEarnings,
+    total_earnings:    round2(sessionPaid + sessionPending + roomPending + withdrawnTotal),
+    total_pending:     totalPending,
+    session_pending:   round2(sessionPending),
+    room_pending:      round2(roomPending),
     available_balance: availableBalance,
-    locked_in_withdrawals: lockedInWithdrawals,
-    withdrawn_total: withdrawnTotal,
-    this_month_earnings: thisMonthEarnings,
+    withdrawn_total:   round2(withdrawnTotal),
+    locked_in_withdrawals: round2(lockedInWithdrawals),
+
+    this_month_payout: currentPayout
+      ? {
+          total:        Number(currentPayout.total_amount),
+          sessions:     Number(currentPayout.session_teacher_cut),
+          rooms:        Number(currentPayout.room_commission),
+          status:       currentPayout.status,
+          can_withdraw: currentPayout.status === "window_open",
+        }
+      : null,
+
+    payout_day:               payoutDay,
+    days_until_payout:        Math.max(0, Math.ceil(daysUntilPayout)),
+    is_window_open:           isWindowOpen,
     pending_withdrawal_count: pendingWithdrawalCount,
-    earnings_count: earningRows.length
+
+    // legacy fields for backwards compat
+    this_month_earnings:      round2(sessionPending),
+    earnings_count:           earningRows.length,
   };
+}
+
+function round2(n) {
+  return Math.round(Number(n) * 100) / 100;
 }
 
 export async function countTeacherSessions(userId, status) {

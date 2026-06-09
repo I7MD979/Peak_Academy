@@ -50,7 +50,7 @@ export default function TeacherSessionsTable({
     {
       key: "price",
       label: "السعر",
-      render: (row) => <span className="font-bold text-peak-orange">{formatCurrencyEgp(row.price_per_student)}</span>
+      render: (row) => <span className="font-bold text-peak-orange">{formatCurrencyEgp(row.price_per_student ?? 80)}</span>
     },
     {
       key: "status",

@@ -7,6 +7,10 @@ import { success, error, paginated } from "../utils/response.js";
 import { ensureUserProfile } from "../utils/ensure-user-profile.js";
 import { getTeacherBalance, getTeacherProfile } from "../services/teacher.service.js";
 import { getTeacherRoomEarningsSummary } from "../services/roomAttribution.service.js";
+import {
+  isWithinPayoutWindow,
+  getCurrentPayoutMonth,
+} from "../services/platformConfig.service.js";
 
 const router = Router();
 const MIN_WITHDRAWAL = 50;
@@ -179,6 +183,16 @@ router.post("/withdraw", auth, checkRole("teacher"), async (req, res) => {
       return error(res, "رقم الحساب يجب أن يحتوي على أرقام فقط", 400);
     }
 
+    if (!isWithinPayoutWindow()) {
+      const today    = new Date().getDate();
+      const daysLeft = today < 26 ? 26 - today : 30 - today + 26;
+      return error(
+        res,
+        `نافذة السحب مغلقة. يمكنك طلب السحب في يوم 26 و 27 من كل شهر. متبقي ${daysLeft} يوم`,
+        403
+      );
+    }
+
     const balance = await getTeacherBalance(teacher.id);
 
     if (amount > balance.available_balance) {
@@ -188,13 +202,14 @@ router.post("/withdraw", auth, checkRole("teacher"), async (req, res) => {
     const { data: withdrawal, error: dbError } = await supabase
       .from("withdrawal_requests")
       .insert({
-        id: `wd-${Date.now()}`,
-        teacher_id: teacher.id,
-        amount: Math.round(amount * 100) / 100,
+        teacher_id:     teacher.id,
+        amount:         Math.round(amount * 100) / 100,
         method,
         account_number: accountNumber,
         notes,
-        status: "pending"
+        status:         "pending",
+        payout_month:   getCurrentPayoutMonth(),
+        payout_day:     27,
       })
       .select()
       .single();

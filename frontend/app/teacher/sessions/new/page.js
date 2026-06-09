@@ -30,7 +30,6 @@ const initialForm = {
   school_level: "secondary",
   grade: "sec_third",
   duration_min: 60,
-  price: "",
   max_students: 10,
   scheduled_at: "",
   description: ""
@@ -52,13 +51,6 @@ function validateSessionForm(values, subjectMode, customSubject) {
   else if (title.length < 3) errors.title = "العنوان قصير جداً (3 أحرف على الأقل)";
 
   if (!subject) errors.subject = "اختر المادة أو اكتب اسمها";
-
-  const price = Number(values.price);
-  if (!Number.isFinite(price) || price <= 0) {
-    errors.price = "السعر يجب أن يكون رقماً أكبر من صفر";
-  } else if (price > 100000) {
-    errors.price = "السعر كبير جداً";
-  }
 
   const maxStudents = Number(values.max_students);
   if (!Number.isInteger(maxStudents) || maxStudents < 2 || maxStudents > 100) {
@@ -137,14 +129,13 @@ export default function NewSessionPage() {
     try {
       setLoading(true);
       const res = await sessionsApi.create({
-        title: form.title.trim(),
+        title:        form.title.trim(),
         subject,
-        price_per_student: Number(form.price),
         max_students: Number(form.max_students),
         school_level: form.school_level,
-        grade: form.grade,
+        grade:        form.grade,
         duration_min: Number(form.duration_min),
-        description: form.description.trim() || null,
+        description:  form.description.trim() || null,
         scheduled_at: new Date(form.scheduled_at).toISOString()
       });
 

@@ -1,6 +1,13 @@
 import { resetMonthlySubscriptions } from "../jobs/subscriptionReset.js";
 import { expireTrials } from "./trialService.js";
-import { runMonthlyCommissionsJob } from "../jobs/monthlyCommissions.job.js";
+import {
+  calculateMonthlyPayouts,
+  openPayoutWindow,
+} from "../jobs/monthlyPayout.job.js";
+import {
+  isPayoutCalcDay,
+  getCurrentPayoutMonth,
+} from "../services/platformConfig.service.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -27,12 +34,34 @@ export function startSubscriptionResetScheduler() {
       console.error("trial expiry tick failed", err.message);
     }
 
-    // Run monthly commission calculation on the 1st of each month
+    // Day 25: calculate monthly payouts (sessions + rooms)
+    if (isPayoutCalcDay()) {
+      try {
+        const result = await calculateMonthlyPayouts(getCurrentPayoutMonth());
+        console.log(`[scheduler] payout calculation: ${result.processed} teachers`);
+      } catch (err) {
+        console.error("[scheduler] payout calculation failed:", err.message);
+      }
+    }
+
+    // Day 26: open withdrawal window
+    if (new Date().getDate() === 26) {
+      try {
+        const result = await openPayoutWindow(getCurrentPayoutMonth());
+        console.log(`[scheduler] withdrawal window opened for ${result.opened} teachers`);
+      } catch (err) {
+        console.error("[scheduler] open window failed:", err.message);
+      }
+    }
+
+    // Day 1: calculate room commissions for the previous month
     if (new Date().getDate() === 1) {
       try {
-        await runMonthlyCommissionsJob(); // uses previous month by default
+        const { runMonthlyCommissionsJob } = await import("../jobs/monthlyCommissions.job.js");
+        await runMonthlyCommissionsJob();
+        console.log("[scheduler] room commissions calculated");
       } catch (err) {
-        console.error("monthly commissions tick failed", err.message);
+        console.error("[scheduler] room commissions failed:", err.message);
       }
     }
   };

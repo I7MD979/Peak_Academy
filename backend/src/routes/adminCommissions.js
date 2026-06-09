@@ -4,6 +4,13 @@ import { checkRole } from "../middleware/checkRole.js";
 import { supabase } from "../lib/supabase.js";
 import { success, error } from "../utils/response.js";
 import { calculateMonthlyCommissions } from "../services/roomAttribution.service.js";
+import {
+  getPayoutList,
+  markPayoutPaid,
+  calculateMonthlyPayouts,
+  openPayoutWindow,
+} from "../jobs/monthlyPayout.job.js";
+import { getCurrentPayoutMonth } from "../services/platformConfig.service.js";
 
 const router = Router();
 
@@ -68,6 +75,66 @@ router.post("/commissions/calculate", auth, checkRole("admin"), async (req, res)
     return success(res, result, `تم حساب عمولات ${month}`);
   } catch (_err) {
     return error(res, "تعذر حساب العمولات", 500);
+  }
+});
+
+// ── Monthly Payout Routes ─────────────────────────────────────────────────────
+
+// GET /api/admin/payouts?month=2026-06
+router.get("/payouts", auth, checkRole("admin"), async (req, res) => {
+  const month = String(req.query.month || getCurrentPayoutMonth());
+  try {
+    const list = await getPayoutList(month);
+
+    const totalToPay   = list.reduce((s, r) => s + Number(r.total_amount), 0);
+    const sessionTotal = list.reduce((s, r) => s + Number(r.session_teacher_cut || 0), 0);
+    const roomTotal    = list.reduce((s, r) => s + Number(r.room_commission || 0), 0);
+
+    return success(res, {
+      month,
+      summary: {
+        teacher_count: list.length,
+        total_to_pay:  Math.round(totalToPay * 100) / 100,
+        session_total: Math.round(sessionTotal * 100) / 100,
+        room_total:    Math.round(roomTotal * 100) / 100,
+      },
+      payouts: list,
+    });
+  } catch (err) {
+    return error(res, err.message || "تعذر تحميل قائمة المدفوعات", 500);
+  }
+});
+
+// POST /api/admin/payouts/calculate
+router.post("/payouts/calculate", auth, checkRole("admin"), async (req, res) => {
+  const month = String(req.body.month || getCurrentPayoutMonth());
+  try {
+    const result = await calculateMonthlyPayouts(month);
+    return success(res, result, `تم حساب ${result.processed} مدرس`);
+  } catch (err) {
+    return error(res, err.message || "تعذر الحساب", 500);
+  }
+});
+
+// POST /api/admin/payouts/open-window
+router.post("/payouts/open-window", auth, checkRole("admin"), async (req, res) => {
+  const month = String(req.body.month || getCurrentPayoutMonth());
+  try {
+    const result = await openPayoutWindow(month);
+    return success(res, result, `تم فتح النافذة لـ ${result.opened} مدرس`);
+  } catch (err) {
+    return error(res, err.message || "تعذر فتح النافذة", 500);
+  }
+});
+
+// POST /api/admin/payouts/:teacherId/pay
+router.post("/payouts/:teacherId/pay", auth, checkRole("admin"), async (req, res) => {
+  const month = String(req.body.month || getCurrentPayoutMonth());
+  try {
+    await markPayoutPaid(req.params.teacherId, month);
+    return success(res, {}, "تم تسجيل الدفع بنجاح");
+  } catch (err) {
+    return error(res, err.message || "تعذر تسجيل الدفع", 500);
   }
 });
 

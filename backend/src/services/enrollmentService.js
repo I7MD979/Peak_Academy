@@ -2,7 +2,8 @@ import { supabase } from "../lib/supabase.js";
 import { enqueueJob } from "../lib/queue.js";
 import { validatePromoCode, applyPromoToPrice, recordPromoUse } from "../utils/promoValidator.js";
 import { createPaymobOrder } from "./paymob.service.js";
-import { isSchemaV2, sessionPrice, mapCheckoutResponse } from "../lib/schema.js";
+import { isSchemaV2, mapCheckoutResponse } from "../lib/schema.js";
+import { getSessionPrice as getPlatformSessionPrice } from "./platformConfig.service.js";
 import {
   fetchSessionForEnroll,
   findEnrollmentByStudentAndSession,
@@ -200,7 +201,7 @@ export async function confirmEnrollment({
 }
 
 export async function computeSessionCheckout(session, { promoCode, userId, paymentType }) {
-  const originalPrice = sessionPrice(session);
+  const originalPrice = await getPlatformSessionPrice();
   let discountAmount = 0;
   let finalPrice = originalPrice;
   let promotionId = null;
@@ -290,7 +291,7 @@ export async function getEnrollmentOptionsForSession(userId, session) {
     : true;
   const subscription = await getActiveSubscription(userId);
   const seatsLeft = session.seats_left ?? Math.max(0, (session.max_students || 0) - (session.enrolled_count || 0));
-  const price = sessionPrice(session);
+  const price = await getPlatformSessionPrice();
 
   return {
     free_trial_available: Boolean(subjectId) && !trialUsed && price > 0,

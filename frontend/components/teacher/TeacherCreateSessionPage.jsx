@@ -163,18 +163,17 @@ export default function TeacherCreateSessionPage({
                 <FieldError message={fieldErrors.duration_min} />
               </div>
 
-              <div className="space-y-2">
-                <FieldLabel required>السعر للطالب (جنيه)</FieldLabel>
-                <input
-                  type="number"
-                  min={1}
-                  step={1}
-                  value={form.price}
-                  onChange={onFieldChange("price")}
-                  placeholder="0"
-                  className={cn(teacherInput, fieldErrors.price && "border-danger focus:border-danger focus:ring-danger/30")}
-                />
-                <FieldError message={fieldErrors.price} />
+              <div className="rounded-xl border border-auth-outline-variant/30 bg-auth-surface-variant/20 px-4 py-3">
+                <p className="text-xs font-bold text-auth-on-surface-variant mb-1">سعر الجلسة</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-lg font-black text-auth-on-surface">80 جنيه / طالب</p>
+                  <span className="rounded-full bg-peak-orange/20 px-3 py-1 text-xs font-bold text-peak-orange">
+                    سعر ثابت من المنصة
+                  </span>
+                </div>
+                <p className="text-xs text-auth-on-surface-variant mt-1">
+                  نصيبك: 56 جنيه · عمولة المنصة: 24 جنيه
+                </p>
               </div>
 
               <div className="space-y-2">
@@ -287,10 +286,11 @@ export default function TeacherCreateSessionPage({
                 <div className="flex items-end justify-between">
                   <div>
                     <p className="text-xs text-auth-on-surface-variant">سعر الجلسة للطالب</p>
-                    <p className="text-xl font-black text-peak-orange">
-                      {form.price ? formatCurrencyEgp(Number(form.price)) : formatCurrencyEgp(0)}
-                    </p>
+                    <p className="text-xl font-black text-peak-orange">80 جنيه</p>
                   </div>
+                  <span className="rounded-full bg-peak-orange/20 px-2 py-0.5 text-xs font-bold text-peak-orange">
+                    ثابت
+                  </span>
                 </div>
               </div>
             </div>
@@ -301,10 +301,6 @@ export default function TeacherCreateSessionPage({
                 <li className="flex gap-2">
                   <span className="text-success">✓</span>
                   استخدم عنواناً واضحاً يوضح موضوع الحصة
-                </li>
-                <li className="flex gap-2">
-                  <span className="text-success">✓</span>
-                  حدّد سعراً مناسباً لمرحلتك الدراسية
                 </li>
                 <li className="flex gap-2">
                   <span className="text-success">✓</span>

@@ -61,7 +61,7 @@ export default function TeacherSessionCard({
         </div>
         <div>
           <dt className="text-xs text-auth-on-surface-variant">السعر</dt>
-          <dd className="font-bold text-peak-orange">{formatCurrencyEgp(session.price_per_student)}</dd>
+          <dd className="font-bold text-peak-orange">{formatCurrencyEgp(session.price_per_student ?? 80)}</dd>
         </div>
         <div>
           <dt className="text-xs text-auth-on-surface-variant">الصف</dt>

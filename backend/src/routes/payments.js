@@ -22,6 +22,7 @@ import {
 import { resolveTransactionFulfillment } from "../utils/transaction-status.js";
 import { validatePromoCode, calculateDiscount } from "../utils/promoValidator.js";
 import { getSessionForEnroll, computeSessionCheckout } from "../services/enrollmentService.js";
+import { getSessionPrice } from "../services/platformConfig.service.js";
 import { ownedBy } from "../middleware/ownership.js";
 import { allowSchema } from "../middleware/allowlist.js";
 import { paymentLimiter } from "../middleware/resourceLimits.js";
@@ -179,7 +180,7 @@ router.post("/validate-promo", auth, async (req, res) => {
       originalPrice = Number(plan?.price || 0);
     } else if (session_id) {
       const session = await getSessionForEnroll(session_id);
-      originalPrice = Number(session?.price_per_student || 0);
+      originalPrice = await getSessionPrice();
     }
 
     const validation = await validatePromoCode(code, req.user.id, payment_type);

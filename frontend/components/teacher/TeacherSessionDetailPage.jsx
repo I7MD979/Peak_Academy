@@ -103,7 +103,7 @@ export default function TeacherSessionDetailPage({
         </DetailCell>
         <DetailCell label="السعر">
           <span className="text-peak-orange">
-            {formatCurrencyEgp(session.price_per_student ?? session.price)}
+            {formatCurrencyEgp(session.price_per_student ?? session.price ?? 80)}
           </span>
         </DetailCell>
       </section>

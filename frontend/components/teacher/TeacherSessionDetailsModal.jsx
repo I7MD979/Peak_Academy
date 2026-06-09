@@ -52,7 +52,7 @@ export default function TeacherSessionDetailsModal({ session, onClose }) {
           </div>
           <div className="flex justify-between gap-3">
             <span className={teacherMuted}>السعر للطالب</span>
-            <span className="font-bold text-peak-orange">{formatCurrencyEgp(session.price_per_student)}</span>
+            <span className="font-bold text-peak-orange">{formatCurrencyEgp(session.price_per_student ?? 80)}</span>
           </div>
           {session.description ? (
             <div className="rounded-xl border border-auth-outline-variant/30 bg-auth-surface-low p-3">

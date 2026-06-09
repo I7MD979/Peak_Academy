@@ -61,6 +61,7 @@ import {
 import { mapCheckoutResponse } from "../lib/schema.js";
 import { cancelStudentEnrollment } from "../services/refundService.js";
 import { refundAllSessionEnrollments } from "../services/refundService.js";
+import { getSessionPrice } from "../services/platformConfig.service.js";
 
 const SESSION_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -88,7 +89,6 @@ const createSessionSchema = z.object({
   scheduled_at: z.string().min(1, "موعد الجلسة مطلوب"),
   duration_min: z.coerce.number().int().min(15).max(240).optional(),
   max_students: z.coerce.number().int().min(2, "الحد الأدنى طالبان").max(100).optional(),
-  price_per_student: z.coerce.number().positive("السعر يجب أن يكون أكبر من صفر"),
   description: z.string().max(2000).optional().nullable(),
   subject_id: z.string().uuid().optional().nullable()
 });
@@ -535,7 +535,7 @@ router.post("/", auth, checkRole("teacher"), allowSchema("sessionCreate"), async
       scheduled_at: scheduledAt.toISOString(),
       duration_min: clampSessionDuration(body.duration_min),
       max_students: maxStudents,
-      price_per_student: body.price_per_student,
+      price_per_student: await getSessionPrice(),
       subject_id: body.subject_id || null,
       description: body.description || null,
       daily_room_url: null,
@@ -545,7 +545,7 @@ router.post("/", auth, checkRole("teacher"), allowSchema("sessionCreate"), async
     };
     if (isSchemaV2()) {
       insertPayload.start_time = scheduledAt.toISOString();
-      insertPayload.price = body.price_per_student;
+      insertPayload.price = await getSessionPrice();
       insertPayload.duration_minutes = clampSessionDuration(body.duration_min);
     }
 
