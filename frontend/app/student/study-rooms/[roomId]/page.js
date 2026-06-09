@@ -21,19 +21,10 @@ const CHANNEL_LABELS = { general: "الدردشة العامة", qa: "الأسئ
 
 function roleLabel(role) {
   switch (role) {
-    case "owner":    return "صاحب الغرفة";
-    case "ta":       return "مساعد";
-    case "moderator":return "مشرف";
-    default:         return "طالب";
-  }
-}
-
-function roleBadgeColor(role) {
-  switch (role) {
-    case "owner":    return "bg-amber-500/20 text-amber-400";
-    case "ta":       return "bg-blue-500/20 text-blue-400";
-    case "moderator":return "bg-purple-500/20 text-purple-400";
-    default:         return "bg-auth-surface-variant/40 text-auth-on-surface-variant";
+    case "owner":     return "صاحب الغرفة";
+    case "ta":        return "مساعد";
+    case "moderator": return "مشرف";
+    default:          return "طالب";
   }
 }
 
@@ -54,21 +45,18 @@ function MessageBubble({ msg, myId, myRole, onResolve }) {
       </div>
 
       <div className={cn("max-w-[75%] flex flex-col gap-1", isMine ? "items-end" : "items-start")}>
-        {/* Name + role */}
         {!isMine && (
           <span className="text-[11px] font-bold text-auth-on-surface-variant">
             {msg.sender?.full_name || "مجهول"}
           </span>
         )}
 
-        {/* Reply context */}
         {msg.reply_message && (
           <div className="w-full rounded bg-auth-surface-variant/30 border-r-2 border-auth-primary/60 px-3 py-1 text-xs text-auth-on-surface-variant line-clamp-2">
             {msg.reply_message.sender?.full_name}: {msg.reply_message.content}
           </div>
         )}
 
-        {/* Content */}
         <div
           className={cn(
             "rounded-2xl px-4 py-2.5 text-sm leading-relaxed",
@@ -87,19 +75,31 @@ function MessageBubble({ msg, myId, myRole, onResolve }) {
           {msg.type === "official_reply" && (
             <span className="mb-1 block text-[10px] font-black text-amber-400">رد رسمي</span>
           )}
-          {msg.content}
+          {msg.type === "voice_note" ? (
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold opacity-70">🎙️ رسالة صوتية</span>
+            </div>
+          ) : (
+            msg.content
+          )}
           {msg.is_resolved && (
             <span className="mr-2 text-[10px] font-bold text-success">✓ مُغلق</span>
           )}
+
+          {/* Voice note player */}
+          {msg.voice_url && (
+            <audio
+              controls
+              src={msg.voice_url}
+              className="mt-2 w-full max-w-[260px]"
+              style={{ height: "36px" }}
+            />
+          )}
         </div>
 
-        {/* Actions */}
         <div className="flex items-center gap-2">
           <span className="text-[10px] text-auth-on-surface-variant">
-            {new Date(msg.created_at).toLocaleTimeString("ar-EG", {
-              hour:   "2-digit",
-              minute: "2-digit"
-            })}
+            {new Date(msg.created_at).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" })}
           </span>
           {canResolve && (
             <button
@@ -132,7 +132,7 @@ function VoiceSessionBar({ session, myRole, onJoin, onEnd, onRaiseHand, joining,
       </div>
 
       <div className="flex items-center gap-2">
-        {(myRole === "student") && (
+        {myRole === "student" && (
           <button
             type="button"
             onClick={onRaiseHand}
@@ -141,7 +141,6 @@ function VoiceSessionBar({ session, myRole, onJoin, onEnd, onRaiseHand, joining,
             ✋ رفع يد
           </button>
         )}
-
         <button
           type="button"
           onClick={onJoin}
@@ -150,7 +149,6 @@ function VoiceSessionBar({ session, myRole, onJoin, onEnd, onRaiseHand, joining,
         >
           {joining ? "جاري الانضمام…" : "انضمام للصوت"}
         </button>
-
         {(myRole === "owner" || myRole === "moderator") && (
           <button
             type="button"
@@ -166,32 +164,70 @@ function VoiceSessionBar({ session, myRole, onJoin, onEnd, onRaiseHand, joining,
   );
 }
 
+// ── Raise Hand Queue (owner/ta only) ──────────────────────────────────────────
+
+function RaiseHandQueue({ queue, onGrant }) {
+  const waiting = queue.filter((r) => r.status === "waiting");
+  if (waiting.length === 0) return null;
+
+  return (
+    <div className="mx-4 mt-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 md:mx-6">
+      <p className="mb-2 text-xs font-black text-amber-400">✋ طلبات الكلام ({waiting.length})</p>
+      <div className="flex flex-col gap-2">
+        {waiting.map((req) => (
+          <div key={req.id} className="flex items-center justify-between">
+            <span className="text-xs text-auth-on-surface">
+              {req.user?.full_name || req.user_id}
+            </span>
+            <button
+              type="button"
+              onClick={() => onGrant(req.user_id)}
+              className="rounded-lg bg-success/20 border border-success/30 px-3 py-1 text-xs font-bold text-success hover:bg-success/30 transition-colors"
+            >
+              منح الإذن
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function StudyRoomPage() {
   const { roomId } = useParams();
   const router     = useRouter();
 
-  const [channel, setChannel]   = useState("general");
-  const [myRole, setMyRole]     = useState("student");
-  const [myId, setMyId]         = useState(null);
-  const [roomInfo, setRoomInfo] = useState(null);
+  const [channel, setChannel]     = useState("general");
+  const [myRole, setMyRole]       = useState("student");
+  const [myId, setMyId]           = useState(null);
+  const [roomInfo, setRoomInfo]   = useState(null);
 
-  const [voiceSession, setVoiceSession] = useState(null);
+  const [voiceSession, setVoiceSession]   = useState(null);
   const [startingVoice, setStartingVoice] = useState(false);
   const [joiningVoice, setJoiningVoice]   = useState(false);
   const [endingVoice, setEndingVoice]     = useState(false);
 
-  const [input, setInput]         = useState("");
-  const [msgType, setMsgType]     = useState("text");
-  const [replyTo, setReplyTo]     = useState(null);
-  const [leaving, setLeaving]     = useState(false);
-  const messagesEndRef             = useRef(null);
+  // Raise hand queue
+  const [raiseHandQueue, setRaiseHandQueue] = useState([]);
+
+  // Voice note recording
+  const [recording, setRecording]   = useState(false);
+  const [uploading, setUploading]   = useState(false);
+  const mediaRecorderRef            = useRef(null);
+  const audioChunksRef              = useRef([]);
+
+  const [input, setInput]     = useState("");
+  const [msgType, setMsgType] = useState("text");
+  const [replyTo, setReplyTo] = useState(null);
+  const [leaving, setLeaving] = useState(false);
+  const messagesEndRef         = useRef(null);
 
   const { messages, loading, sending, error, hasMore, sendMessage, resolveQuestion, loadMore } =
     useRoomChat(roomId, channel);
 
-  // ── Load room info + my role ────────────────────────────────────────────────
+  // ── Load room info + my role + subscriptions ──────────────────────────────
   useEffect(() => {
     if (!roomId) return;
 
@@ -201,7 +237,7 @@ export default function StudyRoomPage() {
         if (!user) return;
         setMyId(user.id);
 
-        // Fetch member role
+        // Role
         supabase
           .from("study_room_members")
           .select("role")
@@ -210,10 +246,40 @@ export default function StudyRoomPage() {
           .is("left_at", null)
           .maybeSingle()
           .then(({ data }) => {
-            setMyRole(data?.role ?? "student");
+            const role = data?.role ?? "student";
+            setMyRole(role);
+
+            // Subscribe to raise_hand_queue for owner/ta
+            if (role === "owner" || role === "ta") {
+              const sub = supabase
+                .channel(`raise-hand-${roomId}`)
+                .on("postgres_changes", {
+                  event:  "*",
+                  schema: "public",
+                  table:  "raise_hand_queue"
+                }, (payload) => {
+                  if (payload.eventType === "INSERT") {
+                    setRaiseHandQueue((prev) => [...prev, payload.new]);
+                  } else if (payload.eventType === "UPDATE") {
+                    setRaiseHandQueue((prev) =>
+                      prev.map((r) => (r.id === payload.new.id ? payload.new : r))
+                    );
+                  }
+                })
+                .subscribe();
+
+              // Load initial queue
+              supabase
+                .from("raise_hand_queue")
+                .select("*, user:users(id, full_name)")
+                .eq("status", "waiting")
+                .then(({ data }) => setRaiseHandQueue(data || []));
+
+              return () => { supabase.removeChannel(sub); };
+            }
           });
 
-        // Fetch room info
+        // Room info
         supabase
           .from("study_rooms")
           .select("id, subject, grade, status")
@@ -227,7 +293,7 @@ export default function StudyRoomPage() {
             }
           });
 
-        // Fetch active voice session
+        // Active voice session
         supabase
           .from("study_room_voice_sessions")
           .select("*")
@@ -239,14 +305,66 @@ export default function StudyRoomPage() {
     });
   }, [roomId, router]);
 
-  // ── Auto-scroll to bottom ───────────────────────────────────────────────────
+  // ── Auto-scroll ───────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!loading) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
+    if (!loading) messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
-  // ── Handlers ────────────────────────────────────────────────────────────────
+  // ── Voice Note Recording ──────────────────────────────────────────────────
+
+  const handleStartRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      audioChunksRef.current = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+      recorder.start();
+      mediaRecorderRef.current = recorder;
+      setRecording(true);
+    } catch {
+      toast.error("تعذر الوصول للميكروفون");
+    }
+  };
+
+  const handleStopRecording = async () => {
+    const recorder = mediaRecorderRef.current;
+    if (!recorder) return;
+    setRecording(false);
+    setUploading(true);
+    try {
+      await new Promise((res) => {
+        recorder.onstop = res;
+        recorder.stop();
+        recorder.stream.getTracks().forEach((t) => t.stop());
+      });
+
+      const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+
+      const { createClient } = await import("@/lib/supabase/client");
+      const supabase = createClient();
+      const fileName = `voice-notes/${roomId}/${Date.now()}.webm`;
+      const { error: uploadErr } = await supabase.storage
+        .from("study-rooms")
+        .upload(fileName, blob, { contentType: "audio/webm" });
+
+      if (uploadErr) throw uploadErr;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("study-rooms")
+        .getPublicUrl(fileName);
+
+      await sendMessage({ type: "voice_note", voice_url: publicUrl, content: "🎙️" });
+      toast.success("تم إرسال الرسالة الصوتية");
+    } catch (err) {
+      toast.error(err.message || "تعذر رفع الصوت");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // ── Handlers ─────────────────────────────────────────────────────────────
 
   const handleSend = async (e) => {
     e?.preventDefault();
@@ -297,10 +415,9 @@ export default function StudyRoomPage() {
     setJoiningVoice(true);
     try {
       const res = await studyRoomsApi.joinVoiceSession(voiceSession.id);
-      // Open LiveKit in new tab or handle via LiveKit React SDK
-      window.open(
-        `/student/study-rooms/${roomId}/voice?token=${encodeURIComponent(res.data.token)}&url=${encodeURIComponent(res.data.livekit_url)}&room=${encodeURIComponent(res.data.livekit_room_id)}`,
-        "_blank"
+      const { token, livekit_url, livekit_room_id } = res.data;
+      router.push(
+        `/student/study-rooms/${roomId}/voice?token=${encodeURIComponent(token)}&url=${encodeURIComponent(livekit_url)}&room=${encodeURIComponent(livekit_room_id)}`
       );
     } catch (err) {
       toast.error(err.message || "تعذر الانضمام للجلسة");
@@ -333,7 +450,20 @@ export default function StudyRoomPage() {
     }
   };
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  const handleGrantSpeak = useCallback(async (userId) => {
+    if (!voiceSession) return;
+    try {
+      await studyRoomsApi.grantSpeak(voiceSession.id, userId);
+      toast.success("تم منح إذن الكلام");
+      setRaiseHandQueue((prev) =>
+        prev.map((r) => (r.user_id === userId ? { ...r, status: "granted" } : r))
+      );
+    } catch (err) {
+      toast.error(err.message || "تعذر منح الإذن");
+    }
+  }, [voiceSession]);
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className={cn(studentPage, "flex flex-col h-screen overflow-hidden")}>
@@ -351,14 +481,11 @@ export default function StudyRoomPage() {
             <h1 className="text-sm font-black text-auth-on-surface">
               {roomInfo ? `${roomInfo.subject} · ${roomInfo.grade}` : "غرفة المذاكرة"}
             </h1>
-            <p className="text-[11px] text-auth-on-surface-variant">
-              {roleLabel(myRole)}
-            </p>
+            <p className="text-[11px] text-auth-on-surface-variant">{roleLabel(myRole)}</p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Start voice session — owner only */}
           {myRole === "owner" && !voiceSession && (
             <button
               type="button"
@@ -370,22 +497,18 @@ export default function StudyRoomPage() {
               {startingVoice ? "جاري البدء…" : "بدء جلسة صوتية"}
             </button>
           )}
-
           <button
             type="button"
             onClick={handleLeave}
             disabled={leaving}
-            className={cn(
-              studentBtnSecondary,
-              "text-xs py-1.5 px-3 border-danger/40 text-danger hover:bg-danger/10"
-            )}
+            className={cn(studentBtnSecondary, "text-xs py-1.5 px-3 border-danger/40 text-danger hover:bg-danger/10")}
           >
             {leaving ? "مغادرة…" : "مغادرة"}
           </button>
         </div>
       </header>
 
-      {/* Voice session banner */}
+      {/* Voice session bar */}
       <div className="px-4 pt-3 md:px-6">
         <VoiceSessionBar
           session={voiceSession}
@@ -397,6 +520,11 @@ export default function StudyRoomPage() {
           ending={endingVoice}
         />
       </div>
+
+      {/* Raise hand queue (owner/ta only) */}
+      {(myRole === "owner" || myRole === "ta") && (
+        <RaiseHandQueue queue={raiseHandQueue} onGrant={handleGrantSpeak} />
+      )}
 
       {/* Channel tabs */}
       <div className="flex gap-1 border-b border-auth-outline-variant/20 px-4 md:px-6 mt-3">
@@ -419,17 +547,11 @@ export default function StudyRoomPage() {
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4 md:px-6 flex flex-col gap-3">
-        {/* Load more */}
         {hasMore && (
-          <button
-            type="button"
-            onClick={loadMore}
-            className="mx-auto text-xs text-auth-primary hover:underline"
-          >
+          <button type="button" onClick={loadMore} className="mx-auto text-xs text-auth-primary hover:underline">
             تحميل رسائل أقدم
           </button>
         )}
-
         {loading ? (
           <div className="flex flex-1 items-center justify-center">
             <span className="text-sm text-auth-on-surface-variant">جاري التحميل…</span>
@@ -464,11 +586,7 @@ export default function StudyRoomPage() {
           <span className="text-auth-on-surface-variant">
             رد على: {replyTo.sender?.full_name} — {replyTo.content?.slice(0, 60)}
           </span>
-          <button
-            type="button"
-            onClick={() => setReplyTo(null)}
-            className="text-auth-on-surface-variant hover:text-auth-on-surface"
-          >
+          <button type="button" onClick={() => setReplyTo(null)} className="text-auth-on-surface-variant hover:text-auth-on-surface">
             ✕
           </button>
         </div>
@@ -478,7 +596,7 @@ export default function StudyRoomPage() {
       <div className="border-t border-auth-outline-variant/20 bg-auth-surface px-4 py-3 md:px-6">
         {/* Message type selector (owner/ta only) */}
         {(myRole === "owner" || myRole === "ta") && (
-          <div className="mb-2 flex gap-2">
+          <div className="mb-2 flex gap-2 flex-wrap">
             {["text", "official_reply"].map((t) => (
               <button
                 key={t}
@@ -496,7 +614,6 @@ export default function StudyRoomPage() {
             ))}
             {channel === "qa" && (
               <button
-                key="question"
                 type="button"
                 onClick={() => setMsgType("question")}
                 className={cn(
@@ -512,8 +629,25 @@ export default function StudyRoomPage() {
           </div>
         )}
 
-        {/* Student Q&A channel: only allow "question" type */}
         <form onSubmit={handleSend} className="flex items-center gap-2">
+          {/* Voice note button — owner/ta only */}
+          {(myRole === "owner" || myRole === "ta") && (
+            <button
+              type="button"
+              onClick={recording ? handleStopRecording : handleStartRecording}
+              disabled={uploading}
+              title={recording ? "إيقاف التسجيل وإرسال" : "تسجيل رسالة صوتية"}
+              className={cn(
+                "flex-shrink-0 rounded-xl p-2.5 transition-colors disabled:opacity-40",
+                recording
+                  ? "bg-danger/20 text-danger border border-danger/40 animate-pulse"
+                  : "border border-auth-outline-variant/30 text-auth-on-surface-variant hover:bg-auth-surface-variant/30"
+              )}
+            >
+              <Icon name={recording ? "stop-circle" : "mic"} size={18} />
+            </button>
+          )}
+
           <input
             type="text"
             value={input}
@@ -525,22 +659,16 @@ export default function StudyRoomPage() {
                 ? "اكتب رداً رسمياً…"
                 : "اكتب رسالة…"
             }
-            disabled={sending}
-            className="flex-1 rounded-xl border border-auth-outline-variant/30 bg-auth-surface-variant/20 px-4 py-2.5 text-sm text-auth-on-surface placeholder:text-auth-on-surface-variant focus:border-auth-primary/60 focus:outline-none transition-colors"
+            disabled={sending || recording}
+            className="flex-1 rounded-xl border border-auth-outline-variant/30 bg-auth-surface-variant/20 px-4 py-2.5 text-sm text-auth-on-surface placeholder:text-auth-on-surface-variant focus:border-auth-primary/60 focus:outline-none transition-colors disabled:opacity-50"
             onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-              }
+              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
             }}
           />
           <button
             type="submit"
-            disabled={sending || !input.trim()}
-            className={cn(
-              studentBtnPrimary,
-              "py-2.5 px-4 disabled:opacity-40"
-            )}
+            disabled={sending || !input.trim() || recording}
+            className={cn(studentBtnPrimary, "py-2.5 px-4 disabled:opacity-40")}
           >
             {sending ? (
               <span className="h-4 w-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />
@@ -549,6 +677,13 @@ export default function StudyRoomPage() {
             )}
           </button>
         </form>
+
+        {/* Recording status */}
+        {(recording || uploading) && (
+          <p className="mt-1.5 text-center text-[11px] font-bold text-danger animate-pulse">
+            {uploading ? "جاري رفع الصوت…" : "● جاري التسجيل — اضغط مرة أخرى للإرسال"}
+          </p>
+        )}
       </div>
     </div>
   );

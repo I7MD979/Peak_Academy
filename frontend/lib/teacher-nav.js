@@ -9,6 +9,7 @@ export const TEACHER_NAV_MAIN = [
   },
   { href: "/teacher/sessions/new", label: "جلسة جديدة", icon: "plus", exact: true },
   { href: "/teacher/analytics", label: "تحليلاتي", icon: "barChart" },
+  { href: "/teacher/study-rooms", label: "غرف المذاكرة", icon: "users" },
   { href: "/teacher/earnings", label: "أرباحي", icon: "wallet" },
   { href: "/teacher/profile", label: "ملفي الشخصي", icon: "user" }
 ];

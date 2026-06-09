@@ -1,10 +1,17 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import StudentSubscriptionView from "@/components/student/StudentSubscriptionPage";
 import { PageLoader } from "@/components/shared/LoadingSkeleton";
 import { paymentsApi, subscriptionsApi, newIdempotencyKey } from "@/lib/api";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import {
+  studentBtnPrimary,
+  studentMuted
+} from "@/lib/student-styles";
 import { pollPaymentOrderFulfillment } from "@/lib/paymob";
 import {
   findAutostartPlan,
@@ -14,6 +21,7 @@ import {
 
 function StudentSubscriptionContent() {
   const searchParams = useSearchParams();
+  const router       = useRouter();
   const [plans, setPlans] = useState([]);
   const [me, setMe] = useState(null);
   const [promoCode, setPromoCode] = useState("");
@@ -24,6 +32,9 @@ function StudentSubscriptionContent() {
   const [checkoutResult, setCheckoutResult] = useState(null);
   const [selectedPlanAmount, setSelectedPlanAmount] = useState(null);
   const autoStartedRef = useRef(false);
+
+  const [activatingTrial, setActivatingTrial] = useState(false);
+  const [trialActivated, setTrialActivated]   = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -63,6 +74,20 @@ function StudentSubscriptionContent() {
       active = false;
     };
   }, [load, searchParams]);
+
+  const handleActivateTrial = async () => {
+    setActivatingTrial(true);
+    try {
+      await subscriptionsApi.activateTrial();
+      setTrialActivated(true);
+      await load();
+      toast.success("تم تفعيل التجربة المجانية لمدة 30 يوم 🎉");
+    } catch (err) {
+      toast.error(err.message || "تعذر تفعيل التجربة");
+    } finally {
+      setActivatingTrial(false);
+    }
+  };
 
   const handlePurchase = useCallback(
     async (planId) => {
@@ -152,22 +177,75 @@ function StudentSubscriptionContent() {
     return <PageLoader />;
   }
 
+  const hasActiveSub = me?.subscription?.status === "active" || me?.subscription?.status === "trialing";
+
   return (
-    <StudentSubscriptionView
-      plans={plans}
-      subscription={me?.subscription || null}
-      promoCode={promoCode}
-      onPromoCodeChange={setPromoCode}
-      purchasing={purchasing}
-      error={error}
-      showSubscriptionCta={Boolean(me?.show_subscription_cta)}
-      searchParams={searchParams}
-      onPurchase={handlePurchase}
-      paymentProvider={paymentProvider}
-      onPaymentProviderChange={setPaymentProvider}
-      checkoutResult={checkoutResult}
-      selectedPlanAmount={selectedPlanAmount}
-    />
+    <div>
+      {/* Trial CTA — show only if no active subscription and trial not yet activated this session */}
+      {!hasActiveSub && !trialActivated && (
+        <div className="mx-auto max-w-2xl px-4 pt-6">
+          <section className="rounded-2xl border border-dashed border-peak-orange/50 bg-peak-orange/5 p-5">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="font-black text-auth-on-surface text-base">
+                  🎁 جرّب غرف المذاكرة مجاناً لمدة 30 يوم
+                </p>
+                <p className={cn("text-sm mt-1", studentMuted)}>
+                  بدون بطاقة ائتمان — مرة واحدة فقط لكل حساب
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleActivateTrial}
+                disabled={activatingTrial}
+                className={cn(studentBtnPrimary, "whitespace-nowrap flex items-center gap-2 disabled:opacity-60")}
+              >
+                {activatingTrial ? (
+                  <>
+                    <span className="h-4 w-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />
+                    جاري التفعيل…
+                  </>
+                ) : "ابدأ التجربة المجانية"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {/* Post-activation success */}
+      {trialActivated && (
+        <div className="mx-auto max-w-2xl px-4 pt-6">
+          <section className="rounded-2xl border border-success/40 bg-success/10 p-5 text-center">
+            <p className="font-black text-success text-lg">🎉 تم تفعيل التجربة!</p>
+            <p className={cn("text-sm mt-1", studentMuted)}>
+              عندك 30 يوم وصول كامل لغرف المذاكرة
+            </p>
+            <Link
+              href="/student/study-rooms"
+              className={cn(studentBtnPrimary, "mt-3 inline-flex")}
+            >
+              اذهب لغرف المذاكرة
+            </Link>
+          </section>
+        </div>
+      )}
+
+      <StudentSubscriptionView
+        plans={plans}
+        subscription={me?.subscription || null}
+        promoCode={promoCode}
+        onPromoCodeChange={setPromoCode}
+        purchasing={purchasing}
+        error={error}
+        showSubscriptionCta={Boolean(me?.show_subscription_cta)}
+        searchParams={searchParams}
+        onPurchase={handlePurchase}
+        paymentProvider={paymentProvider}
+        onPaymentProviderChange={setPaymentProvider}
+        checkoutResult={checkoutResult}
+        selectedPlanAmount={selectedPlanAmount}
+      />
+    </div>
   );
 }
 

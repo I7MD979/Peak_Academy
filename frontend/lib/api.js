@@ -490,6 +490,7 @@ export const dashboardApi = {
   teacherEarningsSummary: () => apiRequest("/earnings/summary"),
   teacherEarnings: (query = "") => apiRequest(withQuery("/earnings", query)),
   teacherWithdrawals: (query = "") => apiRequest(withQuery("/earnings/withdrawals", query)),
+  teacherRoomEarnings: () => apiRequest("/earnings/rooms"),
   teacherRequestWithdrawal: async (body) => {
     clearApiCache("/earnings");
     return apiRequest("/earnings/withdraw", {

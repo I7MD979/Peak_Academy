@@ -35,7 +35,7 @@ const withdrawalStatusTabs = [
   { key: "rejected", label: "مرفوضة" }
 ];
 
-const VALID_MAIN_TABS = new Set(["earnings", "withdrawals"]);
+const VALID_MAIN_TABS = new Set(["earnings", "withdrawals", "rooms"]);
 const VALID_EARNINGS_STATUS = new Set(earningsStatusTabs.map((t) => t.key));
 const VALID_WITHDRAWAL_STATUS = new Set(withdrawalStatusTabs.map((t) => t.key));
 
@@ -98,6 +98,9 @@ function TeacherEarningsRoute() {
   const [withdrawalsTotalPages, setWithdrawalsTotalPages] = useState(1);
   const [earningsTotal, setEarningsTotal] = useState(0);
   const [withdrawalsTotal, setWithdrawalsTotal] = useState(0);
+
+  const [roomEarnings, setRoomEarnings] = useState(null);
+  const [roomLoading, setRoomLoading] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -183,14 +186,31 @@ function TeacherEarningsRoute() {
     loadData();
   }, [loadData]);
 
+  const loadRoomEarnings = useCallback(async () => {
+    setRoomLoading(true);
+    try {
+      const res = await dashboardApi.teacherRoomEarnings();
+      setRoomEarnings(res?.data || null);
+    } catch {
+      setRoomEarnings(null);
+    } finally {
+      setRoomLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (mainTab === "rooms") loadRoomEarnings();
+  }, [mainTab, loadRoomEarnings]);
+
   const refresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await loadData();
+      if (mainTab === "rooms") await loadRoomEarnings();
+      else await loadData();
     } finally {
       setRefreshing(false);
     }
-  }, [loadData]);
+  }, [mainTab, loadData, loadRoomEarnings]);
 
   const onSubmitWithdrawal = async (e) => {
     e.preventDefault();
@@ -374,6 +394,8 @@ function TeacherEarningsRoute() {
       }}
       earningsColumns={earningsColumns}
       withdrawalColumns={withdrawalColumns}
+      roomEarnings={roomEarnings}
+      roomLoading={roomLoading}
       loading={loading}
       refreshing={refreshing}
       error={error}
