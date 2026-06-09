@@ -74,14 +74,12 @@ export function buildContentSecurityPolicy(nonce) {
     ...PAYMOB_ORIGINS
   ].filter(Boolean);
 
-  const imgSrc = ["'self'", "data:", "blob:"];
-  if (supabase) {
-    imgSrc.push(supabase);
-  }
+  // https: needed: avatar URLs are user-provided (Google OAuth, arbitrary hosts).
+  const imgSrc = ["'self'", "data:", "blob:", "https:"];
 
-  const styleSrc = isProd
-    ? ["'self'", `'nonce-${nonce}'`]
-    : ["'self'", `'nonce-${nonce}'`, "'unsafe-inline'"];
+  // No nonce here: nonces don't apply to style="" attributes (React style props,
+  // third-party libs), and a present nonce makes browsers ignore 'unsafe-inline'.
+  const styleSrc = ["'self'", "'unsafe-inline'"];
 
   const directives = [
     "default-src 'self'",
