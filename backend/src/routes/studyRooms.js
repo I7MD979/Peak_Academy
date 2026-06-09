@@ -33,8 +33,9 @@ const router = Router();
 
 const VALID_SUBJECT_KEYS = Object.keys(SUBJECT_LABELS).filter((k) => k !== "general");
 
-/** Gate: user must have an active trial or paid subscription to use study rooms. */
+/** Gate: students need an active trial or paid subscription; teachers/admins bypass. */
 async function requireRoomAccess(req, res, next) {
+  if (req.user.role !== "student") return next();
   try {
     const access = await hasRoomAccess(req.user.id);
     if (!access) {
@@ -63,10 +64,14 @@ async function getStudentGrade(userId) {
   return student.grade;
 }
 
-router.get("/", auth, checkRole("student"), requireRoomAccess, async (req, res) => {
+router.get("/", auth, requireRoomAccess, async (req, res) => {
   try {
-    const grade = await getStudentGrade(req.user.id);
-    if (!grade) {
+    const gradeParam = String(req.query.grade || "").trim();
+    const grade = (gradeParam && isValidGrade(gradeParam))
+      ? gradeParam
+      : await getStudentGrade(req.user.id);
+
+    if (!grade && req.user.role === "student") {
       return error(res, "أكمل ملفك الدراسي (الصف) قبل الانضمام لغرف المذاكرة", 400);
     }
 
@@ -287,7 +292,7 @@ router.post("/voice/:sessionId/join", auth, requireRoomAccess, async (req, res) 
   }
 });
 
-router.post("/voice/:sessionId/end", auth, async (req, res) => {
+router.post("/voice/:sessionId/end", auth, requireRoomAccess, async (req, res) => {
   const { sessionId } = req.params;
   try {
     await endVoiceSession(sessionId, req.user.id);
@@ -307,7 +312,7 @@ router.post("/voice/:sessionId/raise-hand", auth, requireRoomAccess, async (req,
   }
 });
 
-router.post("/voice/:sessionId/grant-speak", auth, async (req, res) => {
+router.post("/voice/:sessionId/grant-speak", auth, requireRoomAccess, async (req, res) => {
   const { sessionId } = req.params;
   const parsed = z.object({ user_id: z.string().uuid() }).safeParse(req.body);
   if (!parsed.success) return error(res, "بيانات غير صالحة", 400);

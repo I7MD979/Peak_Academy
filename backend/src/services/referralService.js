@@ -96,7 +96,7 @@ export async function creditReferrerOnFirstPaidEnrollment(userId, promotionId) {
 
   const { data: refCode } = await supabase
     .from("referral_codes")
-    .select("owner_id, id, total_referrals, earned_sessions, conversions")
+    .select("owner_id, id, total_referrals, earned_sessions")
     .eq("code", promo.code)
     .maybeSingle();
   if (!refCode || refCode.owner_id === userId) return;
@@ -108,8 +108,7 @@ export async function creditReferrerOnFirstPaidEnrollment(userId, promotionId) {
     .from("referral_codes")
     .update({
       total_referrals: (refCode.total_referrals || 0) + 1,
-      earned_sessions: (refCode.earned_sessions || 0) + 1,
-      conversions: (refCode.conversions || 0) + 1
+      earned_sessions: (refCode.earned_sessions || 0) + 1
     })
     .eq("id", refCode.id);
 

@@ -63,20 +63,24 @@ async function loadPaidEnrollments(sessionId) {
 
     if (error) throw error;
 
-    const rows = [];
-    for (const enrollment of data || []) {
-      const { data: user } = await supabase
-        .from("users")
-        .select("email, full_name")
-        .eq("id", enrollment.student_id)
-        .maybeSingle();
-      rows.push({
+    const studentIds = (data || []).map((e) => e.student_id).filter(Boolean);
+    if (!studentIds.length) return [];
+
+    const { data: users } = await supabase
+      .from("users")
+      .select("id, email, full_name")
+      .in("id", studentIds);
+
+    const usersById = Object.fromEntries((users || []).map((u) => [u.id, u]));
+
+    return (data || []).map((enrollment) => {
+      const user = usersById[enrollment.student_id];
+      return {
         studentKey: enrollment.student_id,
         email: user?.email,
         full_name: user?.full_name
-      });
-    }
-    return rows;
+      };
+    });
   }
 
   const { data, error } = await supabase

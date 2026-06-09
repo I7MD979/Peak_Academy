@@ -5,7 +5,7 @@ export async function resetMonthlySubscriptions() {
 
   const { data: expiredSubs, error } = await supabase
     .from("student_subscriptions")
-    .select("*, plan:subscription_plans(*)")
+    .select("id")
     .eq("status", "active")
     .lte("current_period_end", now);
 
@@ -14,16 +14,9 @@ export async function resetMonthlySubscriptions() {
 
   let reset = 0;
   for (const sub of expiredSubs) {
-    const newEnd = new Date(sub.current_period_end);
-    newEnd.setMonth(newEnd.getMonth() + 1);
-
     const { error: updateError } = await supabase
       .from("student_subscriptions")
-      .update({
-        sessions_remaining: sub.plan?.sessions_per_month ?? sub.sessions_remaining,
-        current_period_start: sub.current_period_end,
-        current_period_end: newEnd.toISOString()
-      })
+      .update({ status: "expired", sessions_remaining: 0 })
       .eq("id", sub.id);
 
     if (!updateError) reset += 1;

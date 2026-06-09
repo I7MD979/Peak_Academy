@@ -702,10 +702,8 @@ router.put("/withdrawals/:id", auth, requirePermission("withdrawals.write"), asy
         if (covered >= targetAmount) break;
         const rowAmount = Number(row.teacher_amount || 0);
         if (rowAmount <= 0) continue;
-        if (covered + rowAmount <= targetAmount) {
-          idsToMark.push(row.id);
-          covered += rowAmount;
-        }
+        idsToMark.push(row.id);
+        covered += rowAmount;
       }
 
       if (idsToMark.length > 0) {
