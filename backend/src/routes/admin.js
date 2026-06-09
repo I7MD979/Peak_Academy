@@ -1,6 +1,11 @@
 import { Router } from "express";
 import { auth } from "../middleware/auth.js";
 import { checkRole } from "../middleware/checkRole.js";
+import {
+  requirePermission,
+  checkAdminOrSupervisor,
+  invalidatePermissionCache
+} from "../middleware/requirePermission.js";
 import { supabase } from "../lib/supabase.js";
 import { paginate, paginationMeta } from "../utils/paginate.js";
 import { success, error, paginated } from "../utils/response.js";
@@ -65,7 +70,7 @@ async function fetchAdminDashboardStats() {
   };
 }
 
-router.get("/stats", auth, checkRole("admin"), async (_req, res) => {
+router.get("/stats", auth, requirePermission("dashboard"), async (_req, res) => {
   try {
     const stats = await withCache(CACHE.adminDashboard(), CACHE.TTL.adminDashboard, fetchAdminDashboardStats);
     return success(res, stats);
@@ -74,7 +79,7 @@ router.get("/stats", auth, checkRole("admin"), async (_req, res) => {
   }
 });
 
-router.get("/dashboard", auth, checkRole("admin"), async (_req, res) => {
+router.get("/dashboard", auth, requirePermission("dashboard"), async (_req, res) => {
   try {
     const payload = await withCache(CACHE.adminDashboardFull(), CACHE.TTL.adminDashboard, async () => {
       const [stats, recentUsersResult, sessionsResult] = await Promise.all([
@@ -106,7 +111,7 @@ router.get("/dashboard", auth, checkRole("admin"), async (_req, res) => {
   }
 });
 
-router.get("/users/stats", auth, checkRole("admin"), async (_req, res) => {
+router.get("/users/stats", auth, requirePermission("users.read"), async (_req, res) => {
   try {
     const [total, students, teachers, parents, admins, suspended] = await Promise.all([
       supabase.from("users").select("id", { count: "exact", head: true }),
@@ -130,7 +135,7 @@ router.get("/users/stats", auth, checkRole("admin"), async (_req, res) => {
   }
 });
 
-router.get("/sessions/stats", auth, checkRole("admin"), async (_req, res) => {
+router.get("/sessions/stats", auth, requirePermission("sessions.read"), async (_req, res) => {
   try {
     const [total, scheduled, live, completed, cancelled] = await Promise.all([
       supabase.from("sessions").select("id", { count: "exact", head: true }),
@@ -154,7 +159,7 @@ router.get("/sessions/stats", auth, checkRole("admin"), async (_req, res) => {
   }
 });
 
-router.get("/sessions", auth, checkRole("admin"), async (req, res) => {
+router.get("/sessions", auth, requirePermission("sessions.read"), async (req, res) => {
   try {
     const {
       page = 1,
@@ -234,7 +239,7 @@ router.get("/sessions", auth, checkRole("admin"), async (req, res) => {
   }
 });
 
-router.get("/users", auth, checkRole("admin"), async (req, res) => {
+router.get("/users", auth, requirePermission("users.read"), async (req, res) => {
   try {
     const { page = 1, limit = 20, role, search, is_active, created_from, created_to } = req.query;
     const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
@@ -272,7 +277,7 @@ router.get("/users", auth, checkRole("admin"), async (req, res) => {
 });
 
 // ── User detail ──────────────────────────────────────────────────────────────
-router.get("/users/:id", auth, checkRole("admin"), async (req, res) => {
+router.get("/users/:id", auth, requirePermission("users.read"), async (req, res) => {
   try {
     if (!UUID_RE.test(req.params.id)) return error(res, "معرّف المستخدم غير صالح", 400);
     const result = await UserService.getUserDetail(req.params.id);
@@ -284,7 +289,7 @@ router.get("/users/:id", auth, checkRole("admin"), async (req, res) => {
 });
 
 // ── Edit user (name / phone) ─────────────────────────────────────────────────
-router.patch("/users/:id", auth, checkRole("admin"), async (req, res) => {
+router.patch("/users/:id", auth, requirePermission("users.write"), async (req, res) => {
   try {
     if (!UUID_RE.test(req.params.id)) return error(res, "معرّف المستخدم غير صالح", 400);
     const result = await UserService.updateUser(req.params.id, req.body || {}, req.user.id);
@@ -296,7 +301,7 @@ router.patch("/users/:id", auth, checkRole("admin"), async (req, res) => {
 });
 
 // ── Verify teacher ───────────────────────────────────────────────────────────
-router.put("/users/:id/verify", auth, checkRole("admin"), async (req, res) => {
+router.put("/users/:id/verify", auth, requirePermission("users.write"), async (req, res) => {
   try {
     if (!UUID_RE.test(req.params.id)) return error(res, "معرّف المستخدم غير صالح", 400);
     const result = await UserService.verifyTeacher(req.params.id, req.user.id);
@@ -308,7 +313,7 @@ router.put("/users/:id/verify", auth, checkRole("admin"), async (req, res) => {
 });
 
 // ── Suspend / Activate ───────────────────────────────────────────────────────
-router.put("/users/:id/suspend", auth, checkRole("admin"), async (req, res) => {
+router.put("/users/:id/suspend", auth, requirePermission("users.write"), async (req, res) => {
   try {
     if (!UUID_RE.test(req.params.id)) return error(res, "معرّف المستخدم غير صالح", 400);
     const result = await UserService.setUserStatus(req.params.id, false, req.user.id);
@@ -319,7 +324,7 @@ router.put("/users/:id/suspend", auth, checkRole("admin"), async (req, res) => {
   }
 });
 
-router.put("/users/:id/activate", auth, checkRole("admin"), async (req, res) => {
+router.put("/users/:id/activate", auth, requirePermission("users.write"), async (req, res) => {
   try {
     if (!UUID_RE.test(req.params.id)) return error(res, "معرّف المستخدم غير صالح", 400);
     const result = await UserService.setUserStatus(req.params.id, true, req.user.id);
@@ -331,7 +336,7 @@ router.put("/users/:id/activate", auth, checkRole("admin"), async (req, res) => 
 });
 
 // ── Soft delete ───────────────────────────────────────────────────────────────
-router.delete("/users/:id", auth, checkRole("admin"), async (req, res) => {
+router.delete("/users/:id", auth, requirePermission("users.write"), async (req, res) => {
   try {
     if (!UUID_RE.test(req.params.id)) return error(res, "معرّف المستخدم غير صالح", 400);
     const result = await UserService.deleteUser(req.params.id, req.user.id);
@@ -343,7 +348,7 @@ router.delete("/users/:id", auth, checkRole("admin"), async (req, res) => {
 });
 
 // ── Subscription history ──────────────────────────────────────────────────────
-router.get("/users/:id/subscriptions", auth, checkRole("admin"), async (req, res) => {
+router.get("/users/:id/subscriptions", auth, requirePermission("users.read"), async (req, res) => {
   try {
     if (!UUID_RE.test(req.params.id)) return error(res, "معرّف المستخدم غير صالح", 400);
     const result = await UserService.getUserSubscriptions(req.params.id);
@@ -355,7 +360,7 @@ router.get("/users/:id/subscriptions", auth, checkRole("admin"), async (req, res
 });
 
 // ── Grant bonus sessions ──────────────────────────────────────────────────────
-router.post("/users/:id/grant-sessions", auth, checkRole("admin"), async (req, res) => {
+router.post("/users/:id/grant-sessions", auth, requirePermission("users.subscriptions"), async (req, res) => {
   try {
     if (!UUID_RE.test(req.params.id)) return error(res, "معرّف المستخدم غير صالح", 400);
     const sessions = parseInt(req.body?.sessions, 10);
@@ -368,7 +373,7 @@ router.post("/users/:id/grant-sessions", auth, checkRole("admin"), async (req, r
 });
 
 // ── Assign subscription manually ─────────────────────────────────────────────
-router.post("/users/:id/subscriptions", auth, checkRole("admin"), async (req, res) => {
+router.post("/users/:id/subscriptions", auth, requirePermission("users.subscriptions"), async (req, res) => {
   try {
     if (!UUID_RE.test(req.params.id)) return error(res, "معرّف المستخدم غير صالح", 400);
     const { plan_id, sessions_override, period_days } = req.body || {};
@@ -386,7 +391,7 @@ router.post("/users/:id/subscriptions", auth, checkRole("admin"), async (req, re
 });
 
 // ── Modify subscription ───────────────────────────────────────────────────────
-router.patch("/users/:id/subscriptions/:subId", auth, checkRole("admin"), async (req, res) => {
+router.patch("/users/:id/subscriptions/:subId", auth, requirePermission("users.subscriptions"), async (req, res) => {
   try {
     if (!UUID_RE.test(req.params.id)) return error(res, "معرّف المستخدم غير صالح", 400);
     if (!UUID_RE.test(req.params.subId)) return error(res, "معرّف الاشتراك غير صالح", 400);
@@ -405,7 +410,7 @@ router.patch("/users/:id/subscriptions/:subId", auth, checkRole("admin"), async 
 });
 
 // ── Cancel subscription ───────────────────────────────────────────────────────
-router.delete("/users/:id/subscriptions/:subId", auth, checkRole("admin"), async (req, res) => {
+router.delete("/users/:id/subscriptions/:subId", auth, requirePermission("users.subscriptions"), async (req, res) => {
   try {
     if (!UUID_RE.test(req.params.id)) return error(res, "معرّف المستخدم غير صالح", 400);
     if (!UUID_RE.test(req.params.subId)) return error(res, "معرّف الاشتراك غير صالح", 400);
@@ -417,7 +422,7 @@ router.delete("/users/:id/subscriptions/:subId", auth, checkRole("admin"), async
   }
 });
 
-router.get("/withdrawals/stats", auth, checkRole("admin"), async (_req, res) => {
+router.get("/withdrawals/stats", auth, requirePermission("withdrawals.read"), async (_req, res) => {
   try {
     const [total, pending, approved, paid, rejected, pendingRows] = await Promise.all([
       supabase.from("withdrawal_requests").select("id", { count: "exact", head: true }),
@@ -444,7 +449,7 @@ router.get("/withdrawals/stats", auth, checkRole("admin"), async (_req, res) => 
   }
 });
 
-router.get("/withdrawals", auth, checkRole("admin"), async (req, res) => {
+router.get("/withdrawals", auth, requirePermission("withdrawals.read"), async (req, res) => {
   const page = Number(req.query.page) || 1;
   const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
   const status = req.query.status || "pending";
@@ -576,7 +581,7 @@ router.get("/withdrawals", auth, checkRole("admin"), async (req, res) => {
   }
 });
 
-router.put("/withdrawals/:id", auth, checkRole("admin"), async (req, res) => {
+router.put("/withdrawals/:id", auth, requirePermission("withdrawals.write"), async (req, res) => {
   try {
     const withdrawalId = String(req.params.id || "").trim();
     if (!withdrawalId) return error(res, "معرّف الطلب غير صالح", 400);
@@ -873,7 +878,7 @@ function monthKeyFromDate(value) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
-router.get("/reports", auth, checkRole("admin"), async (req, res) => {
+router.get("/reports", auth, requirePermission("reports"), async (req, res) => {
   try {
     const period = String(req.query.period || "month");
     const dateFrom = req.query.from ? String(req.query.from).trim() : "";
@@ -1211,7 +1216,7 @@ async function attachActiveSubscriberCounts(plans) {
     active_subscribers: countsByPlan[plan.id] || 0
   }));
 }
-router.get("/plans/stats", auth, checkRole("admin"), async (_req, res) => {
+router.get("/plans/stats", auth, requirePermission("plans.read"), async (_req, res) => {
   try {
     const [total, active, inactive, featured, activeSubs] = await Promise.all([
       supabase.from("subscription_plans").select("id", { count: "exact", head: true }),
@@ -1238,7 +1243,7 @@ router.get("/plans/stats", auth, checkRole("admin"), async (_req, res) => {
   }
 });
 
-router.get("/plans", auth, checkRole("admin"), async (req, res) => {
+router.get("/plans", auth, requirePermission("plans.read"), async (req, res) => {
   try {
     const status = String(req.query.status || "all");
     const search = sanitizeSearchTerm(req.query.search);
@@ -1265,7 +1270,7 @@ router.get("/plans", auth, checkRole("admin"), async (req, res) => {
   }
 });
 
-router.post("/plans", auth, checkRole("admin"), async (req, res) => {
+router.post("/plans", auth, requirePermission("plans.write"), async (req, res) => {
   try {
     const validated = validatePlanBody(req.body || {});
     if (!validated.ok) {
@@ -1294,7 +1299,7 @@ router.post("/plans", auth, checkRole("admin"), async (req, res) => {
   }
 });
 
-router.put("/plans/:id", auth, checkRole("admin"), async (req, res) => {
+router.put("/plans/:id", auth, requirePermission("plans.write"), async (req, res) => {
   try {
     const planId = req.params.id;
     if (!UUID_RE.test(planId)) {
@@ -1341,7 +1346,7 @@ router.put("/plans/:id", auth, checkRole("admin"), async (req, res) => {
   }
 });
 
-router.delete("/plans/:id", auth, checkRole("admin"), async (req, res) => {
+router.delete("/plans/:id", auth, requirePermission("plans.write"), async (req, res) => {
   try {
     const planId = req.params.id;
     if (!UUID_RE.test(planId)) {
@@ -1383,7 +1388,7 @@ router.delete("/plans/:id", auth, checkRole("admin"), async (req, res) => {
   }
 });
 
-router.get("/landing-stats/overview", auth, checkRole("admin"), async (_req, res) => {
+router.get("/landing-stats/overview", auth, requirePermission("landing"), async (_req, res) => {
   try {
     const nowIso = new Date().toISOString();
 
@@ -1413,7 +1418,7 @@ router.get("/landing-stats/overview", auth, checkRole("admin"), async (_req, res
   }
 });
 
-router.get("/landing-stats", auth, checkRole("admin"), async (req, res) => {
+router.get("/landing-stats", auth, requirePermission("landing"), async (req, res) => {
   try {
     const visibility = String(req.query.visibility || "all");
     const search = sanitizeSearchTerm(req.query.search);
@@ -1473,7 +1478,7 @@ function validateLandingStatUpdate(body) {
   return { ok: errors.length === 0, errors, updates };
 }
 
-router.put("/landing-stats/:id", auth, checkRole("admin"), async (req, res) => {
+router.put("/landing-stats/:id", auth, requirePermission("landing"), async (req, res) => {
   try {
     const statId = req.params.id;
     if (!UUID_RE.test(statId)) {
@@ -1518,6 +1523,173 @@ router.put("/landing-stats/:id", auth, checkRole("admin"), async (req, res) => {
     return success(res, data, "تم تحديث الإحصائية");
   } catch (_err) {
     return error(res, "تعذر تحديث الإحصائية", 500);
+  }
+});
+
+// ── Current user's permissions (admin or supervisor) ─────────────────────────
+router.get("/me/permissions", auth, checkAdminOrSupervisor, async (req, res) => {
+  try {
+    const { user } = req;
+    if (user.role === "admin") {
+      return success(res, { role: "admin", permissions: ["admin.all"], is_admin: true });
+    }
+    const { data } = await supabase
+      .from("admin_permissions")
+      .select("permissions")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    return success(res, {
+      role: "supervisor",
+      permissions: data?.permissions || [],
+      is_admin: false
+    });
+  } catch (_err) {
+    return error(res, "تعذر تحميل الصلاحيات", 500);
+  }
+});
+
+// ── Staff list (admin only) ───────────────────────────────────────────────────
+router.get("/staff", auth, checkRole("admin"), async (req, res) => {
+  try {
+    const { page = 1, limit = 50, search, role: roleFilter } = req.query;
+    const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 200);
+    const { from, to } = paginate(Number(page) || 1, safeLimit);
+
+    const roles =
+      roleFilter === "supervisor" ? ["supervisor"] :
+      roleFilter === "admin" ? ["admin"] :
+      ["admin", "supervisor"];
+
+    let query = supabase
+      .from("users")
+      .select("id, full_name, email, role, avatar_url, is_active, created_at", { count: "exact" })
+      .in("role", roles)
+      .order("created_at", { ascending: false })
+      .range(from, to);
+
+    if (search) {
+      const term = sanitizeSearchTerm(search);
+      if (term) query = query.or(`full_name.ilike.%${term}%,email.ilike.%${term}%`);
+    }
+
+    const { data, count, error: dbError } = await query;
+    if (dbError) throw dbError;
+
+    const supervisorIds = (data || []).filter((u) => u.role === "supervisor").map((u) => u.id);
+    let permsByUserId = {};
+    if (supervisorIds.length) {
+      const { data: permsData } = await supabase
+        .from("admin_permissions")
+        .select("user_id, permissions")
+        .in("user_id", supervisorIds);
+      permsByUserId = Object.fromEntries((permsData || []).map((p) => [p.user_id, p]));
+    }
+
+    const staff = (data || []).map((u) => ({
+      ...u,
+      permissions: u.role === "admin" ? ["admin.all"] : (permsByUserId[u.id]?.permissions || [])
+    }));
+
+    return paginated(res, staff, paginationMeta(count, Number(page), safeLimit));
+  } catch (_err) {
+    return error(res, "تعذر تحميل قائمة الموظفين", 500);
+  }
+});
+
+// ── Change staff role (admin only) ────────────────────────────────────────────
+router.put("/staff/:id/role", auth, checkRole("admin"), async (req, res) => {
+  try {
+    if (!UUID_RE.test(req.params.id)) return error(res, "معرّف المستخدم غير صالح", 400);
+    if (req.params.id === req.user.id) return error(res, "لا يمكنك تعديل دورك الخاص", 403);
+
+    const { role } = req.body || {};
+    if (!["supervisor", "student"].includes(role)) return error(res, "الدور غير صالح", 400);
+
+    const { data: target, error: fetchErr } = await supabase
+      .from("users")
+      .select("id, role")
+      .eq("id", req.params.id)
+      .maybeSingle();
+    if (fetchErr) throw fetchErr;
+    if (!target) return error(res, "المستخدم غير موجود", 404);
+    if (target.role === "admin") return error(res, "لا يمكن تعديل حساب مدير آخر", 403);
+
+    const { error: updateErr } = await supabase
+      .from("users")
+      .update({ role, updated_at: new Date().toISOString() })
+      .eq("id", req.params.id);
+    if (updateErr) throw updateErr;
+
+    if (role !== "supervisor") {
+      await supabase.from("admin_permissions").delete().eq("user_id", req.params.id);
+    }
+
+    invalidatePermissionCache(req.params.id);
+    return success(res, null, "تم تحديث الدور بنجاح");
+  } catch (_err) {
+    return error(res, "تعذر تحديث الدور", 500);
+  }
+});
+
+// ── Get staff member's permissions (admin only) ───────────────────────────────
+router.get("/staff/:id/permissions", auth, checkRole("admin"), async (req, res) => {
+  try {
+    if (!UUID_RE.test(req.params.id)) return error(res, "معرّف المستخدم غير صالح", 400);
+    const { data: user } = await supabase
+      .from("users")
+      .select("id, role")
+      .eq("id", req.params.id)
+      .maybeSingle();
+    if (!user) return error(res, "المستخدم غير موجود", 404);
+    if (user.role === "admin") return success(res, { permissions: ["admin.all"] });
+
+    const { data } = await supabase
+      .from("admin_permissions")
+      .select("permissions")
+      .eq("user_id", req.params.id)
+      .maybeSingle();
+    return success(res, { permissions: data?.permissions || [] });
+  } catch (_err) {
+    return error(res, "تعذر تحميل الصلاحيات", 500);
+  }
+});
+
+// ── Set staff member's permissions (admin only) ───────────────────────────────
+const VALID_ASSIGNABLE = new Set([
+  "dashboard", "users.read", "users.write", "users.subscriptions",
+  "sessions.read", "withdrawals.read", "withdrawals.write",
+  "reports", "plans.read", "plans.write", "promotions.read", "promotions.write", "landing"
+]);
+
+router.put("/staff/:id/permissions", auth, checkRole("admin"), async (req, res) => {
+  try {
+    if (!UUID_RE.test(req.params.id)) return error(res, "معرّف المستخدم غير صالح", 400);
+
+    const { data: user } = await supabase
+      .from("users")
+      .select("id, role")
+      .eq("id", req.params.id)
+      .maybeSingle();
+    if (!user) return error(res, "المستخدم غير موجود", 404);
+    if (user.role !== "supervisor") return error(res, "يمكن تعيين الصلاحيات للمشرفين فقط", 400);
+
+    const perms = req.body?.permissions;
+    if (!Array.isArray(perms)) return error(res, "قائمة الصلاحيات غير صالحة", 400);
+
+    const clean = [...new Set(perms.filter((p) => VALID_ASSIGNABLE.has(String(p))))];
+
+    const { error: upsertErr } = await supabase
+      .from("admin_permissions")
+      .upsert(
+        { user_id: req.params.id, permissions: clean, granted_by: req.user.id, updated_at: new Date().toISOString() },
+        { onConflict: "user_id" }
+      );
+    if (upsertErr) throw upsertErr;
+
+    invalidatePermissionCache(req.params.id);
+    return success(res, { permissions: clean }, "تم تحديث الصلاحيات");
+  } catch (_err) {
+    return error(res, "تعذر تحديث الصلاحيات", 500);
   }
 });
 

@@ -4,7 +4,8 @@ export const ROLE_HOME = {
   student: "/student/dashboard",
   teacher: "/teacher/dashboard",
   parent: "/parent/dashboard",
-  admin: "/admin/dashboard"
+  admin: "/admin/dashboard",
+  supervisor: "/admin/dashboard"
 };
 
 export function isProfileComplete(user) {

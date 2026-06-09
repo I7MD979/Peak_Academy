@@ -468,7 +468,19 @@ export const dashboardApi = {
       body: JSON.stringify(body)
     }),
   adminCancelSubscription: (userId, subId) =>
-    apiRequest(`/admin/users/${userId}/subscriptions/${subId}`, { method: "DELETE" })
+    apiRequest(`/admin/users/${userId}/subscriptions/${subId}`, { method: "DELETE" }),
+
+  // ── Staff & permissions management ──────────────────────────────────────────
+  getMyPermissions: () => apiRequest("/admin/me/permissions"),
+  getStaff: (query = "") => apiRequest(withQuery("/admin/staff", query)),
+  updateStaffRole: (userId, body) =>
+    apiRequest(`/admin/staff/${userId}/role`, { method: "PUT", body: JSON.stringify(body) }),
+  getStaffPermissions: (userId) => apiRequest(`/admin/staff/${userId}/permissions`),
+  updateStaffPermissions: (userId, permissions) =>
+    apiRequest(`/admin/staff/${userId}/permissions`, {
+      method: "PUT",
+      body: JSON.stringify({ permissions })
+    })
 };
 
 

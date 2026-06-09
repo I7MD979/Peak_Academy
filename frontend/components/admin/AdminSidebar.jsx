@@ -14,6 +14,7 @@ import {
   ADMIN_NAV_MAIN,
   isAdminNavActive
 } from "@/lib/admin-nav";
+import { useAdminPermissions } from "@/hooks/useAdminPermissions";
 import { cn } from "@/lib/utils";
 
 function Avatar({ fullName, avatarUrl }) {
@@ -81,7 +82,14 @@ function SidebarContent({ pathname, onCloseMobile }) {
   const router = useRouter();
   const { signOut } = useAuth();
   const profile = useSidebarProfile();
+  const { can, isAdmin } = useAdminPermissions();
   const profileActive = isAdminNavActive(pathname, "/admin/profile");
+
+  const visibleMainNav = ADMIN_NAV_MAIN.filter((item) => {
+    if (item.adminOnly) return isAdmin;
+    if (!item.permission) return true;
+    return can(item.permission);
+  });
 
   const handleLogout = async () => {
     onCloseMobile?.();
@@ -115,7 +123,7 @@ function SidebarContent({ pathname, onCloseMobile }) {
 
       <div className="flex-1 space-y-6 overflow-y-auto px-3 py-4">
         <nav aria-label="القائمة الرئيسية">
-          <NavSection title="القائمة الرئيسية" items={ADMIN_NAV_MAIN} pathname={pathname} onNavigate={onCloseMobile} />
+          <NavSection title="القائمة الرئيسية" items={visibleMainNav} pathname={pathname} onNavigate={onCloseMobile} />
         </nav>
         <nav aria-label="الحساب">
           <NavSection title="الحساب" items={ADMIN_NAV_ACCOUNT} pathname={pathname} onNavigate={onCloseMobile} />
@@ -136,7 +144,9 @@ function SidebarContent({ pathname, onCloseMobile }) {
           <Avatar fullName={profile.full_name} avatarUrl={profile.avatar_url} />
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-bold">{profile.full_name || "مشرف"}</div>
-            <div className="truncate text-xs text-white/65">{profile.roleLabel || "مشرف النظام"}</div>
+            <div className="truncate text-xs text-white/65">
+              {profile.roleLabel || (isAdmin ? "مدير النظام" : "مشرف")}
+            </div>
           </div>
           <Icon name="user" size={16} className="shrink-0 text-white/40" />
         </Link>

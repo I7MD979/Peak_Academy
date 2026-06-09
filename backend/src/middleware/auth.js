@@ -34,7 +34,7 @@ function resolveRoleFromAuth(authUser, profile) {
 /** Admin/parent need no student/teacher profile; student/teacher need role-specific rows. */
 async function computeProfileReady(supabase, reqUser, profile) {
   const role = reqUser.role;
-  if (role === "admin" || role === "parent") return true;
+  if (role === "admin" || role === "supervisor" || role === "parent") return true;
 
   const fullName = String(reqUser.full_name || "").trim();
   if (fullName.length < 2) return false;

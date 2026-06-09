@@ -20,7 +20,7 @@ export default function AdminLayout({ children }) {
 
   return (
 
-    <RoleGate roles={["admin"]}>
+    <RoleGate roles={["admin", "supervisor"]}>
 
       <div className="admin-shell min-h-screen bg-background font-cairo text-on-background [color-scheme:dark]" dir="rtl">
 

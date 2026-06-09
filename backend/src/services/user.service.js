@@ -8,7 +8,7 @@ const VALID_ROLES = new Set(["student", "teacher", "parent", "admin"]);
 function assertMutableByAdmin(target, actorId) {
   if (!target) return { ok: false, status: 404, message: "المستخدم غير موجود" };
   if (target.id === actorId) return { ok: false, status: 403, message: "لا يمكنك تعديل حسابك الشخصي من هنا" };
-  if (target.role === "admin") return { ok: false, status: 403, message: "لا يمكن تعديل حسابات المشرفين" };
+  if (target.role === "admin" || target.role === "supervisor") return { ok: false, status: 403, message: "لا يمكن تعديل حسابات الموظفين" };
   return { ok: true };
 }
 
