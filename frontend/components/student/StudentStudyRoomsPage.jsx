@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import AdminFilterTabs from "@/components/admin/AdminFilterTabs";
 import AdminPageHeader from "@/components/admin/AdminPageHeader";
 import StatsCard from "@/components/admin/StatsCard";
@@ -20,6 +21,7 @@ import { formatDateAr } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 function ActiveRoomPanel({ room, leaving, onLeave }) {
+  const router = useRouter();
   if (!room) return null;
 
   return (
@@ -42,14 +44,24 @@ function ActiveRoomPanel({ room, leaving, onLeave }) {
             {room.joined_at ? ` · انضممت ${formatDateAr(room.joined_at)}` : ""}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onLeave}
-          disabled={leaving}
-          className={cn(studentBtnSecondary, "border-danger/40 text-danger hover:bg-danger/10")}
-        >
-          {leaving ? "جاري المغادرة…" : "مغادرة الغرفة"}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => router.push(`/student/study-rooms/${room.id}`)}
+            className={cn(studentBtnPrimary, "gap-2")}
+          >
+            <Icon name="message-circle" size={16} />
+            دخول الغرفة
+          </button>
+          <button
+            type="button"
+            onClick={onLeave}
+            disabled={leaving}
+            className={cn(studentBtnSecondary, "border-danger/40 text-danger hover:bg-danger/10")}
+          >
+            {leaving ? "جاري المغادرة…" : "مغادرة الغرفة"}
+          </button>
+        </div>
       </div>
 
       {room.members?.length > 0 ? (

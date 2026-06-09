@@ -1,4 +1,6 @@
 import { resetMonthlySubscriptions } from "../jobs/subscriptionReset.js";
+import { expireTrials } from "./trialService.js";
+import { runMonthlyCommissionsJob } from "../jobs/monthlyCommissions.job.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -14,6 +16,24 @@ export function startSubscriptionResetScheduler() {
       }
     } catch (err) {
       console.error("subscription reset tick failed", err.message);
+    }
+
+    try {
+      const result = await expireTrials();
+      if (result.expired > 0) {
+        console.log(`trial expiry: ${result.expired} trial(s) expired`);
+      }
+    } catch (err) {
+      console.error("trial expiry tick failed", err.message);
+    }
+
+    // Run monthly commission calculation on the 1st of each month
+    if (new Date().getDate() === 1) {
+      try {
+        await runMonthlyCommissionsJob(); // uses previous month by default
+      } catch (err) {
+        console.error("monthly commissions tick failed", err.message);
+      }
     }
   };
 

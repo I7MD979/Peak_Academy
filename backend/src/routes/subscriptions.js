@@ -11,7 +11,8 @@ import { freezeSubscription, unfreezeSubscription } from "../services/subscripti
 import { getActiveSubscription } from "../services/enrollmentService.js";
 import { countPaidSessionEnrollments } from "../services/subscriptionService.js";
 import { ensureReferralCode } from "../services/referralService.js";
-import { CACHE, withCache } from "../lib/cache.js";
+import { activateTrial, hasRoomAccess } from "../services/trialService.js";
+import { CACHE, withCache, invalidateSubscriptionCaches } from "../lib/cache.js";
 import { allowSchema } from "../middleware/allowlist.js";
 import { paymentLimiter } from "../middleware/resourceLimits.js";
 import { preventDuplicateSubscription, paymentVelocity } from "../middleware/businessRules.js";
@@ -77,6 +78,30 @@ router.post(
     return error(res, err.message || "فشل بدء شراء الاشتراك", 500);
   }
 });
+
+// ── Free trial ────────────────────────────────────────────────────────────────
+
+router.post("/activate-trial", auth, checkRole("student"), async (req, res) => {
+  try {
+    const result = await activateTrial(req.user.id);
+    return success(res, result, result.message);
+  } catch (err) {
+    return error(res, err.message || "فشل تفعيل التجربة المجانية", err.status || 500);
+  }
+});
+
+// GET /api/subscriptions/me/access — quick access check for study rooms
+router.get("/me/access", auth, async (req, res) => {
+  try {
+    // Teachers always have access (has_room_access handles this)
+    const access = await hasRoomAccess(req.user.id);
+    return success(res, { has_access: access });
+  } catch (err) {
+    return error(res, err.message || "فشل التحقق من الصلاحية", 500);
+  }
+});
+
+// ── Freeze / Unfreeze ─────────────────────────────────────────────────────────
 
 router.post("/freeze", auth, checkRole("student"), async (req, res) => {
   try {

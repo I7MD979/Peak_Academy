@@ -67,6 +67,13 @@ export async function activateSubscriptionFromPayment(payment, paymobTxnId = "")
     const { completeOnboardingStep } = await import("./onboarding.service.js");
     await completeOnboardingStep(payment.student_id, "first_payment").catch(() => {});
     await invalidateSubscriptionCaches(payment.student_id);
+
+    // Record room attribution if student was in a teacher's room in the last 24h
+    const subId = result.subscription?.id || result.subscription_id;
+    if (subId) {
+      const { recordSubscriptionAttribution } = await import("./roomAttribution.service.js");
+      await recordSubscriptionAttribution(payment.student_id, subId);
+    }
   }
 
   return result;

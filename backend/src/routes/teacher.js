@@ -426,7 +426,7 @@ router.get("/analytics", auth, checkRole("teacher"), async (req, res) => {
     ] = await Promise.all([
       supabase
         .from("sessions")
-        .select("id, subject, subject_id, scheduled_at, start_time, status")
+        .select("id, subject, subject_id, scheduled_at, status")
         .eq("teacher_id", req.user.id)
         .gte("scheduled_at", startIso)
         .lte("scheduled_at", endIso),

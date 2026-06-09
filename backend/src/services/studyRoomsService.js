@@ -217,7 +217,7 @@ export async function getRoomMembersPreview(roomId, limit = 5) {
   }));
 }
 
-export async function joinStudyRoom({ userId, subject, grade, roomId = null }) {
+export async function joinStudyRoom({ userId, subject, grade, roomId = null, userRole = "student" }) {
   const existing = await findStudentActiveMembership(userId);
   if (existing?.room) {
     const count = await countActiveRoomMembers(existing.room_id);
@@ -247,11 +247,12 @@ export async function joinStudyRoom({ userId, subject, grade, roomId = null }) {
     room = await findOpenStudyRoom(subjectKey, grade);
     if (!room) {
       room = await createStudyRoom({
-        id: `sr-${Date.now()}`,
-        subject: subjectKey,
-        grade: normalizeStudyRoomGrade(grade),
-        status: "open",
-        capacity: 6
+        id:         `sr-${Date.now()}`,
+        subject:    subjectKey,
+        grade:      normalizeStudyRoomGrade(grade),
+        status:     "open",
+        capacity:   6,
+        teacher_id: userRole === "teacher" ? userId : null
       });
     }
   }

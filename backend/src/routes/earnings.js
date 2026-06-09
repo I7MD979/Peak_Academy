@@ -6,6 +6,7 @@ import { paginate, paginationMeta } from "../utils/paginate.js";
 import { success, error, paginated } from "../utils/response.js";
 import { ensureUserProfile } from "../utils/ensure-user-profile.js";
 import { getTeacherBalance, getTeacherProfile } from "../services/teacher.service.js";
+import { getTeacherRoomEarningsSummary } from "../services/roomAttribution.service.js";
 
 const router = Router();
 const MIN_WITHDRAWAL = 50;
@@ -202,6 +203,45 @@ router.post("/withdraw", auth, checkRole("teacher"), async (req, res) => {
     return success(res, withdrawal, "تم إرسال طلب السحب بنجاح", 201);
   } catch (_err) {
     return error(res, "تعذر إرسال طلب السحب", 500);
+  }
+});
+
+// ── Room Commission Routes ────────────────────────────────────────────────────
+
+// GET /peak-api/earnings/rooms — عمولات الغرف الشهرية
+router.get("/rooms", auth, checkRole("teacher"), async (req, res) => {
+  try {
+    const teacher = await resolveTeacherForEarnings(req, res);
+    if (!teacher) return;
+
+    const summary = await getTeacherRoomEarningsSummary(req.user.id);
+    return success(res, summary);
+  } catch (_err) {
+    return error(res, "تعذر تحميل عمولات الغرف", 500);
+  }
+});
+
+// GET /peak-api/earnings/rooms/students — الطلاب المرتبطين بالمدرس
+router.get("/rooms/students", auth, checkRole("teacher"), async (req, res) => {
+  try {
+    const teacher = await resolveTeacherForEarnings(req, res);
+    if (!teacher) return;
+
+    const { data, error: dbErr } = await supabase
+      .from("subscription_attributions")
+      .select(`
+        attributed_at,
+        room:study_rooms(subject, grade),
+        student:users(id, full_name),
+        subscription:student_subscriptions(status, current_period_end)
+      `)
+      .eq("teacher_id", req.user.id)
+      .order("attributed_at", { ascending: false });
+
+    if (dbErr) throw dbErr;
+    return success(res, { students: data || [] });
+  } catch (_err) {
+    return error(res, "تعذر تحميل قائمة الطلاب", 500);
   }
 });
 

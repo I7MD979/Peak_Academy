@@ -378,6 +378,56 @@ export const studyRoomsApi = {
     apiRequest(`/study-rooms/${roomId}/leave`, {
       method: "POST",
       body: JSON.stringify({})
+    }),
+  // Chat
+  getMessages: (roomId, params = {}) => {
+    const q = new URLSearchParams();
+    if (params.channel) q.set("channel", params.channel);
+    if (params.limit)   q.set("limit", params.limit);
+    if (params.before)  q.set("before", params.before);
+    const qs = q.toString();
+    return apiRequest(`/study-rooms/${roomId}/messages${qs ? `?${qs}` : ""}`);
+  },
+  sendMessage: (roomId, body) =>
+    apiRequest(`/study-rooms/${roomId}/messages`, {
+      method: "POST",
+      body: JSON.stringify(body)
+    }),
+  resolveQuestion: (roomId, messageId) =>
+    apiRequest(`/study-rooms/${roomId}/messages/${messageId}/resolve`, {
+      method: "PATCH",
+      body: JSON.stringify({})
+    }),
+  assignTA: (roomId, userId) =>
+    apiRequest(`/study-rooms/${roomId}/assign-ta`, {
+      method: "POST",
+      body: JSON.stringify({ user_id: userId })
+    }),
+  // Voice
+  startVoiceSession: (roomId) =>
+    apiRequest(`/study-rooms/${roomId}/voice/start`, {
+      method: "POST",
+      body: JSON.stringify({})
+    }),
+  joinVoiceSession: (sessionId) =>
+    apiRequest(`/study-rooms/voice/${sessionId}/join`, {
+      method: "POST",
+      body: JSON.stringify({})
+    }),
+  endVoiceSession: (sessionId) =>
+    apiRequest(`/study-rooms/voice/${sessionId}/end`, {
+      method: "POST",
+      body: JSON.stringify({})
+    }),
+  raiseHand: (sessionId) =>
+    apiRequest(`/study-rooms/voice/${sessionId}/raise-hand`, {
+      method: "POST",
+      body: JSON.stringify({})
+    }),
+  grantSpeak: (sessionId, userId) =>
+    apiRequest(`/study-rooms/voice/${sessionId}/grant-speak`, {
+      method: "POST",
+      body: JSON.stringify({ user_id: userId })
     })
 };
 
@@ -499,6 +549,18 @@ export const notificationsApi = {
   unreadCount: () => apiRequest("/notifications/unread-count"),
   markRead: (id) => apiRequest(`/notifications/${id}/read`, { method: "PATCH" }),
   markAllRead: () => apiRequest("/notifications/read-all", { method: "PATCH" })
+};
+
+export const subscriptionApi = {
+  me: () => apiRequest("/subscriptions/me"),
+  plans: () => apiRequest("/subscriptions/plans"),
+  access: () => apiRequest("/subscriptions/me/access"),
+  activateTrial: () => apiRequest("/subscriptions/activate-trial", { method: "POST" }),
+  purchase: (body) =>
+    apiRequest("/subscriptions/purchase", { method: "POST", body: JSON.stringify(body) }),
+  freeze: (body) =>
+    apiRequest("/subscriptions/freeze", { method: "POST", body: JSON.stringify(body) }),
+  unfreeze: () => apiRequest("/subscriptions/unfreeze", { method: "POST" })
 };
 
 export const parentApi = {
