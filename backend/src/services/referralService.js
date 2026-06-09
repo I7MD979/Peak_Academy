@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabase.js";
+import { isSchemaV2 } from "../lib/schema.js";
 
 function slugFromUser(user) {
   const base = (user.full_name || user.email || user.id || "user")
@@ -48,8 +49,43 @@ export async function ensureReferralCode(user) {
   return created;
 }
 
+async function countPriorPaidEnrollments(userId) {
+  if (isSchemaV2()) {
+    const { count } = await supabase
+      .from("enrollments")
+      .select("*", { count: "exact", head: true })
+      .eq("student_id", userId)
+      .eq("payment_status", "paid")
+      .in("status", ["confirmed", "attended"]);
+    return count || 0;
+  }
+
+  const { data: student } = await supabase
+    .from("student_profiles")
+    .select("id")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (!student) return 0;
+
+  const { count } = await supabase
+    .from("session_enrollments")
+    .select("*", { count: "exact", head: true })
+    .eq("student_id", student.id)
+    .not("payment_id", "is", null)
+    .in("status", ["enrolled", "attended"]);
+  return count || 0;
+}
+
 export async function creditReferrerOnFirstPaidEnrollment(userId, promotionId) {
   if (!promotionId) return;
+
+  const { data: alreadyRewarded } = await supabase
+    .from("referrals")
+    .select("id")
+    .eq("referred_id", userId)
+    .eq("status", "rewarded")
+    .maybeSingle();
+  if (alreadyRewarded) return;
 
   const { data: promo } = await supabase
     .from("promotions")
@@ -60,31 +96,20 @@ export async function creditReferrerOnFirstPaidEnrollment(userId, promotionId) {
 
   const { data: refCode } = await supabase
     .from("referral_codes")
-    .select("owner_id, id, total_referrals, earned_sessions")
+    .select("owner_id, id, total_referrals, earned_sessions, conversions")
     .eq("code", promo.code)
     .maybeSingle();
   if (!refCode || refCode.owner_id === userId) return;
 
-  const { data: student } = await supabase
-    .from("student_profiles")
-    .select("id")
-    .eq("user_id", userId)
-    .maybeSingle();
-  if (!student) return;
-
-  const { count: priorPaid } = await supabase
-    .from("session_enrollments")
-    .select("*", { count: "exact", head: true })
-    .eq("student_id", student.id)
-    .not("payment_id", "is", null);
-
-  if ((priorPaid || 0) > 1) return;
+  const priorPaid = await countPriorPaidEnrollments(userId);
+  if (priorPaid > 0) return;
 
   await supabase
     .from("referral_codes")
     .update({
       total_referrals: (refCode.total_referrals || 0) + 1,
-      earned_sessions: (refCode.earned_sessions || 0) + 1
+      earned_sessions: (refCode.earned_sessions || 0) + 1,
+      conversions: (refCode.conversions || 0) + 1
     })
     .eq("id", refCode.id);
 
@@ -101,11 +126,6 @@ export async function creditReferrerOnFirstPaidEnrollment(userId, promotionId) {
       .update({ sessions_remaining: (activeSub.sessions_remaining || 0) + 1 })
       .eq("id", activeSub.id);
   }
-
-  await supabase
-    .from("referral_codes")
-    .update({ conversions: (refCode.conversions || refCode.total_referrals || 0) + 1 })
-    .eq("id", refCode.id);
 
   await supabase.from("referrals").upsert(
     {

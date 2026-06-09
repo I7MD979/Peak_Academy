@@ -4,6 +4,14 @@ import { fulfillPaymentV2 } from "../utils/payments-fulfillment.js";
 import { activateSubscriptionFromPayment } from "./subscriptionService.js";
 import { completeOnboardingStep } from "./onboarding.service.js";
 import { findPaymentByReference } from "../utils/payment-lookup.js";
+import { checkReplayAttack } from "../utils/paymob-security.js";
+import { markPaymentFailedV2 } from "../utils/payments-fulfillment.js";
+
+function paymentAmountMatches(payment, amountCents) {
+  if (amountCents == null || amountCents === "") return true;
+  const expected = Math.round(Number(payment.amount) * 100);
+  return Math.abs(expected - Number(amountCents)) <= 1;
+}
 
 async function findPaymentForWebhook(orderId, provider) {
   return findPaymentByReference(orderId, { provider });
@@ -37,11 +45,16 @@ async function fulfillSubscriptionPayment(payment, transactionId) {
 export async function processProviderWebhook({ provider, result }) {
   const { orderId, transactionId, status } = result;
 
+  if (transactionId) {
+    const replay = await checkReplayAttack(String(transactionId));
+    if (replay?.isReplay) return { processed: true, duplicate: true, reason: "replay" };
+  }
+
   if (status !== "success") {
     if (status === "failed" && orderId) {
       const payment = await findPaymentForWebhook(orderId, provider);
       if (payment?.status === "pending") {
-        await supabase.from("payments").update({ status: "failed" }).eq("id", payment.id);
+        await markPaymentFailedV2(payment);
       }
     }
     return { processed: false, reason: "not_success" };
@@ -51,7 +64,12 @@ export async function processProviderWebhook({ provider, result }) {
   if (!payment) return { processed: false, reason: "payment_not_found" };
   if (payment.status === "paid") return { processed: true, duplicate: true };
 
-  if (payment.enrollment_id && payment.enrollment) {
+  if (!paymentAmountMatches(payment, result.amountCents ?? result.amount_cents)) {
+    console.warn(`[webhook] amount mismatch payment=${payment.id} provider=${provider}`);
+    return { processed: false, reason: "amount_mismatch" };
+  }
+
+  if (payment.enrollment_id) {
     await fulfillPaymentV2(payment, transactionId);
     await completeOnboardingStep(payment.student_id, "first_session").catch(() => {});
     return { processed: true, fulfillment: { type: "enrollment" } };
@@ -115,7 +133,7 @@ export async function verifyInstapayPayment({ paymentId, adminId, bankTransactio
     .eq("status", "pending");
 
   let fulfillment;
-  if (payment.enrollment_id && payment.enrollment) {
+  if (payment.enrollment_id) {
     await fulfillPaymentV2(payment, verification.transactionId);
     fulfillment = { type: "enrollment" };
   } else if (payment.metadata?.planId || payment.metadata?.plan_id) {

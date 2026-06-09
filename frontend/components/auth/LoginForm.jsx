@@ -109,7 +109,7 @@ export default function LoginForm({ redirectTo: redirectToProp = null, oauthErro
 
       {error ? <div className={authErrorClass}>{error}</div> : null}
 
-      <form onSubmit={handleLogin} className="space-y-6">
+      <form method="post" action="/auth/login" onSubmit={handleLogin} className="space-y-6">
         <div className="space-y-2">
           <label className="block text-xs font-semibold text-on-surface-variant" htmlFor="login-email">
             البريد الإلكتروني

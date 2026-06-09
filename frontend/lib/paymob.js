@@ -67,7 +67,8 @@ export const pollPaymentOrderFulfillment = async (
     try {
       const sync = attempt === 0;
       const payload = await paymentsApi.orderStatus(paymentId, { sync });
-      if (payload?.data?.subscription_activated || payload?.data?.paid) return true;
+      if (payload?.data?.subscription_activated) return true;
+      if (payload?.data?.enrolled) return true;
     } catch (err) {
       if (err?.status === 404) return false;
     }

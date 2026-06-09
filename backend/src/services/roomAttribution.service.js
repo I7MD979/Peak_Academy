@@ -1,7 +1,7 @@
 import { supabase } from "../lib/supabase.js";
+import { getPlatformCommission, getPlatformConfig } from "./platformConfig.service.js";
 
 const ATTRIBUTION_WINDOW_HOURS = 24;
-const COMMISSION_RATE = 0.30;
 
 /**
  * Find which teacher to attribute a new subscription to.
@@ -70,20 +70,28 @@ export async function recordSubscriptionAttribution(studentId, subscriptionId) {
  */
 export async function calculateMonthlyCommissions(month) {
   const monthStart = `${month}-01`;
-  const [y, m]     = month.split("-").map(Number);
-  const monthEnd   = new Date(y, m, 1).toISOString().slice(0, 10);
+  const [y, m] = month.split("-").map(Number);
+  const monthEnd = new Date(y, m, 1).toISOString().slice(0, 10);
+
+  const commissionRate = await getPlatformCommission();
+  const config = await getPlatformConfig();
+  const fallbackPrice = Number(config.room_sub_price || config.subscription_price || 49);
 
   const { data: attributions, error } = await supabase
     .from("subscription_attributions")
     .select(`
       teacher_id,
+      attributed_at,
       subscription:student_subscriptions(
         id,
         status,
+        current_period_start,
         current_period_end,
         plan:subscription_plans(price)
       )
-    `);
+    `)
+    .gte("attributed_at", monthStart)
+    .lt("attributed_at", monthEnd);
 
   if (error) throw error;
   if (!attributions?.length) return { processed: 0 };
@@ -92,13 +100,12 @@ export async function calculateMonthlyCommissions(month) {
   for (const attr of attributions) {
     const sub = attr.subscription;
     if (!sub) continue;
-    // only active or trialing
     if (!["active", "trialing"].includes(sub.status)) continue;
-    // subscription must still be valid within this month
     if (sub.current_period_end && sub.current_period_end < monthStart) continue;
+    if (sub.current_period_start && sub.current_period_start >= monthEnd) continue;
 
-    const price = Number(sub.plan?.price || 49);
-    const tid   = attr.teacher_id;
+    const price = Number(sub.plan?.price || fallbackPrice);
+    const tid = attr.teacher_id;
 
     if (!byTeacher[tid]) byTeacher[tid] = { count: 0, gross: 0 };
     byTeacher[tid].count++;
@@ -107,28 +114,34 @@ export async function calculateMonthlyCommissions(month) {
 
   const entries = Object.entries(byTeacher);
   for (const [teacherId, data] of entries) {
-    const commission = Math.round(data.gross * COMMISSION_RATE * 100) / 100;
-
-    const { error: upsertErr } = await supabase
+    const { data: existing } = await supabase
       .from("room_commission_earnings")
-      .upsert(
-        {
-          teacher_id:        teacherId,
-          period_month:      month,
-          student_count:     data.count,
-          gross_amount:      data.gross,
-          commission_rate:   COMMISSION_RATE,
-          commission_amount: commission,
-          status:            "pending",
-        },
-        { onConflict: "teacher_id,period_month" }
-      );
+      .select("status")
+      .eq("teacher_id", teacherId)
+      .eq("period_month", month)
+      .maybeSingle();
 
-    if (upsertErr) {
-      console.error(
-        `[commission] upsert failed for teacher ${teacherId}:`,
-        upsertErr.message
-      );
+    if (existing?.status === "paid") continue;
+
+    const commission = Math.round(data.gross * commissionRate * 100) / 100;
+    const payload = {
+      teacher_id: teacherId,
+      period_month: month,
+      student_count: data.count,
+      gross_amount: data.gross,
+      commission_rate: commissionRate,
+      commission_amount: commission
+    };
+
+    if (existing) {
+      await supabase
+        .from("room_commission_earnings")
+        .update(payload)
+        .eq("teacher_id", teacherId)
+        .eq("period_month", month)
+        .eq("status", "pending");
+    } else {
+      await supabase.from("room_commission_earnings").insert({ ...payload, status: "pending" });
     }
   }
 

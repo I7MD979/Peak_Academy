@@ -3,6 +3,10 @@ import { getCacheEntry, setCacheEntry, invalidate, CACHE } from "../lib/cache.js
 import { PaymentFactory } from "./payments/PaymentFactory.js";
 import { findPaymentForStudent } from "../utils/payment-lookup.js";
 import { fulfillPaymentV2 } from "../utils/payments-fulfillment.js";
+import {
+  activateSubscriptionFromPayment,
+  resolveSubscriptionOrderPricing
+} from "./subscriptionService.js";
 
 export { findPaymentForStudent };
 
@@ -36,12 +40,11 @@ export async function createPaymentOrder({
     .eq("id", user.id)
     .maybeSingle();
 
-  const amount = Number(amountEgp);
-  if (!amount || amount <= 0) {
-    throw new Error("المبلغ غير صالح");
-  }
+  let amount = Number(amountEgp);
+  let resolvedPromotionId = null;
+  let discountAmount = 0;
+  const promoCode = metadata.promo_code || metadata.promoCode || null;
 
-  const amountCents = Math.round(amount * 100);
   const paymentMeta = {
     planId: planId || null,
     plan_id: planId || null,
@@ -50,6 +53,26 @@ export async function createPaymentOrder({
     type: metadata.type || (planId ? "subscription_payment" : enrollmentId ? "session_payment" : "payment"),
     ...metadata
   };
+
+  if (planId) {
+    const pricing = await resolveSubscriptionOrderPricing(user, planId, promoCode);
+    originalAmount = pricing.originalPrice;
+    discountAmount = pricing.discountAmount;
+    amount = pricing.finalPrice;
+    resolvedPromotionId = pricing.promotionId;
+    paymentMeta.bonus_sessions = pricing.bonusSessions;
+    paymentMeta.original_amount = pricing.originalPrice;
+    paymentMeta.discount_amount = pricing.discountAmount;
+    if (amountEgp != null && Math.abs(Number(amountEgp) - amount) > 0.02) {
+      const err = new Error("المبلغ لا يطابق سعر الخطة");
+      err.code = "AMOUNT_MISMATCH";
+      throw err;
+    }
+  } else if (!amount || amount <= 0) {
+    throw new Error("المبلغ غير صالح");
+  }
+
+  const amountCents = Math.round(amount * 100);
 
   const { data: payment, error } = await supabase
     .from("payments")
@@ -61,7 +84,8 @@ export async function createPaymentOrder({
       payment_method: provider,
       status: "pending",
       idempotency_key: idempotencyKey,
-      promotion_id: promotionId || null,
+      promotion_id: resolvedPromotionId || promotionId || null,
+      discount_amount: discountAmount || null,
       metadata: paymentMeta
     })
     .select("*")
@@ -69,8 +93,10 @@ export async function createPaymentOrder({
 
   if (error) throw error;
 
-  const paymentProvider = PaymentFactory.getProvider(provider);
-  const result = await paymentProvider.createOrder({
+  let result;
+  try {
+    const paymentProvider = PaymentFactory.getProvider(provider);
+    result = await paymentProvider.createOrder({
     amount: amountCents,
     orderId: payment.id,
     userId: user.id,
@@ -80,7 +106,11 @@ export async function createPaymentOrder({
       phone: profile?.phone || user.phone
     },
     metadata: paymentMeta
-  });
+    });
+  } catch (providerErr) {
+    await supabase.from("payments").update({ status: "failed" }).eq("id", payment.id).eq("status", "pending");
+    throw providerErr;
+  }
 
   const providerOrderId = result.providerOrderId;
   await supabase
@@ -164,13 +194,19 @@ export async function getPaymentStatus(paymentId, userId, { sync = false } = {})
 
   let subscriptionActivated = false;
   if (isSubscriptionPayment && payment.status === "paid") {
-    const { data: activeSub } = await supabase
-      .from("student_subscriptions")
-      .select("id")
-      .eq("student_id", userId)
-      .eq("status", "active")
-      .maybeSingle();
-    subscriptionActivated = Boolean(activeSub);
+    const fulfilledId = payment.metadata?.fulfilled_subscription_id;
+    if (fulfilledId) {
+      const { data: sub } = await supabase
+        .from("student_subscriptions")
+        .select("id")
+        .eq("id", fulfilledId)
+        .maybeSingle();
+      subscriptionActivated = Boolean(sub);
+    }
+    if (!subscriptionActivated) {
+      const recovery = await activateSubscriptionFromPayment(payment).catch(() => ({ activated: false }));
+      subscriptionActivated = Boolean(recovery.activated);
+    }
   }
 
   let enrolled = false;
@@ -181,6 +217,10 @@ export async function getPaymentStatus(paymentId, userId, { sync = false } = {})
       .eq("id", payment.enrollment_id)
       .maybeSingle();
     enrolled = enr?.status === "confirmed";
+    if (!enrolled) {
+      const recovery = await fulfillPaymentV2(payment).catch(() => ({ enrolled: false }));
+      enrolled = Boolean(recovery.enrolled);
+    }
   }
 
   return {

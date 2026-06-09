@@ -1006,14 +1006,22 @@ router.post("/:id/end", auth, checkRole("teacher"), validateSessionId, async (re
       })
       .eq("id", req.params.id);
 
-    await supabase
-      .from("session_enrollments")
-      .update({ status: "attended", left_at: endedAt })
-      .eq("session_id", req.params.id)
-      .eq("status", "enrolled");
+    if (isSchemaV2()) {
+      await supabase
+        .from("enrollments")
+        .update({ status: "attended" })
+        .eq("session_id", req.params.id)
+        .in("status", ["confirmed"]);
+    } else {
+      await supabase
+        .from("session_enrollments")
+        .update({ status: "attended", left_at: endedAt })
+        .eq("session_id", req.params.id)
+        .eq("status", "enrolled");
+    }
 
     await incrementAttendeeStreaks(req.params.id);
-    const earning = await recordSessionEarnings(req.params.id, teacher.id, teacher.commission_rate);
+    const earning = await recordSessionEarnings(req.params.id, teacher.id);
 
     await safeInvalidateSessionCaches(req.params.id);
     return success(res, { teacher_id: teacher.id, earning }, "Session ended");
@@ -1070,14 +1078,22 @@ router.patch("/:id/cancel", auth, checkRole("teacher", "admin"), validateSession
         })
         .eq("id", req.params.id);
 
-      await supabase
-        .from("session_enrollments")
-        .update({ status: "attended", left_at: endedAt })
-        .eq("session_id", req.params.id)
-        .eq("status", "enrolled");
+      if (isSchemaV2()) {
+        await supabase
+          .from("enrollments")
+          .update({ status: "attended" })
+          .eq("session_id", req.params.id)
+          .in("status", ["confirmed"]);
+      } else {
+        await supabase
+          .from("session_enrollments")
+          .update({ status: "attended", left_at: endedAt })
+          .eq("session_id", req.params.id)
+          .eq("status", "enrolled");
+      }
 
       await incrementAttendeeStreaks(req.params.id);
-      await recordSessionEarnings(req.params.id, teacher.id, teacher.commission_rate);
+      await recordSessionEarnings(req.params.id, teacher.id);
       await safeInvalidateSessionCaches(req.params.id);
       return success(res, {}, "تم إنهاء الجلسة المباشرة");
     }

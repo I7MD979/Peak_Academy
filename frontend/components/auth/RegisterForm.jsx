@@ -213,7 +213,7 @@ export default function RegisterForm({ redirectTo = null, levelParam = null }) {
             <div className={authDividerClass} />
           </div>
 
-          <form onSubmit={goToStep2} className="space-y-4">
+          <form method="post" action="/auth/register" onSubmit={goToStep2} className="space-y-4">
             <AuthField id="email" label="البريد الإلكتروني" error={step1Form.formState.errors.email?.message}>
               <input
                 id="email"
@@ -320,7 +320,7 @@ export default function RegisterForm({ redirectTo = null, levelParam = null }) {
             {redirectTo ? " أو لإتمام الاشتراك." : "."}
           </p>
 
-          <form onSubmit={finishRegistration} className="space-y-4">
+          <form method="post" action="/auth/register" onSubmit={finishRegistration} className="space-y-4">
             <AuthField id="full_name" label="الاسم بالكامل" error={step2Form.formState.errors.full_name?.message}>
               <input
                 id="full_name"

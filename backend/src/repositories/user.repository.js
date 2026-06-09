@@ -145,7 +145,7 @@ export const UserRepository = {
    */
   async findMany({ role, isActive, search, createdFrom, createdTo, page = 1, limit = 20 } = {}) {
     const { from, to, page: pageNum, limit: limitNum } = paginate(page, limit);
-    const VALID_ROLES = new Set(["student", "teacher", "parent", "admin"]);
+    const VALID_ROLES = new Set(["student", "teacher", "parent", "admin", "supervisor"]);
 
     let query = supabase
       .from("users")

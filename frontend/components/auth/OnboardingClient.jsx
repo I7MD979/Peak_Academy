@@ -223,7 +223,7 @@ export default function OnboardingClient({ deferredReturn = null, levelParam = n
           </div>
         ) : null}
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+        <form method="post" action="/onboarding" onSubmit={handleSubmit(onSubmit)} className="space-y-5">
           <AuthField id="full_name" label="الاسم بالكامل" error={errors.full_name?.message}>
             <input
               id="full_name"

@@ -1,3 +1,5 @@
+@import "@fontsource/material-symbols-outlined/400.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -312,8 +314,19 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
     radial-gradient(at 100% 100%, rgba(245, 114, 26, 0.03) 0px, transparent 50%);
 }
 
-/* Material Symbols */
+/* Material Symbols (self-hosted via fontsource — no external SRI risk) */
 .material-symbols-outlined {
+  font-family: "Material Symbols Outlined";
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
   font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
 }
 
@@ -324,9 +337,9 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-/* Cairo font — Landing Page only */
+/* Cairo via next/font (--font-cairo) */
 .font-cairo {
-  font-family: "Cairo", sans-serif;
+  font-family: var(--font-cairo), "Cairo", sans-serif;
 }
 
 /* ===== Landing Page Design System ===== */

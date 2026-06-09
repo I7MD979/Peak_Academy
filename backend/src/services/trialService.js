@@ -65,11 +65,11 @@ export async function activateTrial(userId) {
 
   const { data: fpByEmail } = await supabase
     .from("trial_fingerprints")
-    .select("id")
+    .select("id, user_id")
     .eq("email_hash", emailHash)
     .maybeSingle();
 
-  if (fpByEmail) {
+  if (fpByEmail && fpByEmail.user_id !== userId) {
     throw Object.assign(
       new Error("تم استخدام التجربة المجانية من قبل لهذا البريد الإلكتروني"),
       { status: 409 }
@@ -79,11 +79,11 @@ export async function activateTrial(userId) {
   if (phoneHash) {
     const { data: fpByPhone } = await supabase
       .from("trial_fingerprints")
-      .select("id")
+      .select("id, user_id")
       .eq("phone_hash", phoneHash)
       .maybeSingle();
 
-    if (fpByPhone) {
+    if (fpByPhone && fpByPhone.user_id !== userId) {
       throw Object.assign(
         new Error("تم استخدام التجربة المجانية من قبل لهذا الرقم"),
         { status: 409 }

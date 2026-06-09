@@ -4,7 +4,7 @@
 
 import { useState } from "react";
 
-import AdminSidebar from "@/components/shared/AdminSidebar";
+import AdminSidebar from "@/components/admin/AdminSidebar";
 
 import AdminTopBar from "@/components/shared/AdminTopBar";
 

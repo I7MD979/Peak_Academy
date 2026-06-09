@@ -11,7 +11,8 @@ import {
   fetchFullUserProfile,
   fetchTeacherProfileRow,
   isRoleProfileComplete,
-  normalizeRole
+  normalizeRole,
+  assertOnboardingRole
 } from "../utils/ensure-user-profile.js";
 import { ensureReferralCode } from "../services/referralService.js";
 import { isValidGrade } from "../lib/grades.js";
@@ -103,7 +104,12 @@ async function syncAuthUserMetadata(userId, { role, full_name, phone }) {
 router.post("/setup-profile", oauthLimiter, authSlowDown, authLimiter, uniformAuthResponse, auth, async (req, res) => {
   try {
     const fullName = String(req.body.full_name || "").trim();
-    const role = normalizeRole(req.body.role);
+    let role;
+    try {
+      role = assertOnboardingRole(req.body.role);
+    } catch (roleErr) {
+      return error(res, roleErr.message, roleErr.status || 403);
+    }
     const phone = String(req.body.phone || "").trim();
     const grade = req.body.grade;
     const section = req.body.section;
@@ -461,7 +467,12 @@ router.post("/complete-profile", oauthLimiter, authSlowDown, authLimiter, unifor
   try {
     const existing = await fetchFullUserProfile(supabase, req.user.id);
     const fullName = String(req.body.full_name || req.user.full_name || "").trim();
-    const role = normalizeRole(req.body.role || req.user.role);
+    let role;
+    try {
+      role = assertOnboardingRole(req.body.role || req.user.role);
+    } catch (roleErr) {
+      return error(res, roleErr.message, roleErr.status || 403);
+    }
 
     if (existing?.role && existing.role !== role) {
       return error(res, "لا يمكن تغيير نوع الحساب بعد إنشاء الملف", 400);

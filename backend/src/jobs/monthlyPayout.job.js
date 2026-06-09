@@ -50,10 +50,13 @@ export async function calculateMonthlyPayouts(month) {
   if (seErr) throw seErr;
   if (reErr) throw reErr;
 
+  const { data: teacherProfiles } = await supabase.from("teacher_profiles").select("id, user_id");
+  const profileToUser = Object.fromEntries((teacherProfiles || []).map((p) => [p.id, p.user_id]));
+
   const byTeacher = {};
 
   for (const row of sessionEarnings || []) {
-    const tid = row.teacher_id;
+    const tid = profileToUser[row.teacher_id] || row.teacher_id;
     if (!byTeacher[tid]) byTeacher[tid] = emptyEntry();
     byTeacher[tid].session_count++;
     byTeacher[tid].session_gross += Number(row.gross_amount || 0);
@@ -158,6 +161,13 @@ export async function markPayoutPaid(teacherId, month) {
   const nextMonth   = getNextMonthStart(targetMonth);
   const paidAt      = new Date().toISOString();
 
+  const { data: profile } = await supabase
+    .from("teacher_profiles")
+    .select("id")
+    .eq("user_id", teacherId)
+    .maybeSingle();
+  const sessionEarningsTeacherId = profile?.id || teacherId;
+
   const results = await Promise.allSettled([
     supabase
       .from("monthly_payouts")
@@ -168,7 +178,7 @@ export async function markPayoutPaid(teacherId, month) {
     supabase
       .from("teacher_earnings")
       .update({ status: "paid", paid_at: paidAt })
-      .eq("teacher_id", teacherId)
+      .eq("teacher_id", sessionEarningsTeacherId)
       .eq("status", "pending")
       .gte("created_at", `${targetMonth}-01`)
       .lt("created_at", nextMonth),

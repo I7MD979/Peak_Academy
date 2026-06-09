@@ -57,7 +57,7 @@ export default function ForgotPasswordForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
+    <form method="post" action="/auth/forgot-password" onSubmit={handleSubmit} className="space-y-5">
       {error ? <div className={authErrorClass}>{error}</div> : null}
 
       <div className="space-y-2">

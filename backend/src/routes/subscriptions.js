@@ -8,11 +8,11 @@ import {
   createSubscriptionPurchaseCheckout
 } from "../services/subscriptionService.js";
 import { freezeSubscription, unfreezeSubscription } from "../services/subscriptionFreeze.service.js";
-import { getActiveSubscription } from "../services/enrollmentService.js";
+import { getActiveSubscription, getCurrentSubscription } from "../services/enrollmentService.js";
 import { countPaidSessionEnrollments } from "../services/subscriptionService.js";
 import { ensureReferralCode } from "../services/referralService.js";
 import { activateTrial, hasRoomAccess } from "../services/trialService.js";
-import { CACHE, withCache, invalidateSubscriptionCaches } from "../lib/cache.js";
+import { CACHE, withCache } from "../lib/cache.js";
 import { allowSchema } from "../middleware/allowlist.js";
 import { paymentLimiter } from "../middleware/resourceLimits.js";
 import { preventDuplicateSubscription, paymentVelocity } from "../middleware/businessRules.js";
@@ -32,13 +32,16 @@ router.get("/me", auth, checkRole("student"), async (req, res) => {
   try {
     const data = await withCache(CACHE.studentSubscription(req.user.id), 60, async () => {
       await ensureReferralCode(req.user);
-      const subscription = await getActiveSubscription(req.user.id);
+      const subscription = await getCurrentSubscription(req.user.id);
+      const activePaid = await getActiveSubscription(req.user.id);
       const paidSessions = await countPaidSessionEnrollments(req.user.id);
       return {
         subscription,
+        is_trialing: subscription?.status === "trialing",
         paid_session_count: paidSessions,
         show_subscription_cta: paidSessions >= 3 && !subscription,
-        sessions_remaining: subscription?.sessions_remaining ?? 0
+        sessions_remaining: subscription?.sessions_remaining ?? 0,
+        has_active_paid: Boolean(activePaid)
       };
     });
     return success(res, data);

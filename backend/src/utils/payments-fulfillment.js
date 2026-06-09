@@ -55,8 +55,9 @@ export async function fulfillPaymentV2(payment, paymobTxnId) {
   const result = await fulfillPayment(payment, paymobTxnId);
   if (!result?.enrolled) return result;
 
-  const enrollment = payment.enrollment;
-  if (payment.promotion_id) {
+  const enrollment = result.enrollment || payment.enrollment;
+  const sessionId = enrollment?.session_id;
+  if (payment.promotion_id && enrollment?.id) {
     await recordPromoUse(
       payment.promotion_id,
       payment.student_id,
@@ -67,7 +68,9 @@ export async function fulfillPaymentV2(payment, paymobTxnId) {
     await creditReferrerOnFirstPaidEnrollment(payment.student_id, payment.promotion_id);
   }
 
-  await notifyEnrollmentConfirm(payment.student_id, enrollment.session_id, payment.amount);
+  if (sessionId) {
+    await notifyEnrollmentConfirm(payment.student_id, sessionId, payment.amount);
+  }
   return { enrolled: true, ok: true };
 }
 
@@ -95,12 +98,29 @@ export async function markPaymentFailedV2(payment) {
 
   await supabase.from("payments").update({ status: "failed" }).eq("id", payment.id).eq("status", "pending");
 
-  const sessionId = payment.enrollment?.session_id;
+  let sessionId = payment.enrollment?.session_id;
+  if (!sessionId && payment.enrollment_id) {
+    const { data: enr } = await supabase
+      .from("enrollments")
+      .select("session_id")
+      .eq("id", payment.enrollment_id)
+      .maybeSingle();
+    sessionId = enr?.session_id || null;
+  }
   if (payment.enrollment_id) {
+    const { data: enr } = await supabase
+      .from("enrollments")
+      .select("status, session_id")
+      .eq("id", payment.enrollment_id)
+      .maybeSingle();
+    if (enr?.status === "confirmed") {
+      await supabase.rpc("decrement_session_count", { p_session_id: enr.session_id }).catch(() => {});
+    }
     await supabase
       .from("enrollments")
-      .update({ payment_status: "failed" })
-      .eq("id", payment.enrollment_id);
+      .update({ status: "cancelled", payment_status: "failed" })
+      .eq("id", payment.enrollment_id)
+      .in("status", ["pending", "confirmed"]);
   }
 
   await Promise.all([

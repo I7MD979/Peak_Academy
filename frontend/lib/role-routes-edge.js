@@ -24,6 +24,9 @@ export function isProfileComplete(user) {
   if (user.role === "teacher") {
     return user.profile_complete === true;
   }
+  if (user.role === "admin" || user.role === "supervisor" || user.role === "parent") {
+    return true;
+  }
   return true;
 }
 

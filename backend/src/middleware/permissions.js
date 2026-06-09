@@ -82,7 +82,7 @@ function isAllowed(method, path, role) {
   }
 
   if (path.startsWith("/api/admin")) {
-    return role === "admin";
+    return role === "admin" || role === "supervisor";
   }
 
   return true;

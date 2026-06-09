@@ -4,6 +4,7 @@ import { verifySupabaseAccessToken } from "../lib/verify-supabase-jwt.js";
 import {
   ensureUserProfile,
   isRoleProfileComplete,
+  isStaffRole,
   normalizeRole
 } from "../utils/ensure-user-profile.js";
 
@@ -11,10 +12,7 @@ const INCOMPLETE_PROFILE_PATHS = [
   "/auth/setup-profile",
   "/auth/me",
   "/auth/complete-profile",
-  "/auth/profile",
-  "/sessions",
-  "/earnings",
-  "/teacher"
+  "/auth/profile"
 ];
 
 function allowsIncompleteProfile(path) {
@@ -117,10 +115,10 @@ export async function resolveAuthUserFromToken(token) {
         .maybeSingle();
 
       if (!existing?.id) {
-        const metaRole = meta.role || appMeta.role;
+        const metaRole = normalizeRole(meta.role || appMeta.role);
         // Defer DB profile creation to POST /auth/setup-profile (onboarding).
-        // Auto-provisioning as "student" here blocked teachers/parents from choosing their role.
-        if (metaRole) {
+        // Never auto-provision staff roles from JWT metadata.
+        if (metaRole && !isStaffRole(metaRole)) {
           try {
             await ensureUserProfile(supabase, {
               id: authUser.id,

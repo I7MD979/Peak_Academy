@@ -249,7 +249,7 @@ router.get("/users", auth, requirePermission("users.read"), async (req, res) => 
       .select("*", { count: "exact" })
       .order("created_at", { ascending: false })
       .range(from, to);
-    if (role && ["student", "teacher", "parent", "admin"].includes(role)) {
+    if (role && ["student", "teacher", "parent", "admin", "supervisor"].includes(role)) {
       query = query.eq("role", role);
     }
     if (is_active === "true") query = query.eq("is_active", true);

@@ -26,14 +26,22 @@ import { getSessionPrice } from "../services/platformConfig.service.js";
 import { ownedBy } from "../middleware/ownership.js";
 import { allowSchema } from "../middleware/allowlist.js";
 import { paymentLimiter } from "../middleware/resourceLimits.js";
-import { paymentVelocity } from "../middleware/businessRules.js";
+import { paymentVelocity, preventDuplicateSubscription } from "../middleware/businessRules.js";
 
 const router = Router();
+
+async function preventDuplicateSubscriptionForPlan(req, res, next) {
+  if (req.body?.planId || req.body?.plan_id) {
+    return preventDuplicateSubscription(req, res, next);
+  }
+  return next();
+}
 
 router.post(
   "/create-order",
   auth,
   paymentLimiter,
+  preventDuplicateSubscriptionForPlan,
   paymentVelocity,
   idempotency({ required: true }),
   allowSchema("paymentCreateOrder"),
@@ -67,7 +75,7 @@ router.post(
 
     return res.json(result);
   } catch (err) {
-    if (err.code === "INVALID_PROVIDER") {
+    if (["INVALID_PROVIDER", "INVALID_PROMO", "AMOUNT_MISMATCH", "PLAN_NOT_FOUND"].includes(err.code)) {
       return error(res, err.message, 400, null, err.code);
     }
     return error(res, err.message || "فشل إنشاء طلب الدفع", 500);
@@ -120,6 +128,11 @@ router.post("/upload-instapay-receipt", auth, allowSchema("instapayReceipt"), as
     if (!paymentId || !referenceCode || !image_base64) {
       return error(res, "paymentId و referenceCode و image_base64 مطلوبة", 400);
     }
+
+    const owned = await findPaymentForStudent(paymentId, req.user.id);
+    if (!owned) return error(res, "الدفعة غير موجودة", 404);
+    if (owned.provider !== "instapay") return error(res, "هذه الدفعة ليست عبر InstaPay", 400);
+    if (owned.status !== "pending") return error(res, "لا يمكن رفع إيصال لدفعة غير معلّقة", 400);
 
     const allowed = ["image/jpeg", "image/png", "image/webp"];
     const mime = String(content_type || "image/jpeg").toLowerCase();

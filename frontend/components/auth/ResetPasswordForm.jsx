@@ -104,7 +104,7 @@ export default function ResetPasswordForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form method="post" action="/auth/reset-password" onSubmit={handleSubmit} className="space-y-6">
       {error ? <div className={authErrorClass}>{error}</div> : null}
 
       <div className="space-y-2">

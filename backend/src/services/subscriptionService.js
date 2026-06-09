@@ -24,27 +24,56 @@ export async function getPlanById(planId) {
   return data;
 }
 
+/** Server-side subscription price + promo validation (never trust client amount). */
+export async function resolveSubscriptionOrderPricing(user, planId, promoCode) {
+  const plan = await getPlanById(planId);
+  if (!plan) {
+    const err = new Error("الخطة غير موجودة");
+    err.code = "PLAN_NOT_FOUND";
+    throw err;
+  }
+
+  let originalPrice = Number(plan.price);
+  let discountAmount = 0;
+  let finalPrice = originalPrice;
+  let promotionId = null;
+  let bonusSessions = 0;
+
+  if (promoCode) {
+    const validation = await validatePromoCode(promoCode, user.id, "subscription");
+    if (!validation.valid) {
+      const err = new Error(validation.reason);
+      err.code = "INVALID_PROMO";
+      throw err;
+    }
+    const applied = applyPromoToPrice(originalPrice, validation);
+    discountAmount = applied.discountAmount;
+    finalPrice = applied.finalPrice;
+    promotionId = applied.promotionId;
+    if (validation.bonus_sessions) bonusSessions = validation.bonus_sessions;
+  }
+
+  return { plan, originalPrice, finalPrice, discountAmount, promotionId, bonusSessions };
+}
+
 /** Fulfill a V2 `payments` row for subscription checkout (webhook or return sync). */
 export async function activateSubscriptionFromPayment(payment, paymobTxnId = "") {
   if (!payment) return { activated: false };
-  if (payment.status === "paid") return { activated: true, duplicate: true };
 
   const meta = payment.metadata || {};
+  if (meta.fulfilled_subscription_id || meta.fulfilled_at) {
+    return {
+      activated: true,
+      duplicate: true,
+      subscription_id: meta.fulfilled_subscription_id || null
+    };
+  }
+  if (payment.status === "paid") return { activated: true, duplicate: true };
+
   const planId = meta.planId || meta.plan_id;
   if (!planId) return { activated: false };
 
   const txnId = paymobTxnId ? String(paymobTxnId) : payment.paymob_transaction_id || payment.provider_txn_id || "";
-
-  await supabase
-    .from("payments")
-    .update({
-      status: "paid",
-      paymob_transaction_id: txnId || payment.paymob_transaction_id,
-      provider_txn_id: txnId || payment.provider_txn_id,
-      paid_at: new Date().toISOString()
-    })
-    .eq("id", payment.id)
-    .eq("status", "pending");
 
   const fakeTransaction = {
     user_id: payment.student_id,
@@ -58,6 +87,25 @@ export async function activateSubscriptionFromPayment(payment, paymobTxnId = "")
   };
 
   const result = await activateSubscriptionFromTransaction(fakeTransaction);
+  if (!result.activated) return { activated: false };
+
+  const subId = result.subscription?.id || result.subscription_id;
+  await supabase
+    .from("payments")
+    .update({
+      status: "paid",
+      paymob_transaction_id: txnId || payment.paymob_transaction_id,
+      provider_txn_id: txnId || payment.provider_txn_id,
+      paid_at: new Date().toISOString(),
+      metadata: {
+        ...meta,
+        fulfilled_at: new Date().toISOString(),
+        fulfilled_subscription_id: subId || null
+      }
+    })
+    .eq("id", payment.id)
+    .eq("status", "pending");
+
   if (payment.promotion_id && result.activated) {
     const { recordPromoUse } = await import("../utils/promoValidator.js");
     await recordPromoUse(payment.promotion_id, payment.student_id, null, payment.discount_amount || 0);
@@ -69,7 +117,6 @@ export async function activateSubscriptionFromPayment(payment, paymobTxnId = "")
     await invalidateSubscriptionCaches(payment.student_id);
 
     // Record room attribution if student was in a teacher's room in the last 24h
-    const subId = result.subscription?.id || result.subscription_id;
     if (subId) {
       const { recordSubscriptionAttribution } = await import("./roomAttribution.service.js");
       await recordSubscriptionAttribution(payment.student_id, subId);
@@ -94,6 +141,31 @@ export async function activateSubscriptionFromTransaction(transaction) {
   const bonus = Number(transaction.metadata?.bonus_sessions || 0);
   sessionsRemaining += bonus;
 
+  const { data: trialing } = await supabase
+    .from("student_subscriptions")
+    .select("id")
+    .eq("student_id", transaction.user_id)
+    .eq("status", "trialing")
+    .maybeSingle();
+
+  if (trialing) {
+    await supabase
+      .from("student_subscriptions")
+      .update({
+        plan_id: plan.id,
+        status: "active",
+        sessions_remaining: sessionsRemaining,
+        current_period_start: now.toISOString(),
+        current_period_end: periodEnd.toISOString(),
+        trial_start: null,
+        trial_end: null,
+        paymob_subscription_id: transaction.paymob_order_id || null
+      })
+      .eq("id", trialing.id);
+    await invalidateSubscriptionCaches(transaction.user_id);
+    return { activated: true, subscription_id: trialing.id };
+  }
+
   const { data: existing } = await supabase
     .from("student_subscriptions")
     .select("id")
@@ -102,22 +174,8 @@ export async function activateSubscriptionFromTransaction(transaction) {
     .maybeSingle();
 
   if (existing) {
-    const { data: sub } = await supabase
-      .from("student_subscriptions")
-      .select("sessions_remaining")
-      .eq("id", existing.id)
-      .maybeSingle();
-    await supabase
-      .from("student_subscriptions")
-      .update({
-        plan_id: plan.id,
-        sessions_remaining: (sub?.sessions_remaining || 0) + sessionsRemaining,
-        current_period_start: now.toISOString(),
-        current_period_end: periodEnd.toISOString()
-      })
-      .eq("id", existing.id);
     await invalidateSubscriptionCaches(transaction.user_id);
-    return { activated: true, subscription_id: existing.id };
+    return { activated: true, subscription_id: existing.id, duplicate: true };
   }
 
   const { data: created, error } = await supabase
@@ -140,24 +198,8 @@ export async function activateSubscriptionFromTransaction(transaction) {
 }
 
 export async function createSubscriptionPurchaseCheckout(user, planId, promoCode, frontendUrl) {
-  const plan = await getPlanById(planId);
-  if (!plan) throw new Error("الخطة غير موجودة");
-
-  let originalPrice = Number(plan.price);
-  let discountAmount = 0;
-  let finalPrice = originalPrice;
-  let promotionId = null;
-  let bonusSessions = 0;
-
-  if (promoCode) {
-    const validation = await validatePromoCode(promoCode, user.id, "subscription");
-    if (!validation.valid) throw new Error(validation.reason);
-    const applied = applyPromoToPrice(originalPrice, validation);
-    discountAmount = applied.discountAmount;
-    finalPrice = applied.finalPrice;
-    promotionId = applied.promotionId;
-    if (validation.bonus_sessions) bonusSessions = validation.bonus_sessions;
-  }
+  const { plan, originalPrice, finalPrice, discountAmount, promotionId, bonusSessions } =
+    await resolveSubscriptionOrderPricing(user, planId, promoCode);
 
   const amountCents = Math.round(finalPrice * 100);
   const returnUrl = `${frontendUrl}/student/subscription?paid=1`;

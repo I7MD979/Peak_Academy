@@ -229,33 +229,67 @@ export async function findPaymentByPaymobOrder(orderId) {
   return null;
 }
 
+async function resolvePaymentEnrollment(payment) {
+  if (payment?.enrollment) return payment.enrollment;
+  if (!payment?.enrollment_id) return null;
+  const { data } = await supabase
+    .from("enrollments")
+    .select("id, session_id, student_id, status")
+    .eq("id", payment.enrollment_id)
+    .maybeSingle();
+  return data;
+}
+
 export async function fulfillPayment(payment, paymobTxnId) {
   if (isSchemaV2()) {
     if (!payment || payment.status !== "pending") {
       return { ok: payment?.status === "paid", duplicate: payment?.status === "paid" };
     }
 
-    const enrollment = payment.enrollment;
+    const enrollment = await resolvePaymentEnrollment(payment);
     if (!enrollment) return { enrolled: false };
     if (enrollment.status === "confirmed") {
       return { enrolled: true, duplicate: true };
     }
 
-    await Promise.all([
-      supabase
-        .from("payments")
-        .update({
-          status: "paid",
-          paymob_transaction_id: String(paymobTxnId),
-          paid_at: new Date().toISOString()
-        })
-        .eq("id", payment.id),
-      supabase
-        .from("enrollments")
-        .update({ status: "confirmed", payment_status: "paid" })
-        .eq("id", enrollment.id),
-      supabase.rpc("increment_session_count", { p_session_id: enrollment.session_id })
-    ]);
+    const { data: reserved, error: seatError } = await supabase.rpc("reserve_session_seat", {
+      p_session_id: enrollment.session_id
+    });
+    if (seatError?.code === "42883") {
+      const { data: session } = await supabase
+        .from("sessions")
+        .select("current_students, max_students")
+        .eq("id", enrollment.session_id)
+        .maybeSingle();
+      const enrolled = session?.current_students ?? 0;
+      if (session?.max_students > 0 && enrolled >= session.max_students) {
+        return { enrolled: false, reason: "session_full" };
+      }
+      await supabase.rpc("increment_session_count", { p_session_id: enrollment.session_id });
+    } else if (seatError || reserved !== true) {
+      return { enrolled: false, reason: "session_full" };
+    }
+
+    const { error: enrollError } = await supabase
+      .from("enrollments")
+      .update({ status: "confirmed", payment_status: "paid" })
+      .eq("id", enrollment.id)
+      .neq("status", "confirmed");
+    if (enrollError) {
+      await supabase.rpc("decrement_session_count", { p_session_id: enrollment.session_id }).catch(() => {});
+      return { enrolled: false };
+    }
+
+    const { error: payError } = await supabase
+      .from("payments")
+      .update({
+        status: "paid",
+        paymob_transaction_id: String(paymobTxnId),
+        paid_at: new Date().toISOString()
+      })
+      .eq("id", payment.id)
+      .eq("status", "pending");
+    if (payError) return { enrolled: false };
 
     await invalidateSessionCaches(enrollment.session_id);
     await invalidateStudentCaches(enrollment.student_id);

@@ -1,7 +1,24 @@
 import { encryptUserFields, decryptUserFields } from "./encryption.js";
 
-const VALID_ROLES = ["student", "teacher", "parent", "admin"];
+const VALID_ROLES = ["student", "teacher", "parent", "admin", "supervisor"];
+const STAFF_ROLES = new Set(["admin", "supervisor"]);
+const ONBOARDING_ROLES = new Set(["student", "teacher", "parent"]);
 const VALID_GRADES = ["first", "second", "third"];
+
+export function isStaffRole(role) {
+  return STAFF_ROLES.has(normalizeRole(role));
+}
+
+/** Roles users may pick during self-service onboarding (never admin/supervisor). */
+export function assertOnboardingRole(role) {
+  const normalized = normalizeRole(role);
+  if (!ONBOARDING_ROLES.has(normalized)) {
+    const err = new Error("لا يمكن اختيار هذا الدور أثناء التسجيل");
+    err.status = 403;
+    throw err;
+  }
+  return normalized;
+}
 
 export function buildLinkCode(userId) {
   return String(userId || "")

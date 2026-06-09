@@ -2,7 +2,7 @@ import { UserRepository } from "../repositories/user.repository.js";
 import { supabase } from "../lib/supabase.js";
 import { invalidate, CACHE } from "../lib/cache.js";
 
-const VALID_ROLES = new Set(["student", "teacher", "parent", "admin"]);
+const VALID_ROLES = new Set(["student", "teacher", "parent", "admin", "supervisor"]);
 
 /** Guards that apply before any admin mutation. */
 function assertMutableByAdmin(target, actorId) {
@@ -201,12 +201,12 @@ export const UserService = {
     }
     const safePeriodDays = Math.min(Math.max(Number(periodDays) || 30, 1), 3650);
 
-    // Cancel any existing active subscription
+    // Cancel any existing active or trial subscription
     await supabase
       .from("student_subscriptions")
-      .update({ status: "cancelled" })
+      .update({ status: "cancelled", sessions_remaining: 0 })
       .eq("student_id", studentId)
-      .eq("status", "active");
+      .in("status", ["active", "trialing"]);
 
     const now = new Date();
     const periodEnd = new Date(now.getTime() + safePeriodDays * 24 * 60 * 60 * 1000);
@@ -224,6 +224,9 @@ export const UserService = {
       .select("*, subscription_plans(name, sessions_per_month, price)")
       .single();
     if (insertErr) throw insertErr;
+
+    const { recordSubscriptionAttribution } = await import("./roomAttribution.service.js");
+    await recordSubscriptionAttribution(studentId, sub.id).catch(() => {});
 
     await invalidate(CACHE.studentSubscription(studentId));
     return { ok: true, data: sub };

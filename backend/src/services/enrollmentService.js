@@ -77,7 +77,6 @@ export async function getActiveSubscription(studentUserId) {
     .select("*, plan:subscription_plans(*)")
     .eq("student_id", studentUserId)
     .eq("status", "active")
-    .gt("sessions_remaining", 0)
     .gt("current_period_end", now)
     .order("current_period_end", { ascending: false })
     .limit(1)
@@ -85,7 +84,31 @@ export async function getActiveSubscription(studentUserId) {
   return data;
 }
 
+/** Active or trialing subscription (for /me and access checks). */
+export async function getCurrentSubscription(studentUserId) {
+  const now = new Date().toISOString();
+  const { data } = await supabase
+    .from("student_subscriptions")
+    .select("*, plan:subscription_plans(*)")
+    .eq("student_id", studentUserId)
+    .in("status", ["active", "trialing"])
+    .gt("current_period_end", now)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data;
+}
+
 export async function deductSubscriptionSession(subscriptionId) {
+  const { error } = await supabase.rpc("deduct_subscription_session", {
+    p_sub_id: subscriptionId
+  });
+  if (!error) return;
+
+  if (String(error.message || "").includes("no sessions remaining")) {
+    throw new Error("اشتراكك انتهت حصصه");
+  }
+
   const { data: sub } = await supabase
     .from("student_subscriptions")
     .select("sessions_remaining")
@@ -94,11 +117,12 @@ export async function deductSubscriptionSession(subscriptionId) {
   if (!sub || sub.sessions_remaining <= 0) {
     throw new Error("اشتراكك انتهت حصصه");
   }
-  const { error } = await supabase
+  const { error: updateErr } = await supabase
     .from("student_subscriptions")
     .update({ sessions_remaining: sub.sessions_remaining - 1 })
-    .eq("id", subscriptionId);
-  if (error) throw error;
+    .eq("id", subscriptionId)
+    .gt("sessions_remaining", 0);
+  if (updateErr) throw updateErr;
 }
 
 export async function notifyEnrollmentConfirm(userId, sessionId, amountPaid) {
