@@ -319,7 +319,13 @@ export const subscriptionsApi = {
       method: "POST",
       headers: { "X-Idempotency-Key": newIdempotencyKey("sub") },
       body: JSON.stringify({ plan_id: planId, promo_code: promoCode || undefined })
-    })
+    }),
+  activateTrial: () =>
+    apiRequest("/subscriptions/activate-trial", {
+      method: "POST",
+      body: JSON.stringify({})
+    }),
+  roomAccess: () => apiRequest("/subscriptions/me/access")
 };
 
 export const enrollmentsApi = {

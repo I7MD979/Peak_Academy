@@ -7,11 +7,14 @@ import { verifyPaymobHmacStrict } from "../../utils/paymob-security.js";
 export class VodafoneCashProvider extends BasePaymentProvider {
   async createOrder({ amount, orderId, userId, customer, metadata = {} }) {
     const integrationId = Number(
+      process.env.PAYMOB_INTEGRATION_ID_CASH ||
       process.env.PAYMOB_INTEGRATION_ID_WALLET ||
       process.env.PAYMOB_WALLET_INTEGRATION_ID
     );
     if (!integrationId) {
-      throw new Error("PAYMOB_INTEGRATION_ID_WALLET is not configured");
+      throw new Error(
+        "Vodafone Cash integration not configured. Set PAYMOB_INTEGRATION_ID_CASH in environment variables."
+      );
     }
 
     const frontendUrl = (process.env.FRONTEND_URL || "http://localhost:3000").replace(/\/$/, "");

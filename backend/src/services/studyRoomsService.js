@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { supabase } from "../lib/supabase.js";
 import { isMissingTableError } from "../utils/db-errors.js";
 import { GRADE_LABELS as EXTENDED_GRADE_LABELS } from "../lib/grades.js";
@@ -247,7 +248,7 @@ export async function joinStudyRoom({ userId, subject, grade, roomId = null, use
     room = await findOpenStudyRoom(subjectKey, grade);
     if (!room) {
       room = await createStudyRoom({
-        id:         `sr-${Date.now()}`,
+        id:         randomUUID(),
         subject:    subjectKey,
         grade:      normalizeStudyRoomGrade(grade),
         status:     "open",
@@ -263,9 +264,10 @@ export async function joinStudyRoom({ userId, subject, grade, roomId = null, use
   }
 
   const member = await addRoomMember({
-    id: `srm-${Date.now()}`,
+    id:      randomUUID(),
     room_id: room.id,
-    user_id: userId
+    user_id: userId,
+    role:    userRole === "teacher" ? "owner" : "student"
   });
 
   if (count + 1 >= 2) await markRoomStatus(room.id, "active");
