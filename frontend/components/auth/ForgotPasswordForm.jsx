@@ -5,6 +5,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { getAuthErrorMessage } from "@/lib/auth-errors";
 import { authInputClass, authBtnPrimaryClass, authErrorClass } from "@/components/auth/auth-styles";
+import CsrfField from "@/components/auth/CsrfField";
 
 export default function ForgotPasswordForm() {
   const [email, setEmail] = useState("");
@@ -58,6 +59,7 @@ export default function ForgotPasswordForm() {
 
   return (
     <form method="post" action="/auth/forgot-password" onSubmit={handleSubmit} className="space-y-5">
+      <CsrfField />
       {error ? <div className={authErrorClass}>{error}</div> : null}
 
       <div className="space-y-2">

@@ -5,6 +5,8 @@ import LoginForm from "@/components/auth/LoginForm";
 import { buildPlanCheckoutPath } from "@/lib/checkout-redirect";
 import { sanitizeRedirectPath } from "@/lib/safe-redirect";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "تسجيل الدخول | Peak Academy",
   description: "سجّل دخولك لمتابعة الجلسات، الأداء، والتقارير على منصة Peak Academy"

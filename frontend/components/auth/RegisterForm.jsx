@@ -29,6 +29,7 @@ import {
   authDividerClass,
   authErrorClass
 } from "@/components/auth/auth-styles";
+import CsrfField from "@/components/auth/CsrfField";
 import { cn } from "@/lib/utils";
 
 const STEPS = [
@@ -214,6 +215,7 @@ export default function RegisterForm({ redirectTo = null, levelParam = null }) {
           </div>
 
           <form method="post" action="/auth/register" onSubmit={goToStep2} className="space-y-4">
+            <CsrfField />
             <AuthField id="email" label="البريد الإلكتروني" error={step1Form.formState.errors.email?.message}>
               <input
                 id="email"
@@ -321,6 +323,7 @@ export default function RegisterForm({ redirectTo = null, levelParam = null }) {
           </p>
 
           <form method="post" action="/auth/register" onSubmit={finishRegistration} className="space-y-4">
+            <CsrfField />
             <AuthField id="full_name" label="الاسم بالكامل" error={step2Form.formState.errors.full_name?.message}>
               <input
                 id="full_name"

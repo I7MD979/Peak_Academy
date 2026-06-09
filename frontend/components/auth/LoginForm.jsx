@@ -17,6 +17,7 @@ import {
   authDividerClass,
   authErrorClass
 } from "@/components/auth/auth-styles";
+import CsrfField from "@/components/auth/CsrfField";
 
 export default function LoginForm({ redirectTo: redirectToProp = null, oauthError = false }) {
   const router = useRouter();
@@ -110,6 +111,7 @@ export default function LoginForm({ redirectTo: redirectToProp = null, oauthErro
       {error ? <div className={authErrorClass}>{error}</div> : null}
 
       <form method="post" action="/auth/login" onSubmit={handleLogin} className="space-y-6">
+        <CsrfField />
         <div className="space-y-2">
           <label className="block text-xs font-semibold text-on-surface-variant" htmlFor="login-email">
             البريد الإلكتروني

@@ -4,56 +4,100 @@ const API_UPSTREAM =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ||
   "https://peakacademy-production.up.railway.app";
 
-function supabaseOrigin() {
+const PAYMOB_ORIGINS = [
+  "https://accept.paymob.com",
+  "https://accept.paymobsolutions.com"
+];
+
+function originFromUrl(url) {
+  if (!url) return "";
   try {
-    return SUPABASE_URL ? new URL(SUPABASE_URL).origin : "";
+    return new URL(url).origin;
   } catch {
     return "";
   }
+}
+
+function supabaseOrigin() {
+  return originFromUrl(SUPABASE_URL);
 }
 
 function apiOrigin() {
-  try {
-    return API_UPSTREAM ? new URL(API_UPSTREAM).origin : "";
-  } catch {
-    return "";
-  }
+  return originFromUrl(API_UPSTREAM);
 }
 
-/** Build CSP allowing Next.js, Supabase, Paymob, LiveKit, and Sentry. */
-export function buildContentSecurityPolicy() {
+function sentryIngestOrigin() {
+  return originFromUrl(process.env.NEXT_PUBLIC_SENTRY_DSN || "");
+}
+
+function livekitOrigins() {
+  const configured = process.env.NEXT_PUBLIC_LIVEKIT_URL?.trim();
+  if (configured) {
+    const origin = originFromUrl(configured);
+    if (origin) {
+      return {
+        https: origin,
+        wss: origin.replace("https://", "wss://")
+      };
+    }
+  }
+  return {
+    https: "https://*.livekit.cloud",
+    wss: "wss://*.livekit.cloud"
+  };
+}
+
+/** Nonce-based CSP for HTML responses (set via proxy). */
+export function buildContentSecurityPolicy(nonce) {
+  const isProd = process.env.NODE_ENV === "production";
   const supabase = supabaseOrigin();
   const api = apiOrigin();
-  const connect = [
+  const sentry = sentryIngestOrigin();
+  const livekit = livekitOrigins();
+
+  const scriptSrc = ["'self'", `'nonce-${nonce}'`, "'strict-dynamic'"];
+  if (!isProd) {
+    scriptSrc.push("'unsafe-eval'");
+  }
+  if (sentry) {
+    scriptSrc.push(sentry);
+  }
+
+  const connectSrc = [
     "'self'",
     supabase,
     supabase ? supabase.replace("https://", "wss://") : "",
-    "https://*.supabase.co",
-    "wss://*.supabase.co",
-    "https://*.livekit.cloud",
-    "wss://*.livekit.cloud",
     api,
-    "https://*.sentry.io",
-    "https://accept.paymob.com",
-    "https://*.paymob.com"
-  ]
-    .filter(Boolean)
-    .join(" ");
+    sentry,
+    livekit.https,
+    livekit.wss,
+    ...PAYMOB_ORIGINS
+  ].filter(Boolean);
 
-  return [
+  const imgSrc = ["'self'", "data:", "blob:"];
+  if (supabase) {
+    imgSrc.push(supabase);
+  }
+
+  const directives = [
     "default-src 'self'",
     "base-uri 'self'",
     "form-action 'self'",
     "frame-ancestors 'none'",
     "object-src 'none'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.sentry.io",
+    `script-src ${scriptSrc.join(" ")}`,
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self' data:",
-    "img-src 'self' data: blob: https:",
-    `connect-src ${connect}`,
-    "frame-src 'self' https://accept.paymob.com https://*.paymob.com",
-    "upgrade-insecure-requests"
-  ].join("; ");
+    `img-src ${imgSrc.join(" ")}`,
+    `connect-src ${connectSrc.join(" ")}`,
+    `frame-src 'self' ${PAYMOB_ORIGINS.join(" ")}`
+  ];
+
+  if (isProd) {
+    directives.push("upgrade-insecure-requests");
+  }
+
+  return directives.join("; ");
 }
 
 const BASE_SECURITY_HEADERS = [
@@ -69,35 +113,69 @@ const BASE_SECURITY_HEADERS = [
   { key: "Cross-Origin-Opener-Policy", value: "same-origin" }
 ];
 
-export function headersForPath(pathname = "/") {
-  const csp = buildContentSecurityPolicy();
-  const headers = [
-    ...BASE_SECURITY_HEADERS,
-    { key: "Content-Security-Policy", value: csp }
-  ];
-
+function cacheHeadersForPath(pathname = "/") {
   const isAuth =
     pathname.startsWith("/auth/") ||
     pathname === "/onboarding" ||
     pathname.startsWith("/onboarding/");
 
-  if (isAuth) {
-    headers.push({
+  if (!isAuth) return [];
+
+  return [
+    {
       key: "Cache-Control",
       value: "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
-    });
-    headers.push({ key: "Pragma", value: "no-cache" });
-  }
-
-  return headers;
+    },
+    { key: "Pragma", value: "no-cache" }
+  ];
 }
 
-/** Apply security headers onto a NextResponse (proxy / middleware). */
-export function applySecurityHeaders(response, pathname = "/") {
-  for (const { key, value } of headersForPath(pathname)) {
+/** Headers for next.config (no per-request nonce). CSP is applied in proxy. */
+export function baseHeadersForPath(pathname = "/") {
+  return [...BASE_SECURITY_HEADERS, ...cacheHeadersForPath(pathname)];
+}
+
+/** @deprecated Use baseHeadersForPath in next.config; CSP via applySecurityHeaders in proxy. */
+export function headersForPath(pathname = "/") {
+  return baseHeadersForPath(pathname);
+}
+
+export const CSRF_COOKIE_NAME = "csrf_token";
+
+export function ensureCsrfCookie(request, response) {
+  const existing = request.cookies.get(CSRF_COOKIE_NAME)?.value;
+  if (existing) return existing;
+
+  const token = crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "");
+  response.cookies.set(CSRF_COOKIE_NAME, token, {
+    path: "/",
+    sameSite: "strict",
+    secure: process.env.NODE_ENV === "production",
+    httpOnly: false,
+    maxAge: 60 * 60 * 8
+  });
+  return token;
+}
+
+/** Apply security headers onto a NextResponse (proxy). */
+export function applySecurityHeaders(response, pathname = "/", nonce = "") {
+  for (const { key, value } of BASE_SECURITY_HEADERS) {
     response.headers.set(key, value);
   }
+  for (const { key, value } of cacheHeadersForPath(pathname)) {
+    response.headers.set(key, value);
+  }
+  if (nonce) {
+    response.headers.set("Content-Security-Policy", buildContentSecurityPolicy(nonce));
+  }
   return response;
+}
+
+export function createRequestSecurityContext(request) {
+  const nonce = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))));
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-nonce", nonce);
+  return { nonce, requestHeaders };
 }
 
 export const SENSITIVE_QUERY_KEYS = new Set([

@@ -12,6 +12,7 @@ import {
   authBtnPrimaryClass,
   authErrorClass
 } from "@/components/auth/auth-styles";
+import CsrfField from "@/components/auth/CsrfField";
 import { cn } from "@/lib/utils";
 
 export default function ResetPasswordForm() {
@@ -105,6 +106,7 @@ export default function ResetPasswordForm() {
 
   return (
     <form method="post" action="/auth/reset-password" onSubmit={handleSubmit} className="space-y-6">
+      <CsrfField />
       {error ? <div className={authErrorClass}>{error}</div> : null}
 
       <div className="space-y-2">

@@ -11,6 +11,7 @@ import AuthFormCard from "@/components/auth/AuthFormCard";
 import AuthField, { authInputClass } from "@/components/auth/AuthField";
 import { Select } from "@/components/ui/Select";
 import { authBtnPrimaryClass, authErrorClass } from "@/components/auth/auth-styles";
+import CsrfField from "@/components/auth/CsrfField";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { authApi } from "@/lib/api";
@@ -224,6 +225,7 @@ export default function OnboardingClient({ deferredReturn = null, levelParam = n
         ) : null}
 
         <form method="post" action="/onboarding" onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+          <CsrfField />
           <AuthField id="full_name" label="الاسم بالكامل" error={errors.full_name?.message}>
             <input
               id="full_name"

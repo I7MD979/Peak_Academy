@@ -6,7 +6,12 @@ import {
   resolvePostAuthPath,
   ROLE_HOME
 } from "./lib/role-routes-edge.js";
-import { applySecurityHeaders, SENSITIVE_QUERY_KEYS } from "./lib/security-headers.js";
+import {
+  applySecurityHeaders,
+  createRequestSecurityContext,
+  ensureCsrfCookie,
+  SENSITIVE_QUERY_KEYS
+} from "./lib/security-headers.js";
 
 const PUBLIC_PATHS = [
   "/",
@@ -51,12 +56,17 @@ function roleAllowedForPath(userRole, requiredRole) {
   return userRole === requiredRole;
 }
 
-function redirectWithCookies(url, res, pathname = "/") {
+function finalizeResponse(response, request, pathname, ctx) {
+  ensureCsrfCookie(request, response);
+  return applySecurityHeaders(response, pathname, ctx.nonce);
+}
+
+function redirectWithCookies(url, res, pathname, request, ctx) {
   const redirect = NextResponse.redirect(url);
   res.cookies.getAll().forEach(({ name, value }) => {
     redirect.cookies.set(name, value);
   });
-  return applySecurityHeaders(redirect, pathname);
+  return finalizeResponse(redirect, request, pathname, ctx);
 }
 
 function stripSensitiveQueryParams(request) {
@@ -72,23 +82,22 @@ function stripSensitiveQueryParams(request) {
   return NextResponse.redirect(url, 302);
 }
 
-function secureResponse(response, pathname) {
-  return applySecurityHeaders(response, pathname);
-}
-
 export async function proxy(request) {
   const { pathname } = request.nextUrl;
+  const ctx = createRequestSecurityContext(request);
 
   const sensitiveRedirect = stripSensitiveQueryParams(request);
   if (sensitiveRedirect) {
-    return secureResponse(sensitiveRedirect, pathname);
+    return finalizeResponse(sensitiveRedirect, request, pathname, ctx);
   }
 
-  let res = secureResponse(
+  let res = finalizeResponse(
     NextResponse.next({
-      request: { headers: request.headers }
+      request: { headers: ctx.requestHeaders }
     }),
-    pathname
+    request,
+    pathname,
+    ctx
   );
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -98,7 +107,7 @@ export async function proxy(request) {
     if (!isPublicPath(pathname)) {
       const loginUrl = new URL("/auth/login", request.url);
       loginUrl.searchParams.set("redirect", pathname);
-      return secureResponse(NextResponse.redirect(loginUrl), pathname);
+      return finalizeResponse(NextResponse.redirect(loginUrl), request, pathname, ctx);
     }
     return res;
   }
@@ -128,14 +137,14 @@ export async function proxy(request) {
         ? `/onboarding?next=${encodeURIComponent(request.nextUrl.searchParams.get("next"))}`
         : pathname;
     loginUrl.searchParams.set("redirect", redirectTarget);
-    return redirectWithCookies(loginUrl, res, pathname);
+    return redirectWithCookies(loginUrl, res, pathname, request, ctx);
   }
 
   if (isPublicPath(pathname)) {
     if (session?.access_token && AUTH_ENTRY_PATHS.has(pathname)) {
       const nextPath = await resolvePostAuthPath(session.access_token, request);
       if (nextPath && nextPath !== "/auth/login") {
-        return redirectWithCookies(new URL(nextPath, request.url), res, pathname);
+        return redirectWithCookies(new URL(nextPath, request.url), res, pathname, request, ctx);
       }
     }
     return res;
@@ -145,7 +154,7 @@ export async function proxy(request) {
     if (session?.access_token) {
       const user = await fetchAuthProfile(session.access_token, request);
       if (user && isProfileComplete(user) && ROLE_HOME[user.role]) {
-        return redirectWithCookies(new URL(ROLE_HOME[user.role], request.url), res, pathname);
+        return redirectWithCookies(new URL(ROLE_HOME[user.role], request.url), res, pathname, request, ctx);
       }
     }
     return res;
@@ -157,15 +166,14 @@ export async function proxy(request) {
     const user = await fetchAuthProfile(session.access_token, request);
 
     if (!user?.role || !isProfileComplete(user)) {
-      return redirectWithCookies(new URL("/onboarding", request.url), res, pathname);
+      return redirectWithCookies(new URL("/onboarding", request.url), res, pathname, request, ctx);
     }
 
     if (!roleAllowedForPath(user.role, requiredRole)) {
       const dest = ROLE_HOME[user.role] || "/auth/login";
-      return redirectWithCookies(new URL(dest, request.url), res, pathname);
+      return redirectWithCookies(new URL(dest, request.url), res, pathname, request, ctx);
     }
 
-    // Study rooms gate: require active trial or paid subscription
     if (pathname.startsWith("/student/study-rooms")) {
       try {
         const { data: hasAccess } = await supabase.rpc("has_room_access", {
@@ -175,7 +183,7 @@ export async function proxy(request) {
           const subscribeUrl = new URL("/student/subscription", request.url);
           subscribeUrl.searchParams.set("reason", "study_rooms");
           subscribeUrl.searchParams.set("redirect", pathname);
-          return redirectWithCookies(subscribeUrl, res, pathname);
+          return redirectWithCookies(subscribeUrl, res, pathname, request, ctx);
         }
       } catch {
         // On RPC failure, allow through — backend enforces the gate
@@ -186,7 +194,7 @@ export async function proxy(request) {
   if (pathname === "/dashboard" && session?.access_token) {
     const nextPath =
       (await resolvePostAuthPath(session.access_token, request)) ?? "/onboarding";
-    return redirectWithCookies(new URL(nextPath, request.url), res, pathname);
+    return redirectWithCookies(new URL(nextPath, request.url), res, pathname, request, ctx);
   }
 
   return res;
@@ -194,6 +202,6 @@ export async function proxy(request) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|peak-api|.*\\.png|.*\\.jpg|.*\\.svg|.*\\.ico).*)"
+    "/((?!_next/static|_next/image|favicon.ico|peak-api|.*\\.png|.*\\.jpg|.*\\.svg|.*\\.ico).*)"
   ]
 };

@@ -1,5 +1,5 @@
 import { withSentryConfig } from "@sentry/nextjs";
-import { headersForPath } from "./lib/security-headers.js";
+import { baseHeadersForPath } from "./lib/security-headers.js";
 
 const API_UPSTREAM =
   process.env.API_UPSTREAM_URL?.replace(/\/$/, "") ||
@@ -13,15 +13,15 @@ const nextConfig = {
     return [
       {
         source: "/:path*",
-        headers: headersForPath("/")
+        headers: baseHeadersForPath("/")
       },
       {
         source: "/auth/:path*",
-        headers: headersForPath("/auth/login")
+        headers: baseHeadersForPath("/auth/login")
       },
       {
         source: "/onboarding/:path*",
-        headers: headersForPath("/onboarding")
+        headers: baseHeadersForPath("/onboarding")
       }
     ];
   },
