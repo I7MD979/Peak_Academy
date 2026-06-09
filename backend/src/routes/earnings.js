@@ -184,12 +184,33 @@ router.post("/withdraw", auth, checkRole("teacher"), async (req, res) => {
     }
 
     if (!isWithinPayoutWindow()) {
-      const today    = new Date().getDate();
-      const daysLeft = today < 26 ? 26 - today : 30 - today + 26;
+      const now = new Date();
+      const nextWindow = new Date(now.getFullYear(), now.getMonth(), 26);
+      if (nextWindow.getTime() <= now.getTime()) {
+        nextWindow.setMonth(nextWindow.getMonth() + 1);
+      }
+      const daysLeft = Math.max(1, Math.ceil((nextWindow.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
       return error(
         res,
         `نافذة السحب مغلقة. يمكنك طلب السحب في يوم 26 و 27 من كل شهر. متبقي ${daysLeft} يوم`,
         403
+      );
+    }
+
+    // Prevent double-withdrawal in the same payout month
+    const { data: existingWd } = await supabase
+      .from("withdrawal_requests")
+      .select("id, amount, status")
+      .eq("teacher_id", teacher.id)
+      .eq("payout_month", getCurrentPayoutMonth())
+      .in("status", ["pending", "approved"])
+      .maybeSingle();
+
+    if (existingWd) {
+      return error(
+        res,
+        `عندك طلب سحب معلق لهذا الشهر بمبلغ ${existingWd.amount} جنيه`,
+        409
       );
     }
 

@@ -167,15 +167,13 @@ export async function grantSpeak(sessionId, targetUserId, grantedByUserId) {
     .eq("session_id", sessionId)
     .eq("user_id", targetUserId);
 
-  // Auto-revoke after 60 seconds
-  setTimeout(async () => {
-    await svc
-      .updateParticipant(session.livekit_room_id, targetUserId, undefined, { canPublish: false })
-      .catch(() => {});
-    await supabase
-      .from("raise_hand_queue")
-      .update({ status: "dismissed" })
-      .eq("session_id", sessionId)
-      .eq("user_id", targetUserId);
-  }, 60_000);
+  // Set expires_at — auto-revoke is handled by scheduler (crash-safe)
+  await supabase
+    .from("raise_hand_queue")
+    .update({
+      status:     "granted",
+      expires_at: new Date(Date.now() + 60_000).toISOString(),
+    })
+    .eq("session_id", sessionId)
+    .eq("user_id", targetUserId);
 }

@@ -69,6 +69,10 @@ export async function recordSubscriptionAttribution(studentId, subscriptionId) {
  * Called by cron job. month format: '2026-06'
  */
 export async function calculateMonthlyCommissions(month) {
+  const monthStart = `${month}-01`;
+  const [y, m]     = month.split("-").map(Number);
+  const monthEnd   = new Date(y, m, 1).toISOString().slice(0, 10);
+
   const { data: attributions, error } = await supabase
     .from("subscription_attributions")
     .select(`
@@ -84,14 +88,17 @@ export async function calculateMonthlyCommissions(month) {
   if (error) throw error;
   if (!attributions?.length) return { processed: 0 };
 
-  // Group by teacher — only count active subscriptions
   const byTeacher = {};
   for (const attr of attributions) {
     const sub = attr.subscription;
-    if (!sub || sub.status !== "active") continue;
+    if (!sub) continue;
+    // only active or trialing
+    if (!["active", "trialing"].includes(sub.status)) continue;
+    // subscription must still be valid within this month
+    if (sub.current_period_end && sub.current_period_end < monthStart) continue;
 
     const price = Number(sub.plan?.price || 49);
-    const tid = attr.teacher_id;
+    const tid   = attr.teacher_id;
 
     if (!byTeacher[tid]) byTeacher[tid] = { count: 0, gross: 0 };
     byTeacher[tid].count++;

@@ -1,3 +1,4 @@
+import { supabase } from "../lib/supabase.js";
 import { resetMonthlySubscriptions } from "../jobs/subscriptionReset.js";
 import { expireTrials } from "./trialService.js";
 import {
@@ -32,6 +33,17 @@ export function startSubscriptionResetScheduler() {
       }
     } catch (err) {
       console.error("trial expiry tick failed", err.message);
+    }
+
+    // Revoke expired raise_hand_queue grants (BUG-09 crash-safe replacement for setTimeout)
+    try {
+      await supabase
+        .from("raise_hand_queue")
+        .update({ status: "dismissed" })
+        .eq("status", "granted")
+        .lt("expires_at", new Date().toISOString());
+    } catch (err) {
+      console.error("[scheduler] raise-hand revoke failed:", err.message);
     }
 
     // Day 25: calculate monthly payouts (sessions + rooms)

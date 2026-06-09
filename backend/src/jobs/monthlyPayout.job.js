@@ -12,6 +12,20 @@ export async function calculateMonthlyPayouts(month) {
   const targetMonth = month || getCurrentPayoutMonth();
   console.log(`[payout-job] calculating payouts for ${targetMonth}`);
 
+  // Ensure room commissions are calculated before combining totals
+  const { count: roomCount } = await supabase
+    .from("room_commission_earnings")
+    .select("*", { count: "exact", head: true })
+    .eq("period_month", targetMonth);
+
+  if (!roomCount || roomCount === 0) {
+    console.log(`[payout-job] pre-calculating room commissions for ${targetMonth}`);
+    const { calculateMonthlyCommissions } = await import("../services/roomAttribution.service.js");
+    await calculateMonthlyCommissions(targetMonth).catch((err) =>
+      console.error("[payout-job] pre-calc failed:", err.message)
+    );
+  }
+
   await getTeacherShare();
   await getPlatformCommission();
 
@@ -141,18 +155,19 @@ export async function getPayoutList(month) {
  */
 export async function markPayoutPaid(teacherId, month) {
   const targetMonth = month || getCurrentPayoutMonth();
-  const nextMonth = getNextMonthStart(targetMonth);
+  const nextMonth   = getNextMonthStart(targetMonth);
+  const paidAt      = new Date().toISOString();
 
-  await Promise.all([
+  const results = await Promise.allSettled([
     supabase
       .from("monthly_payouts")
-      .update({ status: "paid", paid_at: new Date().toISOString() })
+      .update({ status: "paid", paid_at: paidAt })
       .eq("teacher_id", teacherId)
       .eq("payout_month", targetMonth),
 
     supabase
       .from("teacher_earnings")
-      .update({ status: "paid", paid_at: new Date().toISOString() })
+      .update({ status: "paid", paid_at: paidAt })
       .eq("teacher_id", teacherId)
       .eq("status", "pending")
       .gte("created_at", `${targetMonth}-01`)
@@ -160,11 +175,31 @@ export async function markPayoutPaid(teacherId, month) {
 
     supabase
       .from("room_commission_earnings")
-      .update({ status: "paid", paid_at: new Date().toISOString() })
+      .update({ status: "paid", paid_at: paidAt })
       .eq("teacher_id", teacherId)
       .eq("period_month", targetMonth)
       .eq("status", "pending"),
   ]);
+
+  // monthly_payouts must succeed
+  if (results[0].status === "rejected") {
+    throw new Error(`Failed to mark payout: ${results[0].reason?.message}`);
+  }
+
+  for (const [i, r] of results.entries()) {
+    if (r.status === "rejected") {
+      console.error(`[markPayoutPaid] step ${i} failed for ${teacherId}:`, r.reason?.message);
+    }
+  }
+
+  // Close any approved withdrawal requests for this month
+  await supabase
+    .from("withdrawal_requests")
+    .update({ status: "paid", processed_at: paidAt })
+    .eq("teacher_id", teacherId)
+    .eq("payout_month", targetMonth)
+    .eq("status", "approved")
+    .catch((err) => console.error("[markPayoutPaid] withdrawal update failed:", err.message));
 }
 
 function emptyEntry() {

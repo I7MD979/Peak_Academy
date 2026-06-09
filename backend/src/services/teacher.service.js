@@ -105,9 +105,13 @@ export async function getTeacherBalance(teacherId) {
   const isWindowOpen = today === 26 || today === 27;
   const payoutDay    = 27;
 
-  const daysUntilPayout = today <= payoutDay
-    ? payoutDay - today
-    : (new Date(now.getFullYear(), now.getMonth() + 1, payoutDay) - now) / (1000 * 60 * 60 * 24);
+  const nextPayout = new Date(now.getFullYear(), now.getMonth(), payoutDay);
+  if (nextPayout.getTime() <= now.getTime()) {
+    nextPayout.setMonth(nextPayout.getMonth() + 1);
+  }
+  const daysUntilPayout = Math.ceil(
+    (nextPayout.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+  );
 
   const pendingWithdrawalCount = withdrawalRows.filter((r) => r.status === "pending").length;
 

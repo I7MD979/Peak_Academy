@@ -85,11 +85,17 @@ router.get("/", auth, checkRole("student"), requireRoomAccess, async (req, res) 
   }
 });
 
-router.post("/join-random", auth, checkRole("student"), requireRoomAccess, async (req, res) => {
+router.post("/join-random", auth, async (req, res) => {
+  // students require active trial or subscription; teachers/admins bypass
+  if (req.user.role === "student") {
+    const access = await hasRoomAccess(req.user.id).catch(() => false);
+    if (!access) return error(res, "يجب الاشتراك للوصول للغرف", 403, null, "NO_ROOM_ACCESS");
+  }
+
   const parsed = z
     .object({
       subject: z.string().min(1).max(32),
-      grade: z.string().optional()
+      grade:   z.string().optional()
     })
     .safeParse(req.body);
 
@@ -123,10 +129,16 @@ router.post("/join-random", auth, checkRole("student"), requireRoomAccess, async
   }
 });
 
-router.post("/:roomId/join", auth, checkRole("student"), requireRoomAccess, async (req, res) => {
+router.post("/:roomId/join", auth, async (req, res) => {
   const roomId = String(req.params.roomId || "").trim();
   if (!roomId || roomId.length > 64) {
     return error(res, "معرّف الغرفة غير صالح", 400);
+  }
+
+  // students require active trial or subscription; teachers/admins bypass
+  if (req.user.role === "student") {
+    const access = await hasRoomAccess(req.user.id).catch(() => false);
+    if (!access) return error(res, "يجب الاشتراك للوصول للغرف", 403, null, "NO_ROOM_ACCESS");
   }
 
   try {
@@ -149,24 +161,23 @@ router.post("/:roomId/join", auth, checkRole("student"), requireRoomAccess, asyn
   }
 });
 
-router.post("/:roomId/leave", auth, checkRole("student"), requireRoomAccess, async (req, res) => {
+router.post("/:roomId/leave", auth, async (req, res) => {
   const roomId = String(req.params.roomId || "").trim();
   if (!roomId || roomId.length > 64) {
     return error(res, "معرّف الغرفة غير صالح", 400);
   }
 
   try {
+    const isMember = await isActiveMember(roomId, req.user.id);
+    if (!isMember) return error(res, "لست عضواً في هذه الغرفة", 403);
+
     const leftAt = await leaveRoom(roomId, req.user.id);
     const activeMembers = await countActiveRoomMembers(roomId);
     if (activeMembers === 0) await markRoomStatus(roomId, "closed");
 
     return success(
       res,
-      {
-        room_id: roomId,
-        left_at: leftAt,
-        active_members: activeMembers
-      },
+      { room_id: roomId, left_at: leftAt, active_members: activeMembers },
       "تم مغادرة الغرفة"
     );
   } catch (err) {
@@ -255,7 +266,7 @@ router.post("/:roomId/assign-ta", auth, async (req, res) => {
 
 // ── Voice Routes ──────────────────────────────────────────────────────────────
 
-router.post("/:roomId/voice/start", auth, async (req, res) => {
+router.post("/:roomId/voice/start", auth, requireRoomAccess, async (req, res) => {
   const { roomId } = req.params;
   try {
     const session = await startVoiceSession(roomId, req.user.id);
@@ -265,7 +276,7 @@ router.post("/:roomId/voice/start", auth, async (req, res) => {
   }
 });
 
-router.post("/voice/:sessionId/join", auth, async (req, res) => {
+router.post("/voice/:sessionId/join", auth, requireRoomAccess, async (req, res) => {
   const { sessionId } = req.params;
   const userName = req.user.full_name || req.user.email || req.user.id;
   try {
@@ -286,7 +297,7 @@ router.post("/voice/:sessionId/end", auth, async (req, res) => {
   }
 });
 
-router.post("/voice/:sessionId/raise-hand", auth, async (req, res) => {
+router.post("/voice/:sessionId/raise-hand", auth, requireRoomAccess, async (req, res) => {
   const { sessionId } = req.params;
   try {
     await raiseHand(sessionId, req.user.id);

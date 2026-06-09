@@ -1,6 +1,7 @@
 import { supabase } from "../lib/supabase.js";
+import { getSessionPrice, getTeacherShare } from "../services/platformConfig.service.js";
 
-export async function recordSessionEarnings(sessionId, teacherId, commissionRate = 70) {
+export async function recordSessionEarnings(sessionId, teacherId) {
   const { data: existing } = await supabase
     .from("teacher_earnings")
     .select("id")
@@ -15,23 +16,21 @@ export async function recordSessionEarnings(sessionId, teacherId, commissionRate
     .eq("session_id", sessionId)
     .eq("status", "attended");
 
-  const { data: session } = await supabase.from("sessions").select("price_per_student").eq("id", sessionId).single();
-  if (!session) return null;
-
-  const gross = (attendeeCount || 0) * Number(session.price_per_student || 0);
-  const rate = Number(commissionRate || 70);
-  const teacher_amount = Number((gross * (rate / 100)).toFixed(2));
-  const platform_amount = Number((gross - teacher_amount).toFixed(2));
+  const price        = await getSessionPrice();
+  const teacherShare = await getTeacherShare();
+  const gross          = (attendeeCount || 0) * price;
+  const teacher_amount  = Math.round(gross * teacherShare * 100) / 100;
+  const platform_amount = Math.round((gross - teacher_amount) * 100) / 100;
 
   const { data: earning, error } = await supabase
     .from("teacher_earnings")
     .insert({
-      teacher_id: teacherId,
-      session_id: sessionId,
-      gross_amount: gross,
+      teacher_id:     teacherId,
+      session_id:     sessionId,
+      gross_amount:   gross,
       teacher_amount,
       platform_amount,
-      status: "pending"
+      status:         "pending"
     })
     .select()
     .single();
