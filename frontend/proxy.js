@@ -67,7 +67,7 @@ function isMalformedAssetPath(pathname) {
 
 function finalizeResponse(response, request, pathname, ctx) {
   issueCsrfCookie(response, request, pathname, ctx.csrfToken);
-  return applySecurityHeaders(response, pathname, ctx.nonce);
+  return applySecurityHeaders(response, pathname, ctx.nonce, ctx.csp);
 }
 
 function redirectWithCookies(url, res, pathname, request, ctx) {

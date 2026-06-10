@@ -198,7 +198,7 @@ export function buildStaticAssetCsp() {
 }
 
 /** Apply security headers onto a NextResponse (proxy). */
-export function applySecurityHeaders(response, pathname = "/", nonce = "") {
+export function applySecurityHeaders(response, pathname = "/", nonce = "", csp = "") {
   for (const { key, value } of BASE_SECURITY_HEADERS) {
     response.headers.set(key, value);
   }
@@ -211,20 +211,24 @@ export function applySecurityHeaders(response, pathname = "/", nonce = "") {
   if (isSeoMetadataPath(pathname)) {
     response.headers.set("Content-Security-Policy", buildStaticAssetCsp());
   } else if (nonce) {
-    response.headers.set("Content-Security-Policy", buildContentSecurityPolicy(nonce));
+    response.headers.set("Content-Security-Policy", csp || buildContentSecurityPolicy(nonce));
   }
   return response;
 }
 
 export function createRequestSecurityContext(request) {
   const nonce = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))));
+  const csp = buildContentSecurityPolicy(nonce);
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
+  // Next.js reads content-security-policy from request headers to extract the
+  // nonce and apply it to its own generated inline <script> tags.
+  requestHeaders.set("content-security-policy", csp);
 
   const csrfToken = request.cookies.get(CSRF_COOKIE_NAME)?.value || generateCsrfToken();
   requestHeaders.set("x-csrf-token", csrfToken);
 
-  return { nonce, requestHeaders, csrfToken };
+  return { nonce, csp, requestHeaders, csrfToken };
 }
 
 export const SENSITIVE_QUERY_KEYS = new Set([
