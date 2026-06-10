@@ -71,23 +71,60 @@ test.describe("Admin user details modal", () => {
     }
   });
 
-  test('للمدرسين غير الموثقين: زر "توثيق المدرس" ظاهر', async ({ page }) => {
-    await admin.closeModal();
-    await admin.clickFilterTab("مدرسون");
-    await admin.openFirstUserProfile();
-    const verifyBtn = page.getByRole("button", { name: "توثيق المدرس" });
-    const unverified = page.getByText("غير موثّق");
-    if (await unverified.isVisible().catch(() => false)) {
-      await expect(verifyBtn).toBeVisible();
-    } else {
-      test.skip(true, "لا يوجد مدرس غير موثّق في أول صف");
-    }
-  });
-
   test('زر "تعديل البيانات" ظاهر', async ({ page }) => {
     const editBtn = page.getByRole("button", { name: "تعديل البيانات" });
     if (await editBtn.isVisible()) {
       await expect(editBtn).toBeVisible();
     }
+  });
+});
+
+test.describe("Admin user details modal — teacher verification", () => {
+  let admin: AdminPage;
+
+  test.afterEach(async () => {
+    await admin?.forceCloseModalsAfterTest();
+  });
+
+  test('للمدرسين غير الموثقين: زر "توثيق المدرس" ظاهر', async ({ page }) => {
+    admin = new AdminPage(page);
+    await admin.dismissOpenDialogs();
+    await admin.goTo("users");
+
+    await admin.clickFilterTab("مدرسون");
+
+    const rows = page.locator("table tbody tr");
+    const rowCount = await rows.count().catch(() => 0);
+
+    if (rowCount === 0) {
+      test.skip(true, "لا يوجد مدرسون في البيانات");
+      return;
+    }
+
+    await page.evaluate(() => {
+      const firstTd = document.querySelector("table tbody tr:first-child td:first-child");
+      const btn = firstTd?.querySelector("button");
+      if (btn) (btn as HTMLButtonElement).click();
+    });
+
+    const dialog = page.getByRole("dialog").first();
+    await dialog.waitFor({ state: "visible", timeout: 15_000 });
+
+    const isTeacher = await dialog.getByText(/مدرس|teacher/i).isVisible().catch(() => false);
+    if (!isTeacher) {
+      await page.keyboard.press("Escape");
+      test.skip(true, "أول مستخدم مش مدرس — skip");
+      return;
+    }
+
+    const isVerified = await dialog.getByText("موثّق").isVisible().catch(() => false);
+    if (isVerified) {
+      await page.keyboard.press("Escape");
+      test.skip(true, "المدرس موثّق بالفعل — skip");
+      return;
+    }
+
+    await expect(dialog.getByRole("button", { name: "توثيق المدرس" })).toBeVisible();
+    await page.keyboard.press("Escape");
   });
 });

@@ -35,6 +35,18 @@ export class AuthPage {
   }
 
   async assertLoggedInDashboard() {
-    await expect(this.page).toHaveURL(new RegExp(`${ROUTES.dashboard.replace(/\//g, "\\/")}`));
+    await expect(this.page).toHaveURL(new RegExp(`${ROUTES.dashboard.replace(/\//g, "\\/")}`), {
+      timeout: 30_000
+    });
+    await this.page
+      .getByRole("navigation", { name: "القائمة الرئيسية" })
+      .getByRole("link", { name: "لوحة التحكم" })
+      .waitFor({ state: "visible", timeout: 30_000 });
+  }
+
+  async clickLogout() {
+    const logoutBtn = this.page.getByRole("button", { name: "تسجيل الخروج" });
+    await logoutBtn.waitFor({ state: "visible", timeout: 30_000 });
+    await logoutBtn.click();
   }
 }

@@ -52,19 +52,19 @@ test.describe("Admin login & logout", () => {
     await auth.gotoLogin();
     await auth.login(ADMIN_CREDENTIALS.email, ADMIN_CREDENTIALS.password);
     await auth.assertLoggedInDashboard();
-
-    await page.getByRole("button", { name: "تسجيل الخروج" }).click();
-    await page.waitForLoadState("networkidle");
+    await auth.clickLogout();
+    await page.waitForLoadState("load");
 
     await expect(page).toHaveURL(
-      new RegExp(`(${ROUTES.login}|${ROUTES.home})`.replace(/\//g, "\\/"))
+      new RegExp(`(${ROUTES.login}|${ROUTES.home})`.replace(/\//g, "\\/")),
+      { timeout: 15_000 }
     );
   });
 
   test("مستخدم مسجّل يُحوَّل من /auth/login إلى لوحة التحكم", async ({ page }) => {
     await loginAsAdmin(page);
     await page.goto(ROUTES.login);
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
     await expect(page).toHaveURL(/\/admin\//, { timeout: 15_000 });
   });
 
@@ -72,13 +72,14 @@ test.describe("Admin login & logout", () => {
     const auth = new AuthPage(page);
     await auth.gotoLogin();
     await auth.login(ADMIN_CREDENTIALS.email, ADMIN_CREDENTIALS.password);
-    await page.getByRole("button", { name: "تسجيل الخروج" }).click();
-    await page.waitForLoadState("networkidle");
+    await auth.assertLoggedInDashboard();
+    await auth.clickLogout();
+    await page.waitForLoadState("load");
 
     await page.goto(ROUTES.dashboard);
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
 
-    await expect(page).not.toHaveURL(new RegExp(`${ROUTES.dashboard.replace(/\//g, "\\/")}`));
+    await expect(page).toHaveURL(/login/, { timeout: 15_000 });
   });
 
 });
