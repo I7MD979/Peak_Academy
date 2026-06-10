@@ -28,6 +28,11 @@ Thumbs.db
 
 # Test / coverage
 coverage/
+.auth/
+playwright-report/
+test-results/
+blob-report/
+playwright/.cache/
 
 # Misc
 .cursor/

@@ -21,6 +21,7 @@ export default function RoleGate({ roles, children }) {
       if (loadingSession) return;
 
       if (!session?.access_token) {
+        setChecking(false);
         router.replace("/auth/login");
         return;
       }
