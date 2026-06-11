@@ -1,24 +1,32 @@
 export const BASE_URL =
   process.env.BASE_URL || "https://peak-academy-kappa.vercel.app";
 
+function requireEnv(name: string): string {
+  const value = process.env[name]?.trim();
+  if (!value) {
+    throw new Error(`Missing required E2E env var: ${name}`);
+  }
+  return value;
+}
+
 export const ADMIN_CREDENTIALS = {
-  email: process.env.E2E_ADMIN_EMAIL || "admin@peak.com",
-  password: process.env.E2E_ADMIN_PASSWORD || "Admin123!"
+  email: requireEnv("E2E_ADMIN_EMAIL"),
+  password: requireEnv("E2E_ADMIN_PASSWORD")
 };
 
 export const TEACHER_CREDENTIALS = {
-  email: process.env.E2E_TEACHER_EMAIL || "teacher@peak.com",
-  password: process.env.E2E_TEACHER_PASSWORD || "Teacher123!"
+  email: requireEnv("E2E_TEACHER_EMAIL"),
+  password: requireEnv("E2E_TEACHER_PASSWORD")
 };
 
 export const STUDENT_CREDENTIALS = {
-  email: process.env.E2E_STUDENT_EMAIL || "student@peak.com",
-  password: process.env.E2E_STUDENT_PASSWORD || "Student123!"
+  email: requireEnv("E2E_STUDENT_EMAIL"),
+  password: requireEnv("E2E_STUDENT_PASSWORD")
 };
 
 export const PARENT_CREDENTIALS = {
-  email: process.env.E2E_PARENT_EMAIL || "parent@peak.com",
-  password: process.env.E2E_PARENT_PASSWORD || "Parent123!"
+  email: requireEnv("E2E_PARENT_EMAIL"),
+  password: requireEnv("E2E_PARENT_PASSWORD")
 };
 
 export const INVALID_CREDENTIALS = {

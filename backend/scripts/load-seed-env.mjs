@@ -57,7 +57,7 @@ export function loadSeedEnv() {
     return { url, serviceKey, envPath };
   }
 
-  console.error("\n❌ Cannot run seed: Supabase credentials are missing.\n");
+  console.error("\n❌ Cannot run setup: Supabase credentials are missing.\n");
   console.error(`   File: ${envPath}`);
   console.error(`   SUPABASE_URL: ${url || "(missing)"}`);
   console.error(`   SUPABASE_SERVICE_KEY: ${serviceKey ? "(set)" : "(missing)"}\n`);

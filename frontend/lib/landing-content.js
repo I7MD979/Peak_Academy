@@ -209,8 +209,3 @@ export const landingJourneySteps = [
   }
 ];
 
-export const demoPromoCodes = {
-  PEAK20: "خصم ٢٠٪ تم تفعيله!",
-  WELCOME: "حصة مجانية إضافية تم إضافتها!",
-  EARLYBIRD: "خصم Early Bird — ٣٠٪ تم تفعيله!"
-};

@@ -1,23 +1,22 @@
-admin@peak.com / Admin123!
-teacher@peak.com / Teacher123!
-student@peak.com / Student123!
-parent@peak.com / Parent123!
+# حساب الإدارة — Peak Academy
 
-## بيانات تجريبية
+| البريد | كلمة المرور | الدور |
+|--------|-------------|--------|
+| ahmedmohamed123905@gmail.com | Ah@0144473536 | مشرف (admin) |
 
-**أولاً** أضف مفاتيح Supabase في `backend/.env` (مرة واحدة):
+## إعداد الحساب (مرة واحدة)
 
 ```bash
 cd backend
 npm run setup:env
 ```
 
-انسخ **service_role** من: [Supabase API settings](https://supabase.com/dashboard/project/hpczrdvaeazrrrzgtatl/settings/api)
+انسخ **service_role** من [Supabase API settings](https://supabase.com/dashboard/project/hpczrdvaeazrrrzgtatl/settings/api)
 
-ثم شغّل البيانات التجريبية:
+ثم:
 
 ```bash
-npm run seed:demo
+npm run setup:admin
 ```
 
-التفاصيل: [DemoData.md](./DemoData.md)
+هذا الأمر يحذف بيانات الـ demo والحسابات التجريبية (`*@peak.com`) ويضبط حساب المشرف أعلاه.

@@ -14,7 +14,7 @@
   - `/api/questions` (ask/answer flow)
   - `/api/admin` (stats + users)
 - Shared response helpers and pagination utilities.
-- Seed demo users for fast testing.
+- Super-admin setup script (`npm run setup:admin`).
 
 ### Frontend (`frontend/`)
 - Next.js app in JavaScript (App Router).
