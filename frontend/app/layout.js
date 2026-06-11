@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import { Cairo } from "next/font/google";
 import "./globals.css";
 import "@livekit/components-styles";
@@ -25,11 +26,13 @@ export const metadata = {
   }
 };
 
-export default function RootLayout({ children }) {
+export default async function RootLayout({ children }) {
+  const nonce = (await headers()).get("x-nonce") ?? "";
+
   return (
     <html lang="ar" dir="rtl" suppressHydrationWarning className={cairo.variable}>
       <body className={`${cairo.className} bg-bg text-text antialiased`} suppressHydrationWarning>
-        <Providers>{children}</Providers>
+        <Providers nonce={nonce}>{children}</Providers>
         <Toaster position="top-center" richColors />
       </body>
     </html>

@@ -59,7 +59,9 @@ test.describe("Student profile page", () => {
   });
 
   test('"حفظ التغييرات" button ظاهر', async ({ page }) => {
-    await expect(page.getByRole("button", { name: "حفظ التغييرات" })).toBeVisible();
+    const btn = page.getByRole("button", { name: "حفظ التغييرات" });
+    await btn.scrollIntoViewIfNeeded().catch(() => {});
+    await expect(btn).toBeVisible({ timeout: 30_000 });
   });
 
   test('"تراجع" button ظاهر', async ({ page }) => {

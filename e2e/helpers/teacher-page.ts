@@ -40,7 +40,14 @@ export class TeacherPage {
 
     await this.dismissOpenDialogs();
 
-    if (teacherPathname(this.page) !== path) {
+    let currentSearch = "";
+    try {
+      currentSearch = new URL(this.page.url()).search;
+    } catch {
+      currentSearch = "";
+    }
+
+    if (teacherPathname(this.page) !== path || currentSearch) {
       try {
         await this.page.goto(path, { waitUntil: "load", timeout: 45_000 });
       } catch (err) {

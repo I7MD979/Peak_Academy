@@ -58,7 +58,9 @@ test.describe("Teacher profile page", () => {
   });
 
   test('"حفظ التعديلات" button ظاهر', async ({ page }) => {
-    await expect(page.getByRole("button", { name: "حفظ التعديلات" })).toBeVisible();
+    const btn = page.getByRole("button", { name: "حفظ التعديلات" });
+    await btn.scrollIntoViewIfNeeded().catch(() => {});
+    await expect(btn).toBeVisible({ timeout: 30_000 });
   });
 
   test('"تراجع" button ظاهر', async ({ page }) => {

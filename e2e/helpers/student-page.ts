@@ -52,7 +52,14 @@ export class StudentPage {
 
     await this.dismissOpenDialogs();
 
-    if (studentPathname(this.page) !== path) {
+    let currentSearch = "";
+    try {
+      currentSearch = new URL(this.page.url()).search;
+    } catch {
+      currentSearch = "";
+    }
+
+    if (studentPathname(this.page) !== path || currentSearch) {
       try {
         await this.page.goto(path, { waitUntil: "load", timeout: 45_000 });
       } catch (err) {

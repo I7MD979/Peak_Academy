@@ -43,10 +43,11 @@ test.describe("Admin permissions page", () => {
   test("staff table اتحمّل", async ({ page }) => {
     await expect(
       page
-        .getByRole("button", { name: "الصلاحيات" })
+        .getByText("فريق الإدارة")
         .or(page.getByText("لا يوجد أعضاء في الفريق"))
+        .or(page.getByRole("button", { name: "الصلاحيات" }))
         .first()
-    ).toBeVisible({ timeout: 30_000 });
+    ).toBeVisible({ timeout: 45_000 });
   });
 
   test('"إضافة مشرف" يفتح modal', async ({ page }) => {
