@@ -24,7 +24,8 @@ export default function StudentSubscriptionPage({
   showSubscriptionCta = false,
   searchParams = null,
   onPurchase,
-  paymentProvider = "paymob",
+  paymentProvider = "instapay",
+  paymentAvailability = null,
   onPaymentProviderChange,
   checkoutResult = null,
   selectedPlanAmount = null
@@ -91,6 +92,7 @@ export default function StudentSubscriptionPage({
           <CheckoutPaymentStep
             selectedProvider={paymentProvider}
             onProviderChange={onPaymentProviderChange}
+            providerAvailability={paymentAvailability}
             checkoutResult={null}
           />
         </section>
@@ -100,6 +102,7 @@ export default function StudentSubscriptionPage({
         <CheckoutPaymentStep
           selectedProvider={paymentProvider}
           onProviderChange={onPaymentProviderChange}
+          providerAvailability={paymentAvailability}
           checkoutResult={checkoutResult}
           amountCents={selectedPlanAmount ? Math.round(selectedPlanAmount * 100) : null}
         />

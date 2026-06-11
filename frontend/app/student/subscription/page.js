@@ -28,7 +28,8 @@ function StudentSubscriptionContent() {
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState(null);
   const [error, setError] = useState("");
-  const [paymentProvider, setPaymentProvider] = useState("paymob");
+  const [paymentProvider, setPaymentProvider] = useState("instapay");
+  const [paymentAvailability, setPaymentAvailability] = useState({ instapay: true });
   const [checkoutResult, setCheckoutResult] = useState(null);
   const [selectedPlanAmount, setSelectedPlanAmount] = useState(null);
   const autoStartedRef = useRef(false);
@@ -39,9 +40,23 @@ function StudentSubscriptionContent() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [plansRes, meRes] = await Promise.all([subscriptionsApi.plans(), subscriptionsApi.me()]);
+      const [plansRes, meRes, availRes] = await Promise.all([
+        subscriptionsApi.plans(),
+        subscriptionsApi.me(),
+        paymentsApi.availability().catch(() => ({ data: { instapay: true } }))
+      ]);
       setPlans(plansRes?.data || []);
       setMe(meRes?.data || null);
+
+      const availability = availRes?.data || { instapay: true };
+      setPaymentAvailability(availability);
+      setPaymentProvider((current) => {
+        if (availability[current]) return current;
+        if (availability.instapay) return "instapay";
+        if (availability.paymob) return "paymob";
+        if (availability.vodafone_cash) return "vodafone_cash";
+        return "instapay";
+      });
     } catch (err) {
       setError(err.message || "تعذر التحميل");
     } finally {
@@ -254,6 +269,7 @@ function StudentSubscriptionContent() {
         searchParams={searchParams}
         onPurchase={handlePurchase}
         paymentProvider={paymentProvider}
+        paymentAvailability={paymentAvailability}
         onPaymentProviderChange={setPaymentProvider}
         checkoutResult={checkoutResult}
         selectedPlanAmount={selectedPlanAmount}

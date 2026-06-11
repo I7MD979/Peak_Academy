@@ -7,6 +7,7 @@ import InstapayDisplay from "./InstapayDisplay";
 export default function CheckoutPaymentStep({
   selectedProvider,
   onProviderChange,
+  providerAvailability = null,
   checkoutResult,
   amountCents
 }) {
@@ -14,7 +15,11 @@ export default function CheckoutPaymentStep({
     return (
       <div className="space-y-4">
         <p className="text-sm font-bold text-auth-on-surface-variant">اختر طريقة الدفع</p>
-        <PaymentMethodSelector selected={selectedProvider} onChange={onProviderChange} />
+        <PaymentMethodSelector
+          selected={selectedProvider}
+          onChange={onProviderChange}
+          availability={providerAvailability}
+        />
       </div>
     );
   }

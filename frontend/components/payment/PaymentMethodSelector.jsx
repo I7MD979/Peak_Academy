@@ -15,12 +15,6 @@ const PAYMENT_METHODS = [
     badge: "الأسرع"
   },
   {
-    id: "fawry",
-    name: "فوري",
-    description: "ادفع في أي منفذ فوري",
-    icon: "🏪"
-  },
-  {
     id: "instapay",
     name: "إنستاباي",
     description: "تحويل مباشر من تطبيق بنكك",
@@ -28,10 +22,15 @@ const PAYMENT_METHODS = [
   }
 ];
 
-export default function PaymentMethodSelector({ selected, onChange }) {
+export default function PaymentMethodSelector({ selected, onChange, availability = null }) {
+  const methods = PAYMENT_METHODS.filter((method) => {
+    if (!availability) return true;
+    return availability[method.id] === true;
+  });
+
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" dir="rtl">
-      {PAYMENT_METHODS.map((method) => (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3" dir="rtl">
+      {methods.map((method) => (
         <button
           key={method.id}
           type="button"

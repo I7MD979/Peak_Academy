@@ -27,8 +27,13 @@ import { ownedBy } from "../middleware/ownership.js";
 import { allowSchema } from "../middleware/allowlist.js";
 import { paymentLimiter } from "../middleware/resourceLimits.js";
 import { paymentVelocity, preventDuplicateSubscription } from "../middleware/businessRules.js";
+import { getPaymentProviderAvailability } from "../services/paymentProviders.config.js";
 
 const router = Router();
+
+router.get("/availability", auth, (_req, res) => {
+  return success(res, getPaymentProviderAvailability());
+});
 
 async function preventDuplicateSubscriptionForPlan(req, res, next) {
   if (req.body?.planId || req.body?.plan_id) {
@@ -78,8 +83,14 @@ router.post(
     if (["INVALID_PROVIDER", "INVALID_PROMO", "AMOUNT_MISMATCH", "PLAN_NOT_FOUND"].includes(err.code)) {
       return error(res, err.message, 400, null, err.code);
     }
-    if (/paymob|not configured/i.test(String(err.message || ""))) {
-      return error(res, err.message, 503, null, "PAYMENT_PROVIDER_UNAVAILABLE");
+    if (/paymob|not configured|integration/i.test(String(err.message || ""))) {
+      return error(
+        res,
+        "بوابة الدفع بالبطاقة غير متاحة حالياً. جرّب إنستاباي أو تواصل مع الدعم.",
+        503,
+        null,
+        "PAYMENT_PROVIDER_UNAVAILABLE"
+      );
     }
     if (process.env.NODE_ENV !== "production") console.error("POST /payments/create-order", err);
     return error(res, err.message || "فشل إنشاء طلب الدفع", 500);

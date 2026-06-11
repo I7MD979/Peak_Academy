@@ -90,6 +90,11 @@ async function performApiFetch(path, options = {}, tokenOverride = null) {
       message =
         "طلبات كثيرة على الخادم. انتظر قليلًا ثم حدّث الصفحة، أو أعد تشغيل واجهة التطوير بعد إعادة تشغيل backend.";
     }
+    if (res.status === 503 && payload?.code === "PAYMENT_PROVIDER_UNAVAILABLE") {
+      message =
+        payload?.error ||
+        "بوابة الدفع بالبطاقة غير متاحة حالياً. اختر إنستاباي أو فعّل التجربة المجانية.";
+    }
     if (res.status === 503) {
       message =
         apiVersion && String(apiVersion).includes("2026-06-09-schema-v2")
@@ -244,7 +249,8 @@ export const paymentsApi = {
       method: "POST",
       body: JSON.stringify(body)
     }),
-  history: (query = "") => apiRequest(withQuery("/payments/history", query))
+  history: (query = "") => apiRequest(withQuery("/payments/history", query)),
+  availability: () => apiRequest("/payments/availability")
 };
 
 /** Log API failures with context (teacher dashboard debugging). */
