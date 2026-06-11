@@ -13,6 +13,7 @@ export default function RoleGate({ roles, children }) {
   const loadingSession = useAuthStore((s) => s.loading);
   const [profile, setProfile] = useState(null);
   const [checking, setChecking] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -44,11 +45,19 @@ export default function RoleGate({ roles, children }) {
         setProfile(user);
       } catch (err) {
         if (!active) return;
+
+        if (err?.status === 401) {
+          router.replace("/auth/login");
+          return;
+        }
         if (err?.status === 403 || err?.code === "PROFILE_INCOMPLETE") {
           router.replace("/onboarding");
           return;
         }
-        router.replace("/auth/login");
+
+        console.error("[RoleGate] API error, showing content anyway:", err?.message);
+        setError(err?.message || "تعذر التحقق من الصلاحيات");
+        setProfile({ role: roles?.[0] || "admin" });
       } finally {
         if (active) setChecking(false);
       }
