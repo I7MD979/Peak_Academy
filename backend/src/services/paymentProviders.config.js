@@ -11,7 +11,8 @@ export function getPaymentProviderAvailability() {
 
   return {
     paymob: paymobConfigured,
-    vodafone_cash: paymobConfigured && Boolean(walletIntegrationId),
+    vodafone_cash:
+      paymobConfigured && Boolean(walletIntegrationId) && Boolean(process.env.PAYMOB_PUBLIC_KEY),
     instapay: true
   };
 }

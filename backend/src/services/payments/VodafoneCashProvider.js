@@ -32,7 +32,8 @@ export class VodafoneCashProvider extends BasePaymentProvider {
     const { checkoutUrl, orderId: paymobOrderId } = await createPaymobOrder(amount, user, {
       returnUrl,
       specialReference: orderId,
-      integrationId
+      integrationId,
+      paymentMethod: "vodafone_cash"
     });
 
     return {

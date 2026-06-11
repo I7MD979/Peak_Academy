@@ -2,7 +2,11 @@ import { safeFetch, paymobIntentionSchema } from "../utils/safeApiClient.js";
 
 const PAYMOB_INTENTION_URL = "https://accept.paymob.com/v1/intention/";
 
-export const createPaymobOrder = async (amountCents, user, { returnUrl, specialReference, integrationId: customIntegrationId } = {}) => {
+export const createPaymobOrder = async (
+  amountCents,
+  user,
+  { returnUrl, specialReference, integrationId: customIntegrationId, paymentMethod = "card" } = {}
+) => {
   if (!process.env.PAYMOB_API_KEY) {
     throw new Error("PAYMOB_API_KEY is not configured");
   }
@@ -41,15 +45,27 @@ export const createPaymobOrder = async (amountCents, user, { returnUrl, specialR
     throw new Error(`Paymob intention failed: ${JSON.stringify(data)}`);
   }
   const paymentKey = data.payment_keys?.[0]?.key;
-  if (!paymentKey) throw new Error("Paymob payment key missing");
+  const isWallet = paymentMethod === "vodafone_cash" || paymentMethod === "wallet";
 
-  const iframeId = process.env.PAYMOB_IFRAME_ID;
-  const checkoutUrl = iframeId && iframeId !== "0"
-    ? `https://accept.paymob.com/api/acceptance/iframes/${iframeId}?payment_token=${paymentKey}`
-    : `https://accept.paymob.com/api/acceptance/pay?payment_token=${paymentKey}`;
+  let checkoutUrl;
+  if (isWallet && data.client_secret) {
+    const publicKey = process.env.PAYMOB_PUBLIC_KEY;
+    if (!publicKey) {
+      throw new Error("PAYMOB_PUBLIC_KEY is not configured");
+    }
+    checkoutUrl = `https://accept.paymob.com/unifiedcheckout/?publicKey=${encodeURIComponent(publicKey)}&clientSecret=${encodeURIComponent(data.client_secret)}`;
+  } else {
+    if (!paymentKey) throw new Error("Paymob payment key missing");
+    const iframeId = process.env.PAYMOB_IFRAME_ID;
+    checkoutUrl =
+      iframeId && iframeId !== "0"
+        ? `https://accept.paymob.com/api/acceptance/iframes/${iframeId}?payment_token=${paymentKey}`
+        : `https://accept.paymob.com/api/acceptance/pay?payment_token=${paymentKey}`;
+  }
 
   return {
     checkoutUrl,
-    orderId: String(data.intention_order_id || data.id)
+    orderId: String(data.intention_order_id || data.id),
+    clientSecret: data.client_secret || null
   };
 };

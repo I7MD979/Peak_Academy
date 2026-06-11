@@ -202,7 +202,7 @@ export async function getPaymentStatus(paymentId, userId, { sync = false } = {})
         .maybeSingle();
       subscriptionActivated = Boolean(sub);
     }
-    if (!subscriptionActivated) {
+    if (!subscriptionActivated && payment.status === "paid") {
       const recovery = await activateSubscriptionFromPayment(payment).catch(() => ({ activated: false }));
       subscriptionActivated = Boolean(recovery.activated);
     }

@@ -70,6 +70,10 @@ export async function activateSubscriptionFromPayment(payment, paymobTxnId = "")
   }
   if (payment.status === "paid") return { activated: true, duplicate: true };
 
+  if (!paymobTxnId && payment.status !== "paid") {
+    return { activated: false, reason: "payment_not_confirmed" };
+  }
+
   const planId = meta.planId || meta.plan_id;
   if (!planId) return { activated: false };
 
