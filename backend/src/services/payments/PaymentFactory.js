@@ -1,18 +1,16 @@
 import { PaymobProvider } from "./PaymobProvider.js";
-import { FawryProvider } from "./FawryProvider.js";
 import { VodafoneCashProvider } from "./VodafoneCashProvider.js";
 import { InstapayProvider } from "./InstapayProvider.js";
 
 const PROVIDERS = {
   paymob: PaymobProvider,
-  fawry: FawryProvider,
   vodafone_cash: VodafoneCashProvider,
   instapay: InstapayProvider
 };
 
 export class PaymentFactory {
   /**
-   * @param {'paymob'|'fawry'|'vodafone_cash'|'instapay'} provider
+   * @param {'paymob'|'vodafone_cash'|'instapay'} provider
    * @returns {import('./BasePaymentProvider.js').BasePaymentProvider}
    */
   static getProvider(provider) {

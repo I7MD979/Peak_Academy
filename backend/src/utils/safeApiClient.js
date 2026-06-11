@@ -157,8 +157,6 @@ export const paymobWebhookSchema = z
 
 const ALLOWED_EXTERNAL_DOMAINS = [
   "accept.paymob.com",
-  "atfawry.fawrystaging.com",
-  "www.atfawry.com",
   "livekit.io",
   "cloud.livekit.io"
 ];
