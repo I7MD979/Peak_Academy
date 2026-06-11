@@ -1,6 +1,7 @@
 import { getApiBaseUrl } from "@/lib/api-base";
 import { landingHeroCountersFallback } from "@/lib/landing-constants";
 import { landingPricingPlansFallback } from "@/lib/landing-content-fallback";
+import { normalizeSubscriptionPlanFeatures } from "@/lib/subscription-plans";
 
 const RAILWAY_API = "https://peakacademy-production.up.railway.app/api";
 
@@ -32,26 +33,29 @@ export async function getLandingData() {
 
 export function mapPlansToLanding(plans) {
   if (!plans?.length) return null;
-  return plans.map((plan) => ({
-    id: plan.id,
-    label: plan.name,
-    name: plan.name,
-    price:
-      plan.price === 0 || Number(plan.price) === 0
-        ? "مجاناً"
-        : Number(plan.price).toLocaleString("ar-EG"),
-    priceIsText: plan.price === 0 || Number(plan.price) === 0,
-    priceSuffix: Number(plan.price) > 0 ? "جنيه" : null,
-    period: plan.sessions_per_month
-      ? `/ شهر — ${plan.sessions_per_month} حصص`
-      : "الحصة الواحدة",
-    featured: Boolean(plan.is_featured),
-    featuredLabel: plan.featured_label || "الموصى به",
-    features: Array.isArray(plan.features) ? plan.features : [],
-    cta: plan.is_featured ? `اشترك في ${plan.name}` : "اشترك الآن",
-    href: safePlanRegisterHref(plan.id),
-    variant: plan.is_featured ? "primary" : "outline"
-  }));
+  return plans.map((plan) => {
+    const sessions = Number(plan.sessions_per_month) || 0;
+    const features = normalizeSubscriptionPlanFeatures(plan);
+
+    return {
+      id: plan.id,
+      label: plan.name,
+      name: plan.name,
+      price:
+        plan.price === 0 || Number(plan.price) === 0
+          ? "مجاناً"
+          : Number(plan.price).toLocaleString("ar-EG"),
+      priceIsText: plan.price === 0 || Number(plan.price) === 0,
+      priceSuffix: Number(plan.price) > 0 ? "جنيه" : null,
+      period: sessions ? `/ شهر — ${sessions} حصص` : "الحصة الواحدة",
+      featured: Boolean(plan.is_featured),
+      featuredLabel: plan.featured_label || "الموصى به",
+      features,
+      cta: sessions > 0 ? `اشترك في ${plan.name}` : "اشترك الآن",
+      href: safePlanRegisterHref(plan.id),
+      variant: plan.is_featured ? "primary" : "outline"
+    };
+  });
 }
 
 export function resolveLandingPlans(plans) {

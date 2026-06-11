@@ -152,11 +152,11 @@ export const landingPricingPlans = [
     name: "Gold",
     price: "٤٩٩",
     priceSuffix: "جنيه",
-    period: "/ شهر — ١٠ حصص",
+    period: "/ شهر — ٨ حصص",
     featured: true,
     featuredLabel: "الأكثر طلباً",
     features: [
-      "١٠ حصص كل شهر",
+      "٨ حصص كل شهر",
       "جميع المواد والمعلمين",
       "أولوية الحجز المتقدم",
       "تقارير أسبوعية + تحليل",

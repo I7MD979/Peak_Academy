@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { supabase } from "../lib/supabase.js";
+import { normalizeSubscriptionPlans } from "../lib/subscription-plans.js";
 import { withCache } from "../lib/cache.js";
 import { success, error } from "../utils/response.js";
 
@@ -45,7 +46,7 @@ router.get("/landing", async (_req, res) => {
       if (promosRes.error) throw promosRes.error;
 
       return {
-        plans: plansRes.data || [],
+        plans: normalizeSubscriptionPlans(plansRes.data || []),
         stats: statsRes.data || [],
         promos: (promosRes.data || []).map((p) => ({
           code: p.code,

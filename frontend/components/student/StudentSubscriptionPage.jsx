@@ -11,6 +11,7 @@ import {
   studentMuted
 } from "@/lib/student-styles";
 import { formatCurrencyEgp } from "@/lib/format";
+import { normalizeSubscriptionPlanFeatures } from "@/lib/subscription-plans";
 import { formatSubscriptionPeriodEnd, isPlanHighlighted } from "@/lib/student-subscription";
 import { cn } from "@/lib/utils";
 import CheckoutPaymentStep from "@/components/payment/CheckoutPaymentStep";
@@ -111,6 +112,7 @@ export default function StudentSubscriptionPage({
       <div className="grid gap-4 md:grid-cols-2">
         {plans.map((plan) => {
           const highlighted = isPlanHighlighted(plan, searchParams) || plan.is_featured;
+          const features = normalizeSubscriptionPlanFeatures(plan);
 
           return (
             <article
@@ -136,9 +138,9 @@ export default function StudentSubscriptionPage({
               {plan.description ? (
                 <p className={cn("mt-2 text-sm", studentMuted)}>{plan.description}</p>
               ) : null}
-              {plan.features?.length > 0 ? (
+              {features.length > 0 ? (
                 <ul className="mt-3 space-y-1.5 text-sm text-auth-on-surface">
-                  {plan.features.map((feature) => (
+                  {features.map((feature) => (
                     <li key={feature} className="flex items-start gap-2">
                       <Icon name="check" size={14} className="mt-0.5 shrink-0 text-success" />
                       <span>{feature}</span>

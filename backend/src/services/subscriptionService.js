@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabase.js";
+import { normalizeSubscriptionPlans } from "../lib/subscription-plans.js";
 import { createPaymobOrder } from "./paymob.service.js";
 import { validatePromoCode, applyPromoToPrice } from "../utils/promoValidator.js";
 import { invalidateSubscriptionCaches } from "../lib/cache.js";
@@ -10,7 +11,7 @@ export async function listActivePlans() {
     .eq("is_active", true)
     .order("price", { ascending: true });
   if (error) throw error;
-  return data || [];
+  return normalizeSubscriptionPlans(data || []);
 }
 
 export async function getPlanById(planId) {
