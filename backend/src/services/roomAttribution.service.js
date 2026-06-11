@@ -114,7 +114,7 @@ export async function findAttributionForStudent(studentId) {
     const totalOverlapMinutes = totalOverlapMs / (1000 * 60);
 
     if (totalOverlapMinutes < MIN_OVERLAP_MINUTES) {
-      console.log(
+      console.info(
         `[roomAttribution] overlap ${Math.round(totalOverlapMinutes)}min < ${MIN_OVERLAP_MINUTES}min — skip`
       );
       continue;
@@ -128,11 +128,11 @@ export async function findAttributionForStudent(studentId) {
     );
 
     if (!realInteraction) {
-      console.log("[roomAttribution] no real interaction in overlap — skip");
+      console.info("[roomAttribution] no real interaction in overlap — skip");
       continue;
     }
 
-    console.log(
+    console.info(
       `[roomAttribution] ✅ real interaction confirmed: ` +
         `student ${studentId} → teacher ${teacherId} ` +
         `(overlap: ${Math.round(totalOverlapMinutes)}min)`

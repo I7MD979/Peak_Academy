@@ -10,7 +10,7 @@ import {
  */
 export async function calculateMonthlyPayouts(month) {
   const targetMonth = month || getCurrentPayoutMonth();
-  console.log(`[payout-job] calculating payouts for ${targetMonth}`);
+  console.info(`[payout-job] calculating payouts for ${targetMonth}`);
 
   // Ensure room commissions are calculated before combining totals
   const { count: roomCount } = await supabase
@@ -19,7 +19,7 @@ export async function calculateMonthlyPayouts(month) {
     .eq("period_month", targetMonth);
 
   if (!roomCount || roomCount === 0) {
-    console.log(`[payout-job] pre-calculating room commissions for ${targetMonth}`);
+    console.info(`[payout-job] pre-calculating room commissions for ${targetMonth}`);
     const { calculateMonthlyCommissions } = await import("../services/roomAttribution.service.js");
     await calculateMonthlyCommissions(targetMonth).catch((err) =>
       console.error("[payout-job] pre-calc failed:", err.message)
@@ -103,7 +103,7 @@ export async function calculateMonthlyPayouts(month) {
     }
   }
 
-  console.log(`[payout-job] calculated ${processed} teacher payouts for ${targetMonth}`);
+  console.info(`[payout-job] calculated ${processed} teacher payouts for ${targetMonth}`);
   return { processed, month: targetMonth };
 }
 
@@ -112,7 +112,7 @@ export async function calculateMonthlyPayouts(month) {
  */
 export async function openPayoutWindow(month) {
   const targetMonth = month || getCurrentPayoutMonth();
-  console.log(`[payout-job] opening withdrawal window for ${targetMonth}`);
+  console.info(`[payout-job] opening withdrawal window for ${targetMonth}`);
 
   const { data, error } = await supabase
     .from("monthly_payouts")
@@ -126,7 +126,7 @@ export async function openPayoutWindow(month) {
 
   if (error) throw error;
 
-  console.log(`[payout-job] window opened for ${data?.length || 0} teachers`);
+  console.info(`[payout-job] window opened for ${data?.length || 0} teachers`);
   return { opened: data?.length || 0 };
 }
 

@@ -248,17 +248,39 @@ export default function StudyRoomPage() {
         if (!user) return;
         setMyId(user.id);
 
-        // Role
-        supabase
-          .from("study_room_members")
-          .select("role")
-          .eq("room_id", roomId)
-          .eq("user_id", user.id)
-          .is("left_at", null)
-          .maybeSingle()
-          .then(({ data }) => {
-            const role = data?.role ?? "student";
-            setMyRole(role);
+        const resolveMyRole = (membershipRole, roomTeacherId) => {
+          const role = membershipRole ?? "student";
+          if (roomTeacherId === user.id && role !== "owner" && role !== "ta") {
+            return "owner";
+          }
+          return role;
+        };
+
+        // Role + room (teacher_id needed to grant owner UI for room teacher)
+        Promise.all([
+          supabase
+            .from("study_room_members")
+            .select("role")
+            .eq("room_id", roomId)
+            .eq("user_id", user.id)
+            .is("left_at", null)
+            .maybeSingle(),
+          supabase
+            .from("study_rooms")
+            .select("id, subject, grade, status, teacher_id")
+            .eq("id", roomId)
+            .maybeSingle()
+        ]).then(([memberRes, roomRes]) => {
+          const room = roomRes.data;
+          setRoomInfo(room);
+          if (!room || room.status === "closed") {
+            toast.error("هذه الغرفة مغلقة");
+            router.replace(roomsListPath);
+            return;
+          }
+
+          const role = resolveMyRole(memberRes.data?.role, room.teacher_id);
+          setMyRole(role);
 
             // Subscribe to raise_hand_queue for owner/ta
             if (role === "owner" || role === "ta") {
@@ -288,21 +310,7 @@ export default function StudyRoomPage() {
 
               return () => { supabase.removeChannel(sub); };
             }
-          });
-
-        // Room info
-        supabase
-          .from("study_rooms")
-          .select("id, subject, grade, status")
-          .eq("id", roomId)
-          .maybeSingle()
-          .then(({ data }) => {
-            setRoomInfo(data);
-            if (!data || data.status === "closed") {
-              toast.error("هذه الغرفة مغلقة");
-              router.replace(roomsListPath);
-            }
-          });
+        });
 
         // Active voice session
         supabase

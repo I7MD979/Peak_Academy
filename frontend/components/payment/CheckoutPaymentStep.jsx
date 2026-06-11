@@ -4,6 +4,17 @@ import PaymentMethodSelector from "./PaymentMethodSelector";
 import FawryDisplay from "./FawryDisplay";
 import InstapayDisplay from "./InstapayDisplay";
 
+const AVAILABLE_METHODS = ["instapay"];
+
+function buildDisplayAvailability(providerAvailability) {
+  if (!providerAvailability) {
+    return Object.fromEntries(AVAILABLE_METHODS.map((id) => [id, true]));
+  }
+  return Object.fromEntries(
+    AVAILABLE_METHODS.filter((id) => providerAvailability[id] === true).map((id) => [id, true])
+  );
+}
+
 export default function CheckoutPaymentStep({
   selectedProvider,
   onProviderChange,
@@ -18,7 +29,7 @@ export default function CheckoutPaymentStep({
         <PaymentMethodSelector
           selected={selectedProvider}
           onChange={onProviderChange}
-          availability={providerAvailability}
+          availability={buildDisplayAvailability(providerAvailability)}
         />
       </div>
     );

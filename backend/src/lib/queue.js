@@ -69,7 +69,7 @@ async function runJob(queueName, jobName, payload) {
 
 export async function startWorkers() {
   if (!isEnabled("FF_REDIS_QUEUE_ENABLED") || !process.env.REDIS_URL) {
-    console.log("Queue workers skipped (FF_REDIS_QUEUE_ENABLED or REDIS_URL not set)");
+    console.info("Queue workers skipped (FF_REDIS_QUEUE_ENABLED or REDIS_URL not set)");
     return [];
   }
 
@@ -95,7 +95,7 @@ export async function startWorkers() {
     });
 
     workers.push(worker);
-    console.log(`Queue worker started: ${spec.name}`);
+    console.info(`Queue worker started: ${spec.name}`);
   }
 
   return workers;

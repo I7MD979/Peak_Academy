@@ -35,12 +35,12 @@ const { startDunningScheduler } = await import("./jobs/schedulers/dunning.schedu
 await initSentry();
 
 const server = app.listen(PORT, HOST, () => {
-  console.log("========================================");
-  console.log(`Peak Academy API  ${API_VERSION}`);
-  console.log(`Listening on http://${HOST}:${PORT}`);
-  console.log(`Health: http://${HOST}:${PORT}/api/health`);
-  console.log(`Cache mode: ${getCacheMode()}`);
-  console.log("========================================");
+  console.info("========================================");
+  console.info(`Peak Academy API  ${API_VERSION}`);
+  console.info(`Listening on http://${HOST}:${PORT}`);
+  console.info(`Health: http://${HOST}:${PORT}/api/health`);
+  console.info(`Cache mode: ${getCacheMode()}`);
+  console.info("========================================");
 });
 
 server.on("error", (err) => {
@@ -61,7 +61,7 @@ startDunningScheduler();
 await import("./jobs/sessionReminders.js");
 
 async function shutdown(signal) {
-  console.log(`${signal} received — shutting down`);
+  console.info(`${signal} received — shutting down`);
   await shutdownWorkers();
   server.close(() => process.exit(0));
 }

@@ -207,7 +207,7 @@ router.post("/validate-promo", auth, async (req, res) => {
         .maybeSingle();
       originalPrice = Number(plan?.price || 0);
     } else if (session_id) {
-      const session = await getSessionForEnroll(session_id);
+      await getSessionForEnroll(session_id);
       originalPrice = await getSessionPrice();
     }
 

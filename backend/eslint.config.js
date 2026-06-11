@@ -9,7 +9,7 @@ export default [
         "warn",
         { argsIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" }
       ],
-      "no-console": ["warn", { allow: ["warn", "error"] }],
+      "no-console": ["warn", { allow: ["warn", "error", "info"] }],
       "no-undef": "error"
     },
     languageOptions: {

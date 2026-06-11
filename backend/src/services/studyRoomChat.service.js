@@ -9,7 +9,19 @@ export async function getMemberRole(roomId, userId) {
     .eq("user_id", userId)
     .is("left_at", null)
     .maybeSingle();
-  return data?.role ?? null;
+
+  if (!data?.role) return null;
+
+  if (data.role === "student") {
+    const { data: room } = await supabase
+      .from("study_rooms")
+      .select("teacher_id")
+      .eq("id", roomId)
+      .maybeSingle();
+    if (room?.teacher_id === userId) return "owner";
+  }
+
+  return data.role;
 }
 
 /** True if user is an active member of the room. */

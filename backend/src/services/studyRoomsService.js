@@ -222,11 +222,30 @@ export async function getRoomMembersPreview(roomId, limit = 5) {
 export async function joinStudyRoom({ userId, subject, grade, roomId = null, userRole = "student" }) {
   const existing = await findStudentActiveMembership(userId);
   if (existing?.room) {
+    let member = existing;
+
+    if (roomId && existing.room_id === roomId && userRole === "teacher") {
+      if (member.role !== "owner") {
+        const { data: updated, error: roleErr } = await supabase
+          .from("study_room_members")
+          .update({ role: "owner" })
+          .eq("id", member.id)
+          .select("*")
+          .single();
+        if (!roleErr && updated) member = { ...member, ...updated };
+      }
+
+      if (!existing.room.teacher_id || existing.room.teacher_id !== userId) {
+        await supabase.from("study_rooms").update({ teacher_id: userId }).eq("id", roomId);
+        existing.room.teacher_id = userId;
+      }
+    }
+
     const count = await countActiveRoomMembers(existing.room_id);
     return {
       already_member: true,
       room: mapRoom(existing.room, count),
-      member: existing
+      member
     };
   }
 
@@ -292,18 +311,46 @@ export async function joinStudyRoom({ userId, subject, grade, roomId = null, use
 }
 
 function normalizeTeacherSubjects(raw) {
-  if (!Array.isArray(raw)) return [];
-  const flattened = raw
-    .map((item) => {
-      if (typeof item === "string") return item;
-      if (item && typeof item === "object") {
-        return String(item.key || item.id || item.subject || item.label || "").trim();
-      }
-      return "";
-    })
-    .filter(Boolean);
+  if (!raw) return [];
 
-  return normalizeTeacherSubjectKeys(flattened);
+  const validKeys = Object.keys(SUBJECT_LABELS);
+
+  function toKey(value) {
+    const text = String(value || "").trim();
+    if (!text) return null;
+
+    const [resolved] = normalizeTeacherSubjectKeys([text]);
+    if (resolved && validKeys.includes(resolved)) return resolved;
+
+    const key = text.toLowerCase();
+    if (validKeys.includes(key)) return key;
+
+    const match = Object.entries(SUBJECT_LABELS).find(([, label]) => label === text);
+    return match ? match[0] : null;
+  }
+
+  if (Array.isArray(raw)) {
+    return [
+      ...new Set(
+        raw
+          .map((item) => {
+            if (typeof item === "string") return toKey(item);
+            if (item && typeof item === "object") {
+              return toKey(item.key || item.id || item.subject || item.value || item.label);
+            }
+            return null;
+          })
+          .filter(Boolean)
+      )
+    ];
+  }
+
+  if (typeof raw === "string" && raw.trim()) {
+    const parts = raw.split(/[,،\n]/).map((s) => s.trim()).filter(Boolean);
+    return [...new Set(parts.map(toKey).filter(Boolean))];
+  }
+
+  return [];
 }
 
 export async function listTeacherSubjectRooms(teacherUserId) {

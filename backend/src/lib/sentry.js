@@ -15,7 +15,7 @@ export async function initSentry() {
       integrations: [Sentry.httpIntegration(), Sentry.expressIntegration()]
     });
     sentry = Sentry;
-    console.log("Sentry initialized");
+    console.info("Sentry initialized");
     return sentry;
   } catch (error) {
     console.warn("Sentry init skipped:", error.message);

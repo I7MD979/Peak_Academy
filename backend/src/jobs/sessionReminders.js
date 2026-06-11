@@ -129,4 +129,4 @@ export async function scheduleReminders() {
 scheduleReminders();
 setInterval(scheduleReminders, INTERVAL_MS);
 
-console.log("Session reminder scheduler started (every 30 min)");
+console.info("Session reminder scheduler started (every 30 min)");

@@ -20,7 +20,7 @@ export function startSubscriptionResetScheduler() {
     try {
       const result = await resetMonthlySubscriptions();
       if (result.reset > 0) {
-        console.log(`subscription reset: ${result.reset} subscription(s) renewed`);
+        console.info(`subscription reset: ${result.reset} subscription(s) renewed`);
       }
     } catch (err) {
       console.error("subscription reset tick failed", err.message);
@@ -29,7 +29,7 @@ export function startSubscriptionResetScheduler() {
     try {
       const result = await expireTrials();
       if (result.expired > 0) {
-        console.log(`trial expiry: ${result.expired} trial(s) expired`);
+        console.info(`trial expiry: ${result.expired} trial(s) expired`);
       }
     } catch (err) {
       console.error("trial expiry tick failed", err.message);
@@ -50,7 +50,7 @@ export function startSubscriptionResetScheduler() {
     if (isPayoutCalcDay()) {
       try {
         const result = await calculateMonthlyPayouts(getCurrentPayoutMonth());
-        console.log(`[scheduler] payout calculation: ${result.processed} teachers`);
+        console.info(`[scheduler] payout calculation: ${result.processed} teachers`);
       } catch (err) {
         console.error("[scheduler] payout calculation failed:", err.message);
       }
@@ -60,7 +60,7 @@ export function startSubscriptionResetScheduler() {
     if (new Date().getDate() === 26) {
       try {
         const result = await openPayoutWindow(getCurrentPayoutMonth());
-        console.log(`[scheduler] withdrawal window opened for ${result.opened} teachers`);
+        console.info(`[scheduler] withdrawal window opened for ${result.opened} teachers`);
       } catch (err) {
         console.error("[scheduler] open window failed:", err.message);
       }
@@ -71,7 +71,7 @@ export function startSubscriptionResetScheduler() {
       try {
         const { runMonthlyCommissionsJob } = await import("../jobs/monthlyCommissions.job.js");
         await runMonthlyCommissionsJob();
-        console.log("[scheduler] room commissions calculated");
+        console.info("[scheduler] room commissions calculated");
       } catch (err) {
         console.error("[scheduler] room commissions failed:", err.message);
       }

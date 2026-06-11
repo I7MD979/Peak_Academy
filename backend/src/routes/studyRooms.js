@@ -49,7 +49,7 @@ async function requireRoomAccess(req, res, next) {
       );
     }
     next();
-  } catch (err) {
+  } catch (_err) {
     return error(res, "تعذر التحقق من صلاحية الوصول", 500);
   }
 }
@@ -229,7 +229,7 @@ router.get("/:roomId/messages", auth, async (req, res) => {
 
     const messages = await getRoomMessages(roomId, channel, limit, before);
     return success(res, { messages, channel });
-  } catch (err) {
+  } catch (_err) {
     return error(res, "تعذر تحميل الرسائل", 500);
   }
 });

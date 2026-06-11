@@ -9,8 +9,17 @@ export async function resetMonthlySubscriptions() {
     .eq("status", "active")
     .lte("current_period_end", now);
 
-  if (error) throw error;
-  if (!expiredSubs?.length) return { reset: 0 };
+  if (error) {
+    console.error("[subscriptionReset] failed to fetch expired subscriptions:", error.message);
+    throw error;
+  }
+
+  if (!expiredSubs?.length) {
+    console.info("[subscriptionReset] no expired subscriptions found");
+    return { reset: 0 };
+  }
+
+  console.info(`[subscriptionReset] processing ${expiredSubs.length} expired subscriptions`);
 
   let reset = 0;
   for (const sub of expiredSubs) {
@@ -19,8 +28,13 @@ export async function resetMonthlySubscriptions() {
       .update({ status: "expired", sessions_remaining: 0 })
       .eq("id", sub.id);
 
-    if (!updateError) reset += 1;
+    if (!updateError) {
+      reset += 1;
+    } else {
+      console.error(`[subscriptionReset] failed to expire subscription ${sub.id}:`, updateError.message);
+    }
   }
 
+  console.info(`[subscriptionReset] done — reset ${reset}/${expiredSubs.length}`);
   return { reset };
 }

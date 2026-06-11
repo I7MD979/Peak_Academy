@@ -198,7 +198,7 @@ export async function cleanupOrphanedLiveKitRooms(supabase, { prefix = "session-
     const ok = await deleteLiveKitRoom(room.name);
     if (ok) {
       deleted.push(room.name);
-      console.log(`[livekit] deleted orphaned room: ${room.name}`);
+      console.info(`[livekit] deleted orphaned room: ${room.name}`);
     } else {
       failed.push(room.name);
     }

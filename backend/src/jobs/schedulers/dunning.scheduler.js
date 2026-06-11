@@ -11,7 +11,7 @@ function addDays(date, days) {
 
 export async function processDunning() {
   const now = new Date();
-  console.log("[Dunning] Running at", now.toISOString());
+  console.info("[Dunning] Running at", now.toISOString());
 
   try {
     await supabase
@@ -76,7 +76,7 @@ export async function processDunning() {
       .eq("status", "past_due")
       .gte("dunning_attempt_count", 3);
 
-    console.log("[Dunning] Complete");
+    console.info("[Dunning] Complete");
   } catch (err) {
     console.error("[Dunning] Error:", err.message);
   }
@@ -90,5 +90,5 @@ export function startDunningScheduler() {
 
   tick();
   setInterval(tick, DAY_MS);
-  console.log("Dunning scheduler started");
+  console.info("Dunning scheduler started");
 }

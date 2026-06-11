@@ -35,7 +35,14 @@ export default function TeacherStudyRoomsPage() {
     setError("");
     try {
       const json = await teacherApi.studyRooms();
-      if (!json.success) throw new Error(json.error || "تعذر تحميل الغرف");
+      if (!json.success) {
+        if (json.code === "NO_SUBJECTS") {
+          setSubjects([]);
+          setRooms([]);
+          return;
+        }
+        throw new Error(json.error || "تعذر تحميل الغرف");
+      }
 
       setRooms(json.data?.rooms || []);
       setSubjects(json.data?.subjects || []);
