@@ -1,6 +1,7 @@
 {
   "name": "frontend",
   "version": "1.0.0",
+  "type": "module",
   "private": true,
   "scripts": {
     "predev": "node ../backend/scripts/kill-port.mjs 3000",
