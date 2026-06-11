@@ -31,9 +31,21 @@ export default function LandingFooter() {
           <ul className="space-y-3 sm:space-y-4">
             {platformLinks.map((link) => (
               <li key={link.href}>
-                <Link href={link.href} className="text-sm text-landing-on-dark-subtle transition-colors hover:text-landing-orange sm:text-base">
-                  {link.label}
-                </Link>
+                {link.href.startsWith("#") ? (
+                  <a
+                    href={link.href}
+                    className="text-sm text-landing-on-dark-subtle transition-colors hover:text-landing-orange sm:text-base"
+                  >
+                    {link.label}
+                  </a>
+                ) : (
+                  <Link
+                    href={link.href}
+                    className="text-sm text-landing-on-dark-subtle transition-colors hover:text-landing-orange sm:text-base"
+                  >
+                    {link.label}
+                  </Link>
+                )}
               </li>
             ))}
           </ul>

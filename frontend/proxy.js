@@ -67,7 +67,7 @@ function isMalformedAssetPath(pathname) {
 
 function finalizeResponse(response, request, pathname, ctx) {
   issueCsrfCookie(response, request, pathname, ctx.csrfToken);
-  return applySecurityHeaders(response, pathname, ctx.nonce, ctx.csp);
+  return applySecurityHeaders(response, pathname);
 }
 
 function redirectWithCookies(url, res, pathname, request, ctx) {
@@ -215,6 +215,13 @@ export async function proxy(request) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|peak-api|.*\\.png|.*\\.jpg|.*\\.svg|.*\\.ico).*)"
+    {
+      source:
+        "/((?!_next/static|_next/image|favicon.ico|peak-api|.*\\.png|.*\\.jpg|.*\\.svg|.*\\.ico).*)",
+      missing: [
+        { type: "header", key: "next-router-prefetch" },
+        { type: "header", key: "purpose", value: "prefetch" }
+      ]
+    }
   ]
 };

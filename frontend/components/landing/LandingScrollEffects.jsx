@@ -7,6 +7,8 @@ export default function LandingScrollEffects() {
     const root = document.querySelector(".landing-page");
     if (!root) return undefined;
 
+    root.classList.add("landing-js");
+
     const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (prefersReduced) {
       root.querySelectorAll(".scroll-reveal").forEach((el) => el.classList.add("visible"));

@@ -58,6 +58,7 @@ a {
 
 /* ——— Landing page (dark) ——— */
 .landing-page {
+  scroll-padding-top: 5.5rem;
   --landing-navy: #0a1220;
   --landing-navy2: #0f1a2e;
   --landing-navy-card: #0f1a2e;
@@ -648,16 +649,24 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
 }
 
 /* Scroll reveal — landing page (scoped to avoid conflicts) */
+/* Visible by default so hash nav works when JS is blocked (e.g. strict CSP). */
 .landing-page .scroll-reveal {
+  opacity: 1;
+  transform: translateY(0);
+}
+.landing-page.landing-js .scroll-reveal:not(.visible) {
   opacity: 0;
   transform: translateY(32px);
   transition:
     opacity 0.85s cubic-bezier(0.22, 1, 0.36, 1),
     transform 0.85s cubic-bezier(0.22, 1, 0.36, 1);
 }
-.landing-page .scroll-reveal.visible {
+.landing-page.landing-js .scroll-reveal.visible {
   opacity: 1;
   transform: translateY(0);
+}
+.landing-page [id] {
+  scroll-margin-top: 5.5rem;
 }
 
 /* Wave divider */
