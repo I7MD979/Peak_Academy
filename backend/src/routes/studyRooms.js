@@ -11,6 +11,7 @@ import {
   getStudyRoomsOverview,
   joinStudyRoom,
   leaveRoom,
+  listTeacherSubjectRooms,
   markRoomStatus,
   SUBJECT_LABELS
 } from "../services/studyRoomsService.js";
@@ -90,6 +91,19 @@ router.get("/", auth, requireRoomAccess, async (req, res) => {
   }
 });
 
+router.get("/teacher", auth, checkRole("teacher"), async (req, res) => {
+  try {
+    const { rooms, subjects } = await listTeacherSubjectRooms(req.user.id);
+    if (!subjects.length) {
+      return success(res, { rooms: [], subjects: [] }, "لم يتم تحديد مواد بعد");
+    }
+    return success(res, { rooms, subjects });
+  } catch (err) {
+    if (process.env.NODE_ENV !== "production") console.error("GET /study-rooms/teacher", err);
+    return error(res, "تعذر تحميل الغرف", 500);
+  }
+});
+
 router.post("/join-random", auth, async (req, res) => {
   // students require active trial or subscription; teachers/admins bypass
   if (req.user.role === "student") {
@@ -147,13 +161,23 @@ router.post("/:roomId/join", auth, async (req, res) => {
   }
 
   try {
-    const grade = await getStudentGrade(req.user.id);
-    if (!grade || !isValidGrade(grade)) {
-      return error(res, "حدد صفك الدراسي في الملف الشخصي أولاً", 400);
+    let grade = null;
+    if (req.user.role === "student") {
+      grade = await getStudentGrade(req.user.id);
+      if (!grade || !isValidGrade(grade)) {
+        return error(res, "حدد صفك الدراسي في الملف الشخصي أولاً", 400);
+      }
+    } else {
+      const { data: room } = await supabase
+        .from("study_rooms")
+        .select("grade")
+        .eq("id", roomId)
+        .maybeSingle();
+      grade = room?.grade || "first";
     }
 
     const result = await joinStudyRoom({
-      userId:   req.user.id,
+      userId: req.user.id,
       grade,
       roomId,
       userRole: req.user.role

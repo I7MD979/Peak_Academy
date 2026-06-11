@@ -268,6 +268,7 @@ export function logApiError(context, err) {
 }
 
 export const teacherApi = {
+  studyRooms: () => apiRequest("/study-rooms/teacher"),
   dashboard: () => apiRequest("/teacher/dashboard"),
   analytics: (query = "") => {
     if (typeof query === "string") {
@@ -379,6 +380,7 @@ export const questionsApi = {
 
 export const studyRoomsApi = {
   overview: () => apiRequest("/study-rooms"),
+  teacherRooms: () => apiRequest("/study-rooms/teacher"),
   joinRandom: (body) =>
     apiRequest("/study-rooms/join-random", {
       method: "POST",

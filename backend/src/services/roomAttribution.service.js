@@ -1,16 +1,93 @@
 import { supabase } from "../lib/supabase.js";
 import { getPlatformCommission, getPlatformConfig } from "./platformConfig.service.js";
 
-const ATTRIBUTION_WINDOW_HOURS = 24;
+const ATTRIBUTION_WINDOW_HOURS = 72;
+const MIN_OVERLAP_MINUTES = 30;
 
 /**
- * Find which teacher to attribute a new subscription to.
- * Looks for the most recent room the student was in (within 24h) that has a teacher.
- * Returns { teacher_id, room_id } or null.
+ * احسب كل فترات الـ overlap بين المدرس والطالب جوه الغرفة.
+ */
+async function getOverlapPeriods(teacherId, studentId, roomId) {
+  const [{ data: teacherSessions }, { data: studentSessions }] = await Promise.all([
+    supabase
+      .from("study_room_members")
+      .select("joined_at, left_at")
+      .eq("room_id", roomId)
+      .eq("user_id", teacherId)
+      .order("joined_at", { ascending: true }),
+    supabase
+      .from("study_room_members")
+      .select("joined_at, left_at")
+      .eq("room_id", roomId)
+      .eq("user_id", studentId)
+      .order("joined_at", { ascending: true })
+  ]);
+
+  if (!teacherSessions?.length || !studentSessions?.length) return [];
+
+  const now = new Date();
+  const periods = [];
+
+  for (const teacher of teacherSessions) {
+    const tStart = new Date(teacher.joined_at);
+    const tEnd = teacher.left_at ? new Date(teacher.left_at) : now;
+
+    for (const student of studentSessions) {
+      const sStart = new Date(student.joined_at);
+      const sEnd = student.left_at ? new Date(student.left_at) : now;
+
+      const overlapStart = new Date(Math.max(tStart, sStart));
+      const overlapEnd = new Date(Math.min(tEnd, sEnd));
+
+      if (overlapEnd > overlapStart) {
+        periods.push({ start: overlapStart, end: overlapEnd });
+      }
+    }
+  }
+
+  return periods;
+}
+
+/**
+ * تحقق إن الطالب بعت رسالة والمدرس رد — خلال نفس فترة الـ overlap.
+ */
+async function hadRealInteraction(teacherId, studentId, roomId, overlapPeriods) {
+  if (!overlapPeriods.length) return false;
+
+  for (const period of overlapPeriods) {
+    const [{ data: studentMessages }, { data: teacherMessages }] = await Promise.all([
+      supabase
+        .from("study_room_messages")
+        .select("id, created_at")
+        .eq("room_id", roomId)
+        .eq("sender_id", studentId)
+        .gte("created_at", period.start.toISOString())
+        .lte("created_at", period.end.toISOString())
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("study_room_messages")
+        .select("id, created_at")
+        .eq("room_id", roomId)
+        .eq("sender_id", teacherId)
+        .gte("created_at", period.start.toISOString())
+        .lte("created_at", period.end.toISOString())
+        .limit(1)
+        .maybeSingle()
+    ]);
+
+    if (studentMessages && teacherMessages) return true;
+  }
+
+  return false;
+}
+
+/**
+ * إيجاد الـ attribution للطالب — الشروط الأربعة لازم تتحقق كلها.
  */
 export async function findAttributionForStudent(studentId) {
   const windowStart = new Date(
-    Date.now() - ATTRIBUTION_WINDOW_HOURS * 60 * 60 * 1000
+    Date.now() - ATTRIBUTION_WINDOW_HOURS * 3600 * 1000
   ).toISOString();
 
   const { data, error } = await supabase
@@ -19,17 +96,58 @@ export async function findAttributionForStudent(studentId) {
     .eq("user_id", studentId)
     .gt("joined_at", windowStart)
     .not("room.teacher_id", "is", null)
-    .order("joined_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .order("joined_at", { ascending: true })
+    .limit(5);
 
-  if (error || !data?.room?.teacher_id) return null;
-  if (data.room.teacher_id === studentId) return null; // teacher can't attribute to themselves
+  if (error || !data?.length) return null;
 
-  return {
-    teacher_id: data.room.teacher_id,
-    room_id:    data.room_id,
-  };
+  for (const row of data) {
+    const teacherId = row.room?.teacher_id;
+    if (!teacherId || teacherId === studentId) continue;
+
+    const overlapPeriods = await getOverlapPeriods(teacherId, studentId, row.room_id);
+
+    const totalOverlapMs = overlapPeriods.reduce(
+      (sum, p) => sum + (p.end - p.start),
+      0
+    );
+    const totalOverlapMinutes = totalOverlapMs / (1000 * 60);
+
+    if (totalOverlapMinutes < MIN_OVERLAP_MINUTES) {
+      console.log(
+        `[roomAttribution] overlap ${Math.round(totalOverlapMinutes)}min < ${MIN_OVERLAP_MINUTES}min — skip`
+      );
+      continue;
+    }
+
+    const realInteraction = await hadRealInteraction(
+      teacherId,
+      studentId,
+      row.room_id,
+      overlapPeriods
+    );
+
+    if (!realInteraction) {
+      console.log("[roomAttribution] no real interaction in overlap — skip");
+      continue;
+    }
+
+    console.log(
+      `[roomAttribution] ✅ real interaction confirmed: ` +
+        `student ${studentId} → teacher ${teacherId} ` +
+        `(overlap: ${Math.round(totalOverlapMinutes)}min)`
+    );
+
+    return {
+      teacher_id: teacherId,
+      room_id: row.room_id,
+      first_visit: row.joined_at,
+      overlap_minutes: Math.round(totalOverlapMinutes),
+      window_hours: ATTRIBUTION_WINDOW_HOURS
+    };
+  }
+
+  return null;
 }
 
 /**
@@ -52,13 +170,12 @@ export async function recordSubscriptionAttribution(studentId, subscriptionId) {
     await supabase
       .from("subscription_attributions")
       .insert({
-        student_id:      studentId,
-        teacher_id:      attribution.teacher_id,
+        student_id: studentId,
+        teacher_id: attribution.teacher_id,
         subscription_id: subscriptionId,
-        room_id:         attribution.room_id,
+        room_id: attribution.room_id
       })
       .throwOnError();
-
   } catch (err) {
     console.error("[roomAttribution] failed to record attribution:", err?.message);
   }
@@ -162,15 +279,15 @@ export async function getTeacherRoomEarningsSummary(teacherId) {
     supabase
       .from("subscription_attributions")
       .select("subscription:student_subscriptions(status)")
-      .eq("teacher_id", teacherId),
+      .eq("teacher_id", teacherId)
   ]);
 
-  const rows          = earnings || [];
-  const totalEarned   = rows.reduce((s, r) => s + Number(r.commission_amount), 0);
+  const rows = earnings || [];
+  const totalEarned = rows.reduce((s, r) => s + Number(r.commission_amount), 0);
   const pendingAmount = rows
     .filter((r) => r.status === "pending")
     .reduce((s, r) => s + Number(r.commission_amount), 0);
-  const paidAmount    = rows
+  const paidAmount = rows
     .filter((r) => r.status === "paid")
     .reduce((s, r) => s + Number(r.commission_amount), 0);
   const activeStudents = (attributions || []).filter(
@@ -178,10 +295,10 @@ export async function getTeacherRoomEarningsSummary(teacherId) {
   ).length;
 
   return {
-    total_earned:    totalEarned,
-    pending_amount:  pendingAmount,
-    paid_amount:     paidAmount,
+    total_earned: totalEarned,
+    pending_amount: pendingAmount,
+    paid_amount: paidAmount,
     active_students: activeStudents,
-    earnings:        rows,
+    earnings: rows
   };
 }

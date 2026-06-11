@@ -2,16 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import AdminPageHeader from "@/components/admin/AdminPageHeader";
 import PageContainer from "@/components/shared/PageContainer";
 import { SectionLoader } from "@/components/shared/LoadingSkeleton";
-import {
-  studentBtnPrimary,
-  studentCardSolid,
-  studentMuted
-} from "@/lib/student-styles";
+import { teacherBtnPrimary, teacherCardSolid, teacherMuted } from "@/lib/teacher-styles";
+import { studyRoomsApi, teacherApi } from "@/lib/api";
 
 const SUBJECT_AR = {
   math: "رياضيات", physics: "فيزياء", chemistry: "كيمياء",
@@ -20,37 +16,28 @@ const SUBJECT_AR = {
 };
 
 const GRADE_AR = {
-  first: "أول ثانوي", second: "تاني ثانوي", third: "تالت ثانوي"
+  first: "أول ثانوي", second: "تاني ثانوي", third: "تالت ثانوي",
+  sec_first: "أول ثانوي", sec_second: "تاني ثانوي", sec_third: "تالت ثانوي",
+  prep_first: "أول إعدادي", prep_second: "تاني إعدادي", prep_third: "تالت إعدادي"
 };
 
 export default function TeacherStudyRoomsPage() {
   const router = useRouter();
-  const [rooms,   setRooms]   = useState([]);
+  const [rooms, setRooms] = useState([]);
+  const [subjects, setSubjects] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState("");
+  const [joiningId, setJoiningId] = useState(null);
+  const [error, setError] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const { createClient } = await import("@/lib/supabase/client");
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const json = await teacherApi.studyRooms();
+      if (!json.success) throw new Error(json.error || "تعذر تحميل الغرف");
 
-      const { data, error: dbErr } = await supabase
-        .from("study_rooms")
-        .select(`
-          id, subject, grade, status, capacity,
-          members:study_room_members(count),
-          voice_sessions:study_room_voice_sessions(id, status)
-        `)
-        .eq("teacher_id", user.id)
-        .neq("status", "closed")
-        .order("created_at", { ascending: false });
-
-      if (dbErr) throw dbErr;
-      setRooms(data || []);
+      setRooms(json.data?.rooms || []);
+      setSubjects(json.data?.subjects || []);
     } catch (err) {
       setError(err.message || "تعذر تحميل غرفك");
     } finally {
@@ -60,10 +47,24 @@ export default function TeacherStudyRoomsPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  const handleJoin = async (roomId) => {
+    setJoiningId(roomId);
+    try {
+      const json = await studyRoomsApi.join(roomId);
+      if (!json.success) throw new Error(json.error);
+
+      router.push(`/student/study-rooms/${roomId}`);
+    } catch (err) {
+      setError(err.message || "تعذر الدخول للغرفة");
+    } finally {
+      setJoiningId(null);
+    }
+  };
+
   if (loading) {
     return (
       <PageContainer>
-        <SectionLoader message="جاري تحميل غرفك…" />
+        <SectionLoader message="جاري تحميل غرف مادتك…" />
       </PageContainer>
     );
   }
@@ -72,9 +73,15 @@ export default function TeacherStudyRoomsPage() {
     <PageContainer>
       <AdminPageHeader
         eyebrow="غرف المذاكرة"
-        title="غرفك الدراسية"
-        subtitle="تابع الطلاب وابدأ جلسات صوتية"
-        actions={[{ label: "تحديث", icon: "refresh", variant: "secondary", onClick: load }]}
+        title="غرف مادتك"
+        subtitle={
+          subjects.length
+            ? `مواد: ${subjects.map((s) => SUBJECT_AR[s] || s).join("، ")}`
+            : "ابدأ بتحديد مادتك في ملفك الشخصي"
+        }
+        actions={[
+          { label: "تحديث", icon: "refresh", variant: "secondary", onClick: load }
+        ]}
       />
 
       {error && (
@@ -83,73 +90,65 @@ export default function TeacherStudyRoomsPage() {
         </p>
       )}
 
-      {rooms.length === 0 ? (
-        <div className={cn(studentCardSolid, "p-8 text-center")}>
-          <p className="text-lg font-black text-auth-on-surface mb-2">مفيش غرف بعد</p>
-          <p className={cn("text-sm mb-4", studentMuted)}>
-            لما طالب يدخل غرفة وانت مرتبط بيها كمدرس، هتظهر هنا
+      {!subjects.length ? (
+        <div className={cn(teacherCardSolid, "p-8 text-center")}>
+          <p className="text-lg font-black text-auth-on-surface mb-2">حدد مادتك أولاً</p>
+          <p className={cn("text-sm mb-4", teacherMuted)}>
+            روح ملفك الشخصي وحدد المواد اللي بتدرسها عشان تشوف الغرف
+          </p>
+          <button
+            type="button"
+            className={teacherBtnPrimary}
+            onClick={() => router.push("/teacher/profile")}
+          >
+            تحديث الملف الشخصي
+          </button>
+        </div>
+      ) : rooms.length === 0 ? (
+        <div className={cn(teacherCardSolid, "p-8 text-center")}>
+          <p className="text-lg font-black text-auth-on-surface mb-2">مفيش غرف نشطة دلوقتي</p>
+          <p className={cn("text-sm", teacherMuted)}>
+            لما طلابك يبدأوا غرف مذاكرة في مادتك هتظهر هنا
           </p>
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
-          {rooms.map((room) => {
-            const memberCount = room.members?.[0]?.count ?? 0;
-            const hasLiveVoice = room.voice_sessions?.some((s) => s.status === "active");
-
-            return (
-              <div
-                key={room.id}
-                className={cn(
-                  studentCardSolid,
-                  "p-5 flex flex-col gap-4 cursor-pointer hover:border-auth-outline transition-colors"
-                )}
-                onClick={() => router.push(`/student/study-rooms/${room.id}`)}
-              >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h3 className="font-black text-auth-on-surface text-base">
-                      {SUBJECT_AR[room.subject] || room.subject}
-                    </h3>
-                    <p className={cn("text-sm mt-0.5", studentMuted)}>
-                      {GRADE_AR[room.grade] || room.grade}
-                    </p>
-                  </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <span className={cn(
-                      "rounded-full px-2.5 py-0.5 text-xs font-bold",
-                      room.status === "active"
-                        ? "bg-success/20 text-success"
-                        : "bg-auth-surface-variant/40 text-auth-on-surface-variant"
-                    )}>
-                      {room.status === "active" ? "نشطة" : "مفتوحة"}
-                    </span>
-                    {hasLiveVoice && (
-                      <span className="flex items-center gap-1 rounded-full bg-amber-500/20 px-2.5 py-0.5 text-xs font-bold text-amber-400">
-                        <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
-                        صوت مباشر
-                      </span>
-                    )}
-                  </div>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {rooms.map((room) => (
+            <div key={room.id} className={cn(teacherCardSolid, "p-5 flex flex-col gap-4")}>
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="font-black text-auth-on-surface text-base">
+                    {SUBJECT_AR[room.subject] || room.subject_label || room.subject}
+                  </h3>
+                  <p className={cn("text-sm mt-0.5", teacherMuted)}>
+                    {GRADE_AR[room.grade] || room.grade_label || room.grade}
+                  </p>
                 </div>
-
-                <div className="flex items-center justify-between">
-                  <span className={cn("text-sm", studentMuted)}>
-                    {memberCount} طالب داخل الغرفة
-                  </span>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      router.push(`/student/study-rooms/${room.id}`);
-                    }}
-                    className={cn(studentBtnPrimary, "text-xs py-1.5 px-3")}
-                  >
-                    دخول الغرفة
-                  </button>
-                </div>
+                <span className={cn(
+                  "rounded-full px-2.5 py-0.5 text-xs font-bold",
+                  room.status === "active"
+                    ? "bg-success/20 text-success"
+                    : "bg-auth-surface-variant/40 text-auth-on-surface-variant"
+                )}>
+                  {room.status === "active" ? "نشطة" : "مفتوحة"}
+                </span>
               </div>
-            );
-          })}
+
+              <div className="flex items-center justify-between">
+                <span className={cn("text-sm", teacherMuted)}>
+                  {room.member_count} طالب داخل الغرفة
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleJoin(room.id)}
+                  disabled={joiningId === room.id}
+                  className={cn(teacherBtnPrimary, "text-xs py-1.5 px-3")}
+                >
+                  {joiningId === room.id ? "جاري الدخول…" : "دخول ورد على الأسئلة"}
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </PageContainer>

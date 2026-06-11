@@ -182,7 +182,10 @@ export async function proxy(request) {
       return redirectWithCookies(new URL("/onboarding", request.url), res, pathname, request, ctx);
     }
 
-    if (!roleAllowedForPath(user.role, requiredRole)) {
+    const teacherStudyRoomPath =
+      user.role === "teacher" && pathname.startsWith("/student/study-rooms");
+
+    if (!roleAllowedForPath(user.role, requiredRole) && !teacherStudyRoomPath) {
       const dest = ROLE_HOME[user.role] || "/auth/login";
       return redirectWithCookies(new URL(dest, request.url), res, pathname, request, ctx);
     }

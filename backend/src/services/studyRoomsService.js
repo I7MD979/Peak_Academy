@@ -235,9 +235,20 @@ export async function joinStudyRoom({ userId, subject, grade, roomId = null, use
     const { data, error } = await supabase.from("study_rooms").select("*").eq("id", roomId).single();
     if (error || !data) throw Object.assign(new Error("الغرفة غير موجودة"), { status: 404 });
     if (data.status === "closed") throw Object.assign(new Error("هذه الغرفة مغلقة"), { status: 400 });
-    if (!gradesMatchForStudyRoom(data.grade, grade)) {
+
+    if (userRole === "teacher" && data.teacher_id && data.teacher_id !== userId) {
+      throw Object.assign(new Error("هذه الغرفة لديها مدرس آخر"), { status: 403 });
+    }
+
+    if (userRole === "student" && !gradesMatchForStudyRoom(data.grade, grade)) {
       throw Object.assign(new Error("هذه الغرفة ليست لصفك"), { status: 403 });
     }
+
+    if (userRole === "teacher" && !data.teacher_id) {
+      await supabase.from("study_rooms").update({ teacher_id: userId }).eq("id", roomId);
+      data.teacher_id = userId;
+    }
+
     room = data;
   } else {
     if (!subject) throw Object.assign(new Error("اختر المادة أولاً"), { status: 400 });
@@ -259,7 +270,7 @@ export async function joinStudyRoom({ userId, subject, grade, roomId = null, use
   }
 
   const count = await countActiveRoomMembers(room.id);
-  if (count >= room.capacity) {
+  if (userRole !== "teacher" && count >= room.capacity) {
     throw Object.assign(new Error("الغرفة ممتلئة حالياً"), { status: 409 });
   }
 
@@ -277,6 +288,66 @@ export async function joinStudyRoom({ userId, subject, grade, roomId = null, use
     room: mapRoom(room, count + 1),
     member
   };
+}
+
+function normalizeTeacherSubjects(raw) {
+  if (!Array.isArray(raw)) return [];
+  return [
+    ...new Set(
+      raw
+        .map((item) => {
+          if (typeof item === "string") return item.trim().toLowerCase();
+          if (item && typeof item === "object") {
+            return String(item.key || item.id || item.subject || "").trim().toLowerCase();
+          }
+          return "";
+        })
+        .filter((key) => key && SUBJECT_LABELS[key])
+    )
+  ];
+}
+
+export async function listTeacherSubjectRooms(teacherUserId) {
+  const { data: profile, error: profileErr } = await supabase
+    .from("teacher_profiles")
+    .select("subjects")
+    .eq("user_id", teacherUserId)
+    .maybeSingle();
+
+  if (profileErr) throw profileErr;
+
+  const subjects = normalizeTeacherSubjects(profile?.subjects);
+  if (!subjects.length) {
+    return { rooms: [], subjects: [] };
+  }
+
+  const { data: rooms, error: roomsErr } = await supabase
+    .from("study_rooms")
+    .select("*")
+    .in("subject", subjects)
+    .neq("status", "closed")
+    .or(`teacher_id.is.null,teacher_id.eq.${teacherUserId}`)
+    .order("created_at", { ascending: false });
+
+  if (roomsErr) {
+    if (isMissingTableError(roomsErr)) {
+      warnMissingStudyRooms(roomsErr);
+      return { rooms: [], subjects };
+    }
+    throw roomsErr;
+  }
+
+  const mapped = await Promise.all(
+    (rooms || []).map(async (room) => {
+      const memberCount = await countActiveRoomMembers(room.id);
+      return {
+        ...mapRoom(room, memberCount),
+        is_mine: room.teacher_id === teacherUserId
+      };
+    })
+  );
+
+  return { rooms: mapped, subjects };
 }
 
 export async function getStudyRoomsOverview(userId, grade, { subject = null } = {}) {
