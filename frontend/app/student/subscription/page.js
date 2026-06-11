@@ -178,9 +178,23 @@ function StudentSubscriptionContent() {
   }
 
   const hasActiveSub = me?.subscription?.status === "active" || me?.subscription?.status === "trialing";
+  const studyRoomsGate = searchParams.get("reason") === "study_rooms";
 
   return (
     <div>
+      {studyRoomsGate && !hasActiveSub ? (
+        <div className="mx-auto max-w-2xl px-4 pt-6">
+          <section className="rounded-2xl border border-peak-orange/40 bg-peak-orange/10 p-4 text-center">
+            <p className="font-black text-auth-on-surface">
+              غرف المذاكرة تحتاج اشتراكاً أو تجربة مجانية
+            </p>
+            <p className={cn("mt-1 text-sm", studentMuted)}>
+              فعّل التجربة المجانية لمدة 30 يوم أو اشترك في إحدى الباقات للوصول.
+            </p>
+          </section>
+        </div>
+      ) : null}
+
       {/* Trial CTA — show only if no active subscription and trial not yet activated this session */}
       {!hasActiveSub && !trialActivated && (
         <div className="mx-auto max-w-2xl px-4 pt-6">

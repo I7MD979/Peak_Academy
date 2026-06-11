@@ -249,6 +249,9 @@ export const paymentsApi = {
 
 /** Log API failures with context (teacher dashboard debugging). */
 export function logApiError(context, err) {
+  if (err?.code === "NO_ROOM_ACCESS" || (err?.status === 403 && context.includes("study-rooms"))) {
+    return;
+  }
   console.error(`[API] ${context}:`, {
     message: err?.message,
     status: err?.status,

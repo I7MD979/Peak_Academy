@@ -187,19 +187,21 @@ export async function proxy(request) {
       return redirectWithCookies(new URL(dest, request.url), res, pathname, request, ctx);
     }
 
-    if (pathname.startsWith("/student/study-rooms")) {
+    if (pathname.startsWith("/student/study-rooms") && user.role === "student") {
+      let hasAccess = false;
       try {
-        const { data: hasAccess } = await supabase.rpc("has_room_access", {
+        const { data, error: rpcError } = await supabase.rpc("has_room_access", {
           p_user_id: user.id
         });
-        if (hasAccess === false) {
-          const subscribeUrl = new URL("/student/subscription", request.url);
-          subscribeUrl.searchParams.set("reason", "study_rooms");
-          subscribeUrl.searchParams.set("redirect", pathname);
-          return redirectWithCookies(subscribeUrl, res, pathname, request, ctx);
-        }
+        hasAccess = data === true && !rpcError;
       } catch {
-        // On RPC failure, allow through — backend enforces the gate
+        hasAccess = false;
+      }
+      if (!hasAccess) {
+        const subscribeUrl = new URL("/student/subscription", request.url);
+        subscribeUrl.searchParams.set("reason", "study_rooms");
+        subscribeUrl.searchParams.set("redirect", pathname);
+        return redirectWithCookies(subscribeUrl, res, pathname, request, ctx);
       }
     }
   }

@@ -56,6 +56,16 @@ function StudentStudyRoomsContent() {
           });
         }
       } catch (err) {
+        const noAccess =
+          err?.status === 403 ||
+          err?.code === "NO_ROOM_ACCESS" ||
+          /اشتراك|تجربة|الوصول/.test(String(err?.message || ""));
+        if (noAccess) {
+          router.replace(
+            "/student/subscription?reason=study_rooms&redirect=/student/study-rooms"
+          );
+          return;
+        }
         logApiError("student/study-rooms", err);
         const message = err.message || "تعذر تحميل غرف المذاكرة";
         if (message.includes("ملفك الدراسي") || message.includes("الصف")) {
@@ -70,7 +80,7 @@ function StudentStudyRoomsContent() {
         setRefreshing(false);
       }
     },
-    [subjectFilter]
+    [router, subjectFilter]
   );
 
   useEffect(() => {
