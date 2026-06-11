@@ -60,7 +60,6 @@ export default function LandingHeader() {
         <PeakLogo
           href="/"
           variant="landing"
-          showWordmark
           priority
           theme={lightHeader ? "light" : "dark"}
         />

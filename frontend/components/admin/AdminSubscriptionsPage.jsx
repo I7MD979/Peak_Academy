@@ -222,7 +222,7 @@ export default function AdminSubscriptionsView({
   ];
 
   return (
-    <div className="space-y-6 p-4 md:p-8">
+    <div className="space-y-6">
       <AdminPageHeader
         eyebrow="الاشتراكات"
         title="خطط الاشتراك"

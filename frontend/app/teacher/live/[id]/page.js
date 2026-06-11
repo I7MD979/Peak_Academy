@@ -28,23 +28,23 @@ export default function TeacherLivePage({ params }) {
 
   if (phase === "error") {
     return (
-      <main className="space-y-4 p-4 md:p-6">
+      <div className="space-y-4">
         <Link href="/teacher/sessions" className="text-sm font-bold text-accent">
           العودة لجلساتي
         </Link>
         <ErrorState message={error} onRetry={reload} />
-      </main>
+      </div>
     );
   }
 
   if (phase === "ended") {
     return (
-      <main className="p-4 md:p-6">
+      <div className="space-y-4">
         <EmptyState title="انتهت الجلسة" description="تم إغلاق البث المباشر." />
         <Link href={`/teacher/sessions/${params.id}`} className="mt-4 inline-block text-sm font-bold text-accent">
           عرض ملخص الجلسة
         </Link>
-      </main>
+      </div>
     );
   }
 
@@ -55,9 +55,9 @@ export default function TeacherLivePage({ params }) {
   if (phase === "live" || phase === "ending") {
     if (!roomUrl || !token) {
       return (
-        <main className="p-4 md:p-6">
+        <div className="space-y-4">
           <EmptyState title="رابط الغرفة غير متاح" description="أعد بدء الجلسة من غرفة الانتظار." />
-        </main>
+        </div>
       );
     }
 

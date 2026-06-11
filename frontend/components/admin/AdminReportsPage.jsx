@@ -157,7 +157,7 @@ export default function AdminReportsView({
   const usingCustomRange = Boolean(dateFrom || dateTo);
 
   return (
-    <div className="space-y-6 p-4 md:p-8">
+    <div className="space-y-6">
       <AdminPageHeader
         eyebrow="التقارير المالية"
         title="ملخص الأداء والإيرادات"

@@ -12,8 +12,7 @@ import {
   studentBtnPrimary,
   studentBtnSecondary,
   studentCardSolid,
-  studentMuted,
-  studentPage
+  studentMuted
 } from "@/lib/student-styles";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -467,7 +466,7 @@ export default function StudyRoomPage() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className={cn(studentPage, "flex flex-col h-screen overflow-hidden")}>
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background text-on-background">
       {/* Header */}
       <header className="flex items-center justify-between border-b border-auth-outline-variant/20 bg-auth-surface px-4 py-3 md:px-6">
         <div className="flex items-center gap-3">

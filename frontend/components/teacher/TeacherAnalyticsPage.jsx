@@ -106,7 +106,7 @@ export default function TeacherAnalyticsPage({
 
   if (!loading && !error && !hasAnyData) {
     return (
-      <div className="p-4 md:p-8">
+      <div>
         <EmptyState
           icon="📊"
           title="لا توجد تحليلات بعد"
@@ -118,7 +118,7 @@ export default function TeacherAnalyticsPage({
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8 p-4 md:p-8">
+    <div className="space-y-8">
       <AdminPageHeader
         eyebrow="تحليلاتي"
         title="إحصائيات أدائك التعليمي"

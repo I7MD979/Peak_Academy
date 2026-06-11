@@ -7,8 +7,8 @@ import AdminPageHeader from "./AdminPageHeader";
 import AdminConfirmDialog from "./AdminConfirmDialog";
 import Icon from "@/components/shared/Icon";
 import { SectionLoader } from "@/components/shared/LoadingSkeleton";
+import { PAGE_CONTAINER } from "@/lib/page-layout";
 import {
-  adminPage,
   adminCardSolid,
   adminInput,
   adminBtnPrimary,
@@ -415,7 +415,7 @@ export default function AdminPermissionsPage() {
   const supervisors = staff.filter((u) => u.role === "supervisor");
 
   return (
-    <div className={cn(adminPage, "p-6 space-y-6")}>
+    <div className={PAGE_CONTAINER}>
       <AdminPageHeader
         title="إدارة الصلاحيات"
         subtitle="تحكم في أدوار المشرفين وصلاحياتهم على لوحة الإدارة"

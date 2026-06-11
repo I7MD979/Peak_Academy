@@ -50,7 +50,7 @@ export default function ParentProfilePage({
 
   if (loading && !profile) {
     return (
-      <div className="mx-auto max-w-6xl space-y-6 p-4 md:p-8">
+      <div className="space-y-6">
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {[1, 2, 3].map((i) => (
             <StatCardSkeleton key={i} />
@@ -61,7 +61,7 @@ export default function ParentProfilePage({
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8 p-4 md:p-8">
+    <div className="space-y-8">
       <AdminPageHeader
         eyebrow="إعدادات ولي الأمر"
         title={profile?.full_name || "حسابي"}

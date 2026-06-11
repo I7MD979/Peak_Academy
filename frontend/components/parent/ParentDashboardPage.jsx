@@ -47,7 +47,7 @@ export default function ParentDashboardPage({
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8">
+    <div className="space-y-8">
       <AdminPageHeader
         eyebrow="لوحة ولي الأمر"
         title={`أهلاً، ${firstName}!`}

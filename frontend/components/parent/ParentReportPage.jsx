@@ -50,7 +50,7 @@ export default function ParentReportPage({
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8">
+    <div className="space-y-8">
       <AdminPageHeader
         eyebrow="متابعة الأداء"
         title="تقرير الطالب"

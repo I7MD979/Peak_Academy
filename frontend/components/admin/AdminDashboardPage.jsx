@@ -129,7 +129,7 @@ export default function AdminDashboardPage({
   ];
 
   return (
-    <div className="space-y-8 p-4 md:p-8">
+    <div className="space-y-8">
       <AdminPageHeader
         title={`أهلاً بك، ${adminName}`}
         subtitle="نظرة عامة على أداء المنصة — المستخدمون، الجلسات، الإيرادات، والسحوبات."

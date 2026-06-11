@@ -256,7 +256,7 @@ export default function AppTopbar({
   if (variant === "brand") {
     return (
       <header className={t.header}>
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 md:px-6">
+        <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 py-3 md:px-8">
           <Link href={meta.homeHref} className="shrink-0 transition-opacity hover:opacity-90">
             <PeakLogo variant="compact" subtitle={meta.panelLabel} showSubtitle={false} />
           </Link>
@@ -290,7 +290,7 @@ export default function AppTopbar({
 
   return (
     <header className={t.header}>
-      <div className="flex items-center justify-between gap-3 px-4 py-3 md:px-6">
+      <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 py-3 md:px-8">
         <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
           {onOpenMobile ? (
             <div className={cn("shrink-0", menuClass)}>

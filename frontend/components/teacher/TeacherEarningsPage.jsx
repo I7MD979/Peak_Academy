@@ -156,7 +156,7 @@ export default function TeacherEarningsPage({
   const hasDateFilter = Boolean(dateFrom || dateTo);
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8 p-4 md:p-8">
+    <div className="space-y-8">
       <AdminPageHeader
         eyebrow="أرباحي"
         title="متابعة الأرباح وطلبات السحب"

@@ -84,7 +84,7 @@ export default function StudentAskPage({
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8 p-4 md:p-8">
+    <div className="space-y-8">
       <AdminPageHeader
         eyebrow="اسأل مدرس"
         title="اطرح سؤالك"
