@@ -184,7 +184,7 @@ export default function AdminSidebar({ mobileOpen, onCloseMobile }) {
 
   return (
     <>
-      <SidebarShell className="hidden md:flex">
+      <SidebarShell className="fixed inset-y-0 start-0 z-40 hidden md:flex">
         <SidebarContent pathname={pathname} onCloseMobile={undefined} />
       </SidebarShell>
 
