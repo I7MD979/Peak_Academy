@@ -39,7 +39,6 @@ const ROUTES = {
     { prefix: "/student/dashboard", title: "الرئيسية", subtitle: "تابع تقدمك اليومي", icon: "home" },
     { prefix: "/student/sessions", title: "الجلسات", subtitle: "جلساتك القادمة والمتاحة", icon: "book" },
     { prefix: "/student/study-rooms", title: "غرف المذاكرة", subtitle: "ذاكر مع زملائك", icon: "school" },
-    { prefix: "/student/ask", title: "اسأل مدرس", subtitle: "اطرح سؤالك واحصل على إجابة", icon: "help" },
     { prefix: "/student/subscription", title: "الاشتراك", subtitle: "خطتك وباقات المنصة", icon: "wallet" },
     { prefix: "/student/profile", title: "حسابي", subtitle: "إعدادات حسابك", icon: "user" },
     { prefix: "/student/live", title: "جلسة مباشرة", subtitle: "انضم للجلسة الآن", icon: "live" }

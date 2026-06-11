@@ -324,7 +324,7 @@ router.post(
     if (type === "session_payment" && session_id) {
       returnUrl = `${frontendUrl}/student/sessions/${session_id}`;
     } else if (type === "question_payment") {
-      returnUrl = `${frontendUrl}/student/ask?paid=1`;
+      returnUrl = `${frontendUrl}/student/dashboard`;
     }
 
     const { checkoutUrl, orderId } = await createPaymobOrder(amountCents, req.user, { returnUrl });

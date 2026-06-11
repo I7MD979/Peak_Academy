@@ -17,7 +17,7 @@ export default function StudentProfileAcademicSection({
     <ProfileSectionCard
       variant="student"
       title="البيانات الدراسية"
-      description="تُستخدم لتصفية الجلسات والأسئلة وغرف المذاكرة حسب صفك."
+      description="تُستخدم لتصفية الجلسات وغرف المذاكرة حسب صفك."
       icon="school"
     >
       <div className="grid gap-4 md:grid-cols-2">

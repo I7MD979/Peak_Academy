@@ -1,3 +1,5 @@
+import { formatSubjectDisplay, normalizeSubjectKeys } from "@/lib/subjects";
+
 export const GRADE_OPTIONS = [
   { value: "first", label: "الأول الثانوي" },
   { value: "second", label: "الثاني الثانوي" },
@@ -39,7 +41,13 @@ export function parseSubjects(value) {
 }
 
 export function subjectsToText(subjects) {
-  return parseSubjects(subjects).join("، ");
+  return parseSubjects(subjects)
+    .map((subject) => formatSubjectDisplay(subject))
+    .join("، ");
+}
+
+export function subjectsToKeys(subjects) {
+  return normalizeSubjectKeys(parseSubjects(subjects));
 }
 
 export function validateBaseProfile(form) {

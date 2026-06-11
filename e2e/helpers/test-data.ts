@@ -61,8 +61,7 @@ export const STUDENT_ROUTES = {
   sessions: "/student/sessions",
   subscription: "/student/subscription",
   profile: "/student/profile",
-  studyRooms: "/student/study-rooms",
-  ask: "/student/ask"
+  studyRooms: "/student/study-rooms"
 } as const;
 
 export type StudentRouteKey = keyof typeof STUDENT_ROUTES;

@@ -7,6 +7,7 @@ import AdminPageHeader from "@/components/admin/AdminPageHeader";
 import PageContainer from "@/components/shared/PageContainer";
 import { SectionLoader } from "@/components/shared/LoadingSkeleton";
 import { teacherBtnPrimary, teacherCardSolid, teacherMuted } from "@/lib/teacher-styles";
+import { PROFILE_UPDATED } from "@/hooks/useSidebarProfile";
 import { studyRoomsApi, teacherApi } from "@/lib/api";
 
 const SUBJECT_AR = {
@@ -45,7 +46,15 @@ export default function TeacherStudyRoomsPage() {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  useEffect(() => {
+    const reload = () => load();
+    window.addEventListener(PROFILE_UPDATED, reload);
+    return () => window.removeEventListener(PROFILE_UPDATED, reload);
+  }, [load]);
 
   const handleJoin = async (roomId) => {
     setJoiningId(roomId);
@@ -53,7 +62,7 @@ export default function TeacherStudyRoomsPage() {
       const json = await studyRoomsApi.join(roomId);
       if (!json.success) throw new Error(json.error);
 
-      router.push(`/student/study-rooms/${roomId}`);
+      router.push(`/teacher/study-rooms/${roomId}?channel=qa`);
     } catch (err) {
       setError(err.message || "تعذر الدخول للغرفة");
     } finally {

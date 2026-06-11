@@ -296,13 +296,6 @@ export const studentApi = {
   session: (id) => apiRequest(`/student/sessions/${id}`),
   enrollmentOptions: (sessionId) =>
     apiRequest(`/student/enrollment-options?session_id=${encodeURIComponent(sessionId)}`),
-  questions: (query = "") => apiRequest(withQuery("/questions", query)),
-  questionsOverview: () => apiRequest("/questions/overview"),
-  askQuestion: (body) =>
-    apiRequest("/questions", {
-      method: "POST",
-      body: JSON.stringify(body)
-    }),
   studyRooms: (query = "") => apiRequest(withQuery("/study-rooms", query)),
   joinStudyRoom: (roomId) =>
     apiRequest(`/study-rooms/${roomId}/join`, {

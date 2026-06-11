@@ -16,6 +16,7 @@ import {
 } from "../utils/ensure-user-profile.js";
 import { ensureReferralCode } from "../services/referralService.js";
 import { isValidGrade } from "../lib/grades.js";
+import { normalizeTeacherSubjectKeys } from "../lib/subjects.js";
 import { encryptUserFields } from "../utils/encryption.js";
 import { allowSchema } from "../middleware/allowlist.js";
 
@@ -288,6 +289,10 @@ router.put("/profile", auth, allowSchema("userProfile"), async (req, res) => {
 
     if (subjects.length > 12) {
       return error(res, "يمكنك إضافة 12 مادة كحد أقصى", 400);
+    }
+
+    if (req.user.role === "teacher") {
+      subjects = normalizeTeacherSubjectKeys(subjects);
     }
 
     const userUpdate = {

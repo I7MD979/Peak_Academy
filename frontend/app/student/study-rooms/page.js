@@ -109,6 +109,11 @@ function StudentStudyRoomsContent() {
     try {
       const res = await studentApi.joinRandomStudyRoom({ subject: selectedSubject });
       toast.success(res?.message || "تم الانضمام للغرفة");
+      const roomId = res?.data?.room?.id;
+      if (roomId) {
+        router.push(`/student/study-rooms/${roomId}`);
+        return;
+      }
       await loadOverview({ silent: true });
     } catch (err) {
       toast.error(err.message || "تعذر الانضمام");
@@ -123,7 +128,8 @@ function StudentStudyRoomsContent() {
     try {
       const res = await studentApi.joinStudyRoom(room.id);
       toast.success(res?.message || "تم الانضمام للغرفة");
-      await loadOverview({ silent: true });
+      const roomId = res?.data?.room?.id || room.id;
+      router.push(`/student/study-rooms/${roomId}`);
     } catch (err) {
       toast.error(err.message || "تعذر الانضمام");
     } finally {

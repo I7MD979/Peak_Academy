@@ -20,8 +20,8 @@ import { cn } from "@/lib/utils";
 
 const QUICK_ACTIONS = [
   { href: "/student/sessions", label: "تصفح الجلسات", icon: "book", tone: "border-accent-blue/30 bg-accent-blue/10 text-accent-blue" },
-  { href: "/student/ask", label: "اسأل مدرس", icon: "help", tone: "border-peak-orange/30 bg-peak-orange/10 text-peak-orange" },
   { href: "/student/study-rooms", label: "غرف المذاكرة", icon: "school", tone: "border-success/30 bg-success/10 text-success" },
+  { href: "/student/subscription", label: "الاشتراك", icon: "wallet", tone: "border-peak-orange/30 bg-peak-orange/10 text-peak-orange" },
   { href: "/student/profile", label: "ملفي الشخصي", icon: "user", tone: "border-auth-outline-variant/40 bg-auth-surface-low text-auth-on-surface-variant" }
 ];
 
@@ -184,7 +184,7 @@ export default function StudentDashboardPage({
 
           <LiveBanner count={stats?.live_now ?? liveSessions.length} onView={() => onSectionChange?.("live")} />
 
-          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {loading ? (
               Array.from({ length: 4 }).map((_, i) => <StatCardSkeleton key={i} />)
             ) : (
@@ -209,18 +209,6 @@ export default function StudentDashboardPage({
                   value={(stats?.completed_sessions ?? 0).toLocaleString("ar-EG")}
                   iconName="check"
                   tone="success"
-                />
-                <StatsCard
-                  variant="dark"
-                  title="أسئلتي"
-                  value={(stats?.questions_total ?? 0).toLocaleString("ar-EG")}
-                  iconName="help"
-                  tone="warning"
-                  hint={
-                    stats?.questions_answered != null
-                      ? `${stats.questions_answered.toLocaleString("ar-EG")} بإجابة`
-                      : undefined
-                  }
                 />
               </>
             )}

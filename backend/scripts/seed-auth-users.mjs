@@ -1,21 +1,29 @@
-import "dotenv/config";
 import { createClient } from "@supabase/supabase-js";
+import { loadSeedEnv } from "./load-seed-env.mjs";
 import { ensureUserProfile } from "../src/utils/ensure-user-profile.js";
 
 const users = [
   { email: "admin@peak.com", password: "Admin123!", role: "admin", full_name: "مدير المنصة" },
-  { email: "teacher@peak.com", password: "Teacher123!", role: "teacher", full_name: "مدرس تجريبي" },
-  { email: "student@peak.com", password: "Student123!", role: "student", full_name: "طالب تجريبي", grade: "third" },
+  {
+    email: "teacher@peak.com",
+    password: "Teacher123!",
+    role: "teacher",
+    full_name: "مدرس تجريبي",
+    subjects: ["math", "physics", "chemistry"],
+    bio: "مدرس تجريبي في رياضيات وفيزياء وكيمياء."
+  },
+  {
+    email: "student@peak.com",
+    password: "Student123!",
+    role: "student",
+    full_name: "طالب تجريبي",
+    grade: "third",
+    section: "أ"
+  },
   { email: "parent@peak.com", password: "Parent123!", role: "parent", full_name: "ولي أمر تجريبي" }
 ];
 
-const url = process.env.SUPABASE_URL;
-const serviceKey = process.env.SUPABASE_SERVICE_KEY;
-
-if (!url || !serviceKey) {
-  console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_KEY in backend/.env");
-  process.exit(1);
-}
+const { url, serviceKey } = loadSeedEnv();
 
 const supabase = createClient(url, serviceKey, {
   auth: { autoRefreshToken: false, persistSession: false }
@@ -56,8 +64,24 @@ for (const user of users) {
     email: user.email,
     full_name: user.full_name,
     role: user.role,
-    grade: user.grade
+    grade: user.grade,
+    section: user.section,
+    subjects: user.subjects
   });
+
+  if (user.role === "teacher" && user.subjects?.length) {
+    await supabase
+      .from("teacher_profiles")
+      .upsert(
+        {
+          user_id: id,
+          subjects: user.subjects,
+          bio: user.bio || null,
+          commission_rate: 70
+        },
+        { onConflict: "user_id" }
+      );
+  }
   console.log(`Profile ready: ${user.email} (${user.role})`);
 }
 

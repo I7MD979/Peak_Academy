@@ -70,7 +70,7 @@ export default function StudentProfilePage({
         subtitle={
           profile?.grade_label
             ? `${profile.full_name || "طالب"} · ${profile.grade_label}`
-            : "حدّث بياناتك لتخصيص الجلسات والأسئلة"
+            : "حدّث بياناتك لتخصيص الجلسات وغرف المذاكرة"
         }
         actions={[
           {
@@ -105,13 +105,13 @@ export default function StudentProfilePage({
             <section className="rounded-2xl border border-warning/40 bg-warning/10 p-4">
               <p className="text-sm font-bold text-warning">أكمل ملفك الدراسي</p>
               <p className={cn("mt-1 text-sm", studentMuted)}>
-                حدّد صفك الدراسي لعرض الجلسات المناسبة وإرسال الأسئلة وغرف المذاكرة.
+                حدّد صفك الدراسي لعرض الجلسات المناسبة وغرف المذاكرة.
               </p>
             </section>
           ) : null}
 
           {showExtras ? (
-            <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               <StatsCard
                 variant="dark"
                 title="ستريك المذاكرة"
@@ -135,14 +135,6 @@ export default function StudentProfilePage({
                 iconName="check"
                 tone="success"
                 hint="إنجازاتك"
-              />
-              <StatsCard
-                variant="dark"
-                title="أسئلتي"
-                value={`${(stats.questions_answered ?? 0).toLocaleString("ar-EG")}/${(stats.questions_total ?? 0).toLocaleString("ar-EG")}`}
-                iconName="help"
-                tone="warning"
-                hint="تم الرد / الإجمالي"
               />
             </section>
           ) : null}
@@ -234,8 +226,8 @@ export default function StudentProfilePage({
               <div className="mt-3 flex flex-wrap gap-2">
                 {[
                   { href: "/student/sessions", label: "الجلسات", icon: "book" },
-                  { href: "/student/ask", label: "اسأل مدرس", icon: "help" },
-                  { href: "/student/study-rooms", label: "غرف المذاكرة", icon: "school" }
+                  { href: "/student/study-rooms", label: "غرف المذاكرة", icon: "school" },
+                  { href: "/student/subscription", label: "الاشتراك", icon: "wallet" }
                 ].map((link) => (
                   <Link key={link.href} href={link.href} className={cn(studentBtnSecondary, "gap-2")}>
                     <Icon name={link.icon} size={16} />

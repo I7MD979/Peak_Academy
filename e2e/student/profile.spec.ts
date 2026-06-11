@@ -85,7 +85,7 @@ test.describe("Student profile page", () => {
   });
 
   test("اختصارات سريعة ظاهرة", async ({ page }) => {
-    for (const label of ["الجلسات", "اسأل مدرس", "غرف المذاكرة"]) {
+    for (const label of ["الجلسات", "غرف المذاكرة", "الاشتراك"]) {
       await expect(page.getByRole("link", { name: label }).first()).toBeVisible();
     }
   });

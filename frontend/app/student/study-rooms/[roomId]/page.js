@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { studyRoomsApi } from "@/lib/api";
@@ -14,6 +14,7 @@ import {
   studentCardSolid,
   studentMuted
 } from "@/lib/student-styles";
+import { studyRoomVoicePath, studyRoomsListPath } from "@/lib/study-room-routes";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -197,9 +198,12 @@ function RaiseHandQueue({ queue, onGrant }) {
 
 export default function StudyRoomPage() {
   const { roomId } = useParams();
-  const router     = useRouter();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const roomsListPath = studyRoomsListPath(pathname);
 
-  const [channel, setChannel]     = useState("general");
+  const [channel, setChannel] = useState("general");
   const [myRole, setMyRole]       = useState("student");
   const [myId, setMyId]           = useState(null);
   const [roomInfo, setRoomInfo]   = useState(null);
@@ -226,6 +230,13 @@ export default function StudyRoomPage() {
 
   const { messages, loading, sending, error, hasMore, sendMessage, resolveQuestion, loadMore } =
     useRoomChat(roomId, channel);
+
+  useEffect(() => {
+    const requestedChannel = searchParams.get("channel");
+    if (requestedChannel === "qa" || requestedChannel === "general") {
+      setChannel(requestedChannel);
+    }
+  }, [searchParams]);
 
   // ── Load room info + my role + subscriptions ──────────────────────────────
   useEffect(() => {
@@ -289,7 +300,7 @@ export default function StudyRoomPage() {
             setRoomInfo(data);
             if (!data || data.status === "closed") {
               toast.error("هذه الغرفة مغلقة");
-              router.replace("/student/study-rooms");
+              router.replace(roomsListPath);
             }
           });
 
@@ -303,7 +314,7 @@ export default function StudyRoomPage() {
           .then(({ data }) => setVoiceSession(data));
       });
     });
-  }, [roomId, router]);
+  }, [roomId, router, roomsListPath]);
 
   // ── Auto-scroll ───────────────────────────────────────────────────────────
   useEffect(() => {
@@ -389,7 +400,7 @@ export default function StudyRoomPage() {
     try {
       await studyRoomsApi.leave(roomId);
       toast.success("تم مغادرة الغرفة");
-      router.replace("/student/study-rooms");
+      router.replace(roomsListPath);
     } catch (err) {
       toast.error(err.message || "تعذر مغادرة الغرفة");
     } finally {
@@ -417,7 +428,11 @@ export default function StudyRoomPage() {
       const res = await studyRoomsApi.joinVoiceSession(voiceSession.id);
       const { token, livekit_url, livekit_room_id } = res.data;
       router.push(
-        `/student/study-rooms/${roomId}/voice?token=${encodeURIComponent(token)}&url=${encodeURIComponent(livekit_url)}&room=${encodeURIComponent(livekit_room_id)}`
+        studyRoomVoicePath(roomId, pathname, {
+          token,
+          url: livekit_url,
+          room: livekit_room_id
+        })
       );
     } catch (err) {
       toast.error(err.message || "تعذر الانضمام للجلسة");
@@ -472,7 +487,7 @@ export default function StudyRoomPage() {
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={() => router.replace("/student/study-rooms")}
+            onClick={() => router.replace(roomsListPath)}
             className="rounded-lg p-1.5 text-auth-on-surface-variant hover:bg-auth-surface-variant/30 transition-colors"
           >
             <Icon name="arrow-right" size={18} />

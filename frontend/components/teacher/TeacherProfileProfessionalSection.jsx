@@ -101,7 +101,7 @@ export default function TeacherProfileProfessionalSection({
                 key={subject.value}
                 type="button"
                 disabled={saving}
-                onClick={() => onAddSubject?.(subject.label)}
+                onClick={() => onAddSubject?.(subject.label, subject.value)}
                 className="rounded-full border border-auth-outline-variant/40 bg-auth-surface-low px-3 py-1 text-xs font-bold text-auth-on-surface-variant transition-colors hover:border-peak-orange/40 hover:text-peak-orange"
               >
                 + {subject.label}

@@ -5,7 +5,7 @@ import { authApi } from "@/lib/api";
 import { getUserDisplay } from "@/lib/user-display";
 import { useAuth } from "@/hooks/useAuth";
 
-const PROFILE_UPDATED = "peak-profile-updated";
+export const PROFILE_UPDATED = "peak-profile-updated";
 
 export function useSidebarProfile() {
   const { user: authUser, session } = useAuth();

@@ -9,7 +9,6 @@ const navItems = [
   { href: "/student/dashboard", label: "الرئيسية", icon: "home" },
   { href: "/student/sessions", label: "الجلسات", icon: "book" },
   { href: "/student/study-rooms", label: "مذاكرة", icon: "school" },
-  { href: "/student/ask", label: "اسأل", icon: "help" },
   { href: "/student/profile", label: "حسابي", icon: "user" }
 ];
 

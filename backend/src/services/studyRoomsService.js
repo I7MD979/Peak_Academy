@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { supabase } from "../lib/supabase.js";
+import { normalizeTeacherSubjectKeys } from "../lib/subjects.js";
 import { isMissingTableError } from "../utils/db-errors.js";
 import { GRADE_LABELS as EXTENDED_GRADE_LABELS } from "../lib/grades.js";
 
@@ -292,19 +293,17 @@ export async function joinStudyRoom({ userId, subject, grade, roomId = null, use
 
 function normalizeTeacherSubjects(raw) {
   if (!Array.isArray(raw)) return [];
-  return [
-    ...new Set(
-      raw
-        .map((item) => {
-          if (typeof item === "string") return item.trim().toLowerCase();
-          if (item && typeof item === "object") {
-            return String(item.key || item.id || item.subject || "").trim().toLowerCase();
-          }
-          return "";
-        })
-        .filter((key) => key && SUBJECT_LABELS[key])
-    )
-  ];
+  const flattened = raw
+    .map((item) => {
+      if (typeof item === "string") return item;
+      if (item && typeof item === "object") {
+        return String(item.key || item.id || item.subject || item.label || "").trim();
+      }
+      return "";
+    })
+    .filter(Boolean);
+
+  return normalizeTeacherSubjectKeys(flattened);
 }
 
 export async function listTeacherSubjectRooms(teacherUserId) {

@@ -1,4 +1,5 @@
 import { encryptUserFields, decryptUserFields } from "./encryption.js";
+import { normalizeTeacherSubjectKeys } from "../lib/subjects.js";
 
 const VALID_ROLES = ["student", "teacher", "parent", "admin", "supervisor"];
 const STAFF_ROLES = new Set(["admin", "supervisor"]);
@@ -257,9 +258,9 @@ export async function ensureUserProfile(
   }
 
   if (effectiveRole === "teacher") {
-    const subjectList = Array.isArray(subjects)
-      ? subjects.map((s) => String(s).trim()).filter(Boolean)
-      : [];
+    const subjectList = normalizeTeacherSubjectKeys(
+      Array.isArray(subjects) ? subjects : []
+    );
 
     await upsertTeacherProfileRow(supabase, {
       user_id: id,

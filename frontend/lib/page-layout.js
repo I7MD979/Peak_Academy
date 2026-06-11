@@ -15,6 +15,8 @@ export const APP_PAGE_MOBILE_NAV_PADDING = "pb-20 md:pb-8";
 
 const IMMERSIVE_PATH_PATTERNS = [
   /^\/teacher\/live\/[^/]+$/,
+  /^\/teacher\/study-rooms\/[^/]+$/,
+  /^\/teacher\/study-rooms\/[^/]+\/voice$/,
   /^\/student\/live\/[^/]+$/,
   /^\/student\/study-rooms\/[^/]+$/,
   /^\/student\/study-rooms\/[^/]+\/voice$/,
