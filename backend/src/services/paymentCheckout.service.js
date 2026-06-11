@@ -56,7 +56,6 @@ export async function createPaymentOrder({
 
   if (planId) {
     const pricing = await resolveSubscriptionOrderPricing(user, planId, promoCode);
-    originalAmount = pricing.originalPrice;
     discountAmount = pricing.discountAmount;
     amount = pricing.finalPrice;
     resolvedPromotionId = pricing.promotionId;

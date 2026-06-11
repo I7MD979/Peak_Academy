@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { apiRequest } from "@/lib/api";
+import { apiRequest, clearApiCache } from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
 
 /**
@@ -48,9 +48,9 @@ export function useSubscription() {
 
   const activateTrial = async () => {
     const res = await apiRequest("/subscriptions/activate-trial", { method: "POST" });
+    clearApiCache();
     const data = res?.data;
     if (data?.trial_end) {
-      // Optimistic update — backend will confirm on next fetch
       setSubscription((prev) => ({
         ...(prev || {}),
         status: "trialing",
@@ -59,6 +59,7 @@ export function useSubscription() {
         current_period_end: data.trial_end
       }));
     }
+    await fetchSubscription();
     return data;
   };
 

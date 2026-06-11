@@ -97,19 +97,18 @@ function StudentSubscriptionContent() {
         setCheckoutResult(null);
 
         const plan = plans.find((p) => p.id === planId);
-        const amount = Number(plan?.price || 0);
-        setSelectedPlanAmount(amount);
+        setSelectedPlanAmount(Number(plan?.price || 0));
 
         // ── Paymob / other providers path ─────────────────────────────────
         const idempotencyKey = newIdempotencyKey("sub");
+        const promo = promoCode.trim() || undefined;
         const res = await paymentsApi.createOrder(
           {
             provider: paymentProvider,
             planId,
-            amount,
             metadata: {
               type: "subscription_payment",
-              promo_code: promoCode.trim() || undefined
+              ...(promo ? { promo_code: promo } : {})
             }
           },
           idempotencyKey

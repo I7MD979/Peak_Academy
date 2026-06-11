@@ -78,6 +78,10 @@ router.post(
     if (["INVALID_PROVIDER", "INVALID_PROMO", "AMOUNT_MISMATCH", "PLAN_NOT_FOUND"].includes(err.code)) {
       return error(res, err.message, 400, null, err.code);
     }
+    if (/paymob|not configured/i.test(String(err.message || ""))) {
+      return error(res, err.message, 503, null, "PAYMENT_PROVIDER_UNAVAILABLE");
+    }
+    if (process.env.NODE_ENV !== "production") console.error("POST /payments/create-order", err);
     return error(res, err.message || "فشل إنشاء طلب الدفع", 500);
   }
 });

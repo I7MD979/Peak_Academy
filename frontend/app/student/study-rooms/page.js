@@ -5,11 +5,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import StudentStudyRoomsView from "@/components/student/StudentStudyRoomsPage";
 import { SectionLoader } from "@/components/shared/LoadingSkeleton";
+import { useSubscription } from "@/hooks/useSubscription";
 import { studentApi, logApiError } from "@/lib/api";
 
 function StudentStudyRoomsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { hasAccess, loading: subLoading } = useSubscription();
 
   const subjectFilter = useMemo(() => searchParams.get("subject") || "", [searchParams]);
 
@@ -32,6 +34,11 @@ function StudentStudyRoomsContent() {
     },
     [router, searchParams]
   );
+
+  useEffect(() => {
+    if (subLoading || hasAccess) return;
+    router.replace("/student/subscription?reason=study_rooms&redirect=/student/study-rooms");
+  }, [subLoading, hasAccess, router]);
 
   const loadOverview = useCallback(
     async ({ silent = false } = {}) => {
@@ -84,8 +91,9 @@ function StudentStudyRoomsContent() {
   );
 
   useEffect(() => {
+    if (subLoading || !hasAccess) return;
     loadOverview();
-  }, [loadOverview]);
+  }, [loadOverview, subLoading, hasAccess]);
 
   const subjectOptions = useMemo(
     () => (data?.subjects || []).map((s) => ({ value: s.key, label: s.label })),
@@ -155,7 +163,7 @@ function StudentStudyRoomsContent() {
       onLeave={handleLeave}
       joiningId={joiningId}
       leaving={leaving}
-      loading={loading}
+      loading={loading || subLoading}
       refreshing={refreshing}
       error={error}
       profileIncomplete={profileIncomplete}
