@@ -157,14 +157,10 @@ function cacheHeadersForPath(pathname = "/") {
 function productionSecurityHeaders(pathname = "/") {
   if (process.env.NODE_ENV !== "production") return [];
 
-  const headers = [{ key: "Strict-Transport-Security", value: HSTS_VALUE }];
-  if (isSeoMetadataPath(pathname)) {
-    headers.push({ key: "Content-Security-Policy", value: buildStaticAssetCsp() });
-  }
-  return headers;
+  return [{ key: "Strict-Transport-Security", value: HSTS_VALUE }];
 }
 
-/** Headers for next.config (no per-request nonce). CSP is applied in proxy. */
+/** Headers for next.config (no CSP — proxy owns Content-Security-Policy). */
 export function baseHeadersForPath(pathname = "/") {
   return [...BASE_SECURITY_HEADERS, ...productionSecurityHeaders(pathname), ...cacheHeadersForPath(pathname)];
 }
@@ -216,7 +212,9 @@ export function applySecurityHeaders(response, pathname = "/") {
   if (isSeoMetadataPath(pathname)) {
     response.headers.set("Content-Security-Policy", buildStaticAssetCsp());
   } else {
-    response.headers.set("Content-Security-Policy", buildContentSecurityPolicy());
+    const csp = buildContentSecurityPolicy();
+    response.headers.set("Content-Security-Policy", csp);
+    response.headers.set("X-Content-Security-Policy", csp);
   }
   return response;
 }
