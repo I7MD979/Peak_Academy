@@ -5,13 +5,13 @@ import {
   isProfileComplete,
   resolvePostAuthPath,
   ROLE_HOME
-} from "./role-routes-edge.js";
+} from "./lib/role-routes-edge.js";
 import {
   applySecurityHeaders,
   createRequestSecurityContext,
   issueCsrfCookie,
   SENSITIVE_QUERY_KEYS
-} from "./security-headers.js";
+} from "./lib/security-headers.js";
 
 const PUBLIC_PATHS = [
   "/",
@@ -91,7 +91,7 @@ function stripSensitiveQueryParams(request) {
   return NextResponse.redirect(url, 302);
 }
 
-export async function proxy(request) {
+export async function middleware(request) {
   const { pathname } = request.nextUrl;
   const ctx = createRequestSecurityContext(request);
 
