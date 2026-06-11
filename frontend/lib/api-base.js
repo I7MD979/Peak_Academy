@@ -12,6 +12,15 @@ function isLocalHost(hostname) {
   return hostname === "localhost" || hostname === "127.0.0.1";
 }
 
+function isLocalhostUrl(url) {
+  try {
+    const parsed = new URL(url);
+    return isLocalHost(parsed.hostname);
+  } catch {
+    return false;
+  }
+}
+
 function isPeakFrontendHost(hostname) {
   return (
     hostname === "peak-academy.net" ||
@@ -51,10 +60,19 @@ export function getApiBaseUrl() {
     if (isPeakFrontendHost(hostname)) {
       return `${origin}/peak-api`;
     }
+    if (isLocalHost(hostname)) return LOCAL_API;
   }
 
   const configured = process.env.NEXT_PUBLIC_API_URL?.trim();
-  if (configured) return normalizeApiBaseUrl(configured);
+  if (configured && !isLocalhostUrl(configured)) {
+    return normalizeApiBaseUrl(configured);
+  }
+
+  const upstream = process.env.API_UPSTREAM_URL?.trim();
+  if (upstream) {
+    const base = upstream.replace(/\/$/, "");
+    return base.endsWith("/api") ? base : `${base}/api`;
+  }
 
   if (process.env.VERCEL_URL) {
     return `https://${process.env.VERCEL_URL}/peak-api`;

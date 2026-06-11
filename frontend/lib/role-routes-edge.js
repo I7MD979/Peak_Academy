@@ -30,10 +30,27 @@ export function isProfileComplete(user) {
   return true;
 }
 
+function isLocalhostConfiguredUrl(url) {
+  try {
+    const host = new URL(url).hostname;
+    return host === "localhost" || host === "127.0.0.1";
+  } catch {
+    return false;
+  }
+}
+
 /** Same-origin /peak-api proxy (matches browser + next.config rewrites). */
 function getApiUrl(request) {
   const configured = process.env.NEXT_PUBLIC_API_URL?.trim();
-  if (configured) return normalizeApiBaseUrl(configured);
+  if (configured && !isLocalhostConfiguredUrl(configured)) {
+    return normalizeApiBaseUrl(configured);
+  }
+
+  const upstream = process.env.API_UPSTREAM_URL?.trim();
+  if (upstream) {
+    const base = upstream.replace(/\/$/, "");
+    return base.endsWith("/api") ? base : `${base}/api`;
+  }
   if (request?.url) {
     return `${new URL(request.url).origin}/peak-api`;
   }

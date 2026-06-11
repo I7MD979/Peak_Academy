@@ -2,6 +2,8 @@ import { getApiBaseUrl } from "@/lib/api-base";
 import { landingHeroCountersFallback } from "@/lib/landing-constants";
 import { landingPricingPlansFallback } from "@/lib/landing-content-fallback";
 
+const RAILWAY_API = "https://peakacademy-production.up.railway.app/api";
+
 const PLAN_ID_RE = /^[0-9a-f-]{36}$/i;
 
 function safePlanRegisterHref(planId) {
@@ -15,7 +17,8 @@ function safePlanRegisterHref(planId) {
 export async function getLandingData() {
   try {
     const baseUrl = getApiBaseUrl();
-    const res = await fetch(`${baseUrl}/public/landing`, {
+    const resolvedBase = baseUrl.includes("localhost") ? RAILWAY_API : baseUrl;
+    const res = await fetch(`${resolvedBase}/public/landing`, {
       next: { revalidate: 300 },
       headers: { Accept: "application/json" }
     });

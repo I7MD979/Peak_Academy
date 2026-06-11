@@ -3,12 +3,10 @@ import { getApiBaseUrl } from "@/lib/api-base";
 
 export { ROLE_HOME, isProfileComplete };
 
-const API_URL = getApiBaseUrl();
-
 export async function fetchAuthProfile(accessToken) {
   if (!accessToken) return null;
   try {
-    const res = await fetch(`${API_URL}/auth/me`, {
+    const res = await fetch(`${getApiBaseUrl()}/auth/me`, {
       headers: { Authorization: `Bearer ${accessToken}` },
       cache: "no-store"
     });
@@ -21,7 +19,7 @@ export async function fetchAuthProfile(accessToken) {
 }
 
 async function resolveViaApi(accessToken) {
-  const res = await fetch(`${API_URL}/auth/me`, {
+  const res = await fetch(`${getApiBaseUrl()}/auth/me`, {
     headers: { Authorization: `Bearer ${accessToken}` },
     cache: "no-store"
   });
