@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { SectionLoader } from "@/components/shared/LoadingSkeleton";
+import { ButtonLoader, SectionLoader } from "@/components/shared/LoadingSkeleton";
 import { getAuthErrorMessage } from "@/lib/auth-errors";
 
 import {
@@ -169,7 +169,7 @@ export default function ResetPasswordForm() {
 
       <button type="submit" disabled={loading} className={authBtnPrimaryClass}>
         {loading ? (
-          <span className="material-symbols-outlined animate-spin">sync</span>
+          <ButtonLoader />
         ) : (
           <>
             <span>حفظ كلمة المرور</span>

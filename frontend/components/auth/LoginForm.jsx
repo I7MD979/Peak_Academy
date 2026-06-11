@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 import { resolvePostAuthPathClient } from "@/lib/role-routes";
 import { sanitizeRedirectPath } from "@/lib/safe-redirect";
 import GoogleIcon from "@/components/auth/GoogleIcon";
+import { ButtonLoader } from "@/components/shared/LoadingSkeleton";
 import { cn } from "@/lib/utils";
 import {
   authInputClass,
@@ -163,7 +164,7 @@ export default function LoginForm({ redirectTo: redirectToProp = null, oauthErro
 
         <button type="submit" disabled={isBusy} className={authBtnPrimaryClass}>
           {redirecting || loading ? (
-            <span className="material-symbols-outlined animate-spin">sync</span>
+            <ButtonLoader />
           ) : (
             <>
               <span>{redirecting ? "جاري التحويل..." : loading ? "جاري تسجيل الدخول..." : "تسجيل الدخول"}</span>

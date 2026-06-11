@@ -18,6 +18,7 @@ import { authApi } from "@/lib/api";
 import { GRADE_OPTIONS } from "@/lib/profile-form";
 import { isProfileComplete, resolvePostAuthPathClient, ROLE_HOME } from "@/lib/role-routes";
 import { profileFromAuthUser } from "@/lib/auth-user-profile";
+import { ButtonLoader, LoadingSpinner } from "@/components/shared/LoadingSkeleton";
 import { buildOnboardingLoginUrl } from "@/lib/auth-redirect";
 import {
   onboardingSchema,
@@ -164,12 +165,12 @@ export default function OnboardingClient({ deferredReturn = null, levelParam = n
   if (checkingSession) {
     return (
       <AuthPageLayout>
-        <div className="flex flex-col items-center gap-4 text-on-surface-variant">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-surface-container-high">
-            <span className="material-symbols-outlined animate-spin text-3xl text-md-primary">sync</span>
+        <div className="flex flex-col items-center gap-4 py-12">
+          <LoadingSpinner size="lg" glow label="جاري التحقق من جلسة الدخول" />
+          <div className="text-center">
+            <p className="text-sm font-medium text-on-surface">جاري التحقق من جلسة الدخول...</p>
+            <p className="mt-1 text-xs text-on-surface-variant">لحظة واحدة فقط</p>
           </div>
-          <p className="text-sm font-medium">جاري التحقق من جلسة الدخول...</p>
-          <p className="text-xs opacity-70">لحظة واحدة فقط</p>
         </div>
       </AuthPageLayout>
     );
@@ -320,7 +321,7 @@ export default function OnboardingClient({ deferredReturn = null, levelParam = n
           <button type="submit" disabled={loading} className={authBtnPrimaryClass}>
             {loading ? (
               <>
-                <span className="material-symbols-outlined animate-spin">sync</span>
+                <ButtonLoader />
                 <span>جاري إنشاء الملف...</span>
               </>
             ) : (

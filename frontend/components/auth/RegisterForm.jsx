@@ -10,6 +10,7 @@ import AuthField, { authInputClass } from "@/components/auth/AuthField";
 import AuthStepIndicator from "@/components/auth/AuthStepIndicator";
 import PasswordStrength from "@/components/auth/PasswordStrength";
 import { Select } from "@/components/ui/Select";
+import { ButtonLoader } from "@/components/shared/LoadingSkeleton";
 import { useAuth } from "@/hooks/useAuth";
 import { authApi } from "@/lib/api";
 import { getAuthErrorMessage } from "@/lib/auth-errors";
@@ -392,7 +393,7 @@ export default function RegisterForm({ redirectTo = null, levelParam = null }) {
               <button type="submit" disabled={isBusy} className={cn(authBtnPrimaryClass, "flex-1")}>
                 {loading ? (
                   <>
-                    <span className="material-symbols-outlined animate-spin">sync</span>
+                    <ButtonLoader />
                     <span>جاري إنشاء الحساب...</span>
                   </>
                 ) : (

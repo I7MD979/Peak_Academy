@@ -6,6 +6,7 @@ import { PERMISSION_GROUPS } from "@/lib/admin-permissions";
 import AdminPageHeader from "./AdminPageHeader";
 import AdminConfirmDialog from "./AdminConfirmDialog";
 import Icon from "@/components/shared/Icon";
+import { SectionLoader } from "@/components/shared/LoadingSkeleton";
 import {
   adminPage,
   adminCardSolid,
@@ -451,7 +452,7 @@ export default function AdminPermissionsPage() {
         </div>
 
         {loading ? (
-          <div className="py-16 text-center text-auth-on-surface-variant">جاري التحميل...</div>
+          <SectionLoader message="جاري تحميل الفريق..." minHeight="min-h-[16rem]" />
         ) : fetchErr ? (
           <div className="p-6">
             <div className={adminErrorBox}>{fetchErr}</div>

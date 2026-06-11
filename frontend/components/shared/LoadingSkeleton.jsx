@@ -1,4 +1,8 @@
 import { Skeleton } from "@/components/ui/skeleton";
+import { ButtonLoader, InlineLoader, LoadingSpinner } from "@/components/ui/loader";
+import { cn } from "@/lib/utils";
+
+export { LoadingSpinner, InlineLoader, ButtonLoader } from "@/components/ui/loader";
 
 export function StatCardSkeleton() {
   return (
@@ -33,26 +37,45 @@ export default function LoadingSkeleton() {
   );
 }
 
-export function PageLoader() {
+export function PageLoader({ message = "جاري التحميل...", className }) {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background">
-      <div className="flex flex-col items-center gap-3">
-        <div className="flex items-center gap-2">
-          <div className="h-8 w-8 animate-pulse rounded-lg bg-primary" />
-          <div className="h-5 w-28 animate-pulse rounded bg-border" />
+    <div
+      className={cn(
+        "flex min-h-screen flex-col items-center justify-center gap-6 bg-background px-4",
+        className
+      )}
+      role="status"
+      aria-live="polite"
+    >
+      <div className="flex flex-col items-center gap-5">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-container/15 text-lg font-black text-primary-container">
+            P
+          </span>
+          <span className="text-base font-black tracking-tight text-on-surface">Peak Academy</span>
         </div>
-        <div className="mt-4 h-8 w-8 animate-spin rounded-full border-4 border-outline-variant border-t-peak-orange" />
-        <p className="animate-pulse text-sm text-text-muted">جاري التحميل...</p>
+        <LoadingSpinner size="xl" glow label={message} />
+        <div className="text-center">
+          <p className="text-sm font-semibold text-on-surface">{message}</p>
+          <p className="mt-1 text-xs text-on-surface-variant">من فضلك انتظر قليلاً</p>
+        </div>
       </div>
     </div>
   );
 }
 
-export function SectionLoader({ message = "جاري التحميل..." }) {
+export function SectionLoader({
+  message = "جاري التحميل...",
+  className,
+  minHeight = "min-h-[200px]"
+}) {
   return (
-    <div className="flex min-h-[200px] flex-col items-center justify-center gap-3">
-      <div className="h-6 w-6 animate-spin rounded-full border-4 border-outline-variant border-t-peak-orange" />
-      <p className="text-sm text-text-muted">{message}</p>
+    <div
+      className={cn("flex flex-col items-center justify-center gap-3", minHeight, className)}
+      role="status"
+      aria-live="polite"
+    >
+      <InlineLoader message={message} size="md" vertical />
     </div>
   );
 }

@@ -17,15 +17,12 @@ import {
   teacherMuted
 } from "@/lib/teacher-styles";
 import { formatCurrencyEgp } from "@/lib/format";
+import { SectionLoader } from "@/components/shared/LoadingSkeleton";
 import { cn } from "@/lib/utils";
 
 function RoomCommissionsContent({ roomEarnings, roomLoading }) {
   if (roomLoading) {
-    return (
-      <div className="flex items-center justify-center py-16">
-        <span className="h-6 w-6 rounded-full border-2 border-peak-orange/30 border-t-peak-orange animate-spin" />
-      </div>
-    );
+    return <SectionLoader message="جاري تحميل عمولات الغرف..." minHeight="min-h-[12rem]" />;
   }
 
   if (!roomEarnings) {

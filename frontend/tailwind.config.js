@@ -76,6 +76,15 @@ module.exports = {
         "surface-dim": "#141718",
         muted: "#282a2b",
         destructive: "#ef4444"
+      },
+      keyframes: {
+        "peak-loader-glow": {
+          "0%, 100%": { opacity: "0.35", transform: "scale(0.92)" },
+          "50%": { opacity: "0.75", transform: "scale(1.08)" }
+        }
+      },
+      animation: {
+        "peak-loader-glow": "peak-loader-glow 2s ease-in-out infinite"
       }
     }
   },

@@ -4,7 +4,7 @@ import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import StudentSubscriptionView from "@/components/student/StudentSubscriptionPage";
-import { PageLoader } from "@/components/shared/LoadingSkeleton";
+import { ButtonLoader, PageLoader } from "@/components/shared/LoadingSkeleton";
 import { paymentsApi, subscriptionsApi, newIdempotencyKey } from "@/lib/api";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -230,7 +230,7 @@ function StudentSubscriptionContent() {
               >
                 {activatingTrial ? (
                   <>
-                    <span className="h-4 w-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />
+                    <ButtonLoader />
                     جاري التفعيل…
                   </>
                 ) : "ابدأ التجربة المجانية"}

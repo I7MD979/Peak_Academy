@@ -7,7 +7,7 @@ import AdminPagination from "@/components/admin/AdminPagination";
 import StatsCard from "@/components/admin/StatsCard";
 import QuestionCard from "@/components/student/QuestionCard";
 import EmptyState from "@/components/shared/EmptyState";
-import { SectionLoader, StatCardSkeleton } from "@/components/shared/LoadingSkeleton";
+import { ButtonLoader, SectionLoader, StatCardSkeleton } from "@/components/shared/LoadingSkeleton";
 import Icon from "@/components/shared/Icon";
 import { CustomDatePicker } from "@/components/ui/CustomDatePicker";
 import { Select } from "@/components/ui/Select";
@@ -229,7 +229,7 @@ export default function StudentAskPage({
                   >
                     {paying ? (
                       <>
-                        <Icon name="refresh" size={18} className="animate-spin" />
+                        <ButtonLoader />
                         جاري التحويل للدفع…
                       </>
                     ) : (

@@ -1,6 +1,7 @@
 "use client";
 
 import Icon from "@/components/shared/Icon";
+import { ButtonLoader } from "@/components/shared/LoadingSkeleton";
 import { studentBtnPrimary, studentBtnSecondary } from "@/lib/student-styles";
 import { cn } from "@/lib/utils";
 
@@ -60,7 +61,7 @@ export default function StudyRoomCard({ room, onJoin, joiningId, compact = false
       >
         {busy ? (
           <>
-            <Icon name="refresh" size={16} className="animate-spin" />
+            <ButtonLoader size="xs" />
             جاري الانضمام…
           </>
         ) : isFull ? (

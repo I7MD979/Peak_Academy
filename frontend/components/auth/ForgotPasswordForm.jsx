@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { getAuthErrorMessage } from "@/lib/auth-errors";
 import { authInputClass, authBtnPrimaryClass, authErrorClass } from "@/components/auth/auth-styles";
 import CsrfField from "@/components/auth/CsrfField";
+import { ButtonLoader } from "@/components/shared/LoadingSkeleton";
 
 export default function ForgotPasswordForm() {
   const [email, setEmail] = useState("");
@@ -82,7 +83,7 @@ export default function ForgotPasswordForm() {
       <button type="submit" disabled={loading} className={authBtnPrimaryClass}>
         {loading ? (
           <>
-            <span className="material-symbols-outlined animate-spin">sync</span>
+            <ButtonLoader />
             <span>جاري الإرسال...</span>
           </>
         ) : (

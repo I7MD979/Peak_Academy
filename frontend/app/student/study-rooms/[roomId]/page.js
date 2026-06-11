@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { studyRoomsApi } from "@/lib/api";
 import { useRoomChat } from "@/hooks/useRoomChat";
 import Icon from "@/components/shared/Icon";
+import { ButtonLoader, InlineLoader } from "@/components/shared/LoadingSkeleton";
 import {
   studentBtnPrimary,
   studentBtnSecondary,
@@ -553,8 +554,8 @@ export default function StudyRoomPage() {
           </button>
         )}
         {loading ? (
-          <div className="flex flex-1 items-center justify-center">
-            <span className="text-sm text-auth-on-surface-variant">جاري التحميل…</span>
+          <div className="flex flex-1 items-center justify-center py-8">
+            <InlineLoader message="جاري تحميل الرسائل..." />
           </div>
         ) : error ? (
           <div className="flex flex-1 items-center justify-center">
@@ -671,7 +672,7 @@ export default function StudyRoomPage() {
             className={cn(studentBtnPrimary, "py-2.5 px-4 disabled:opacity-40")}
           >
             {sending ? (
-              <span className="h-4 w-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />
+              <ButtonLoader />
             ) : (
               <Icon name="send" size={16} />
             )}

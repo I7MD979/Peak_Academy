@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { PageLoader, SectionLoader } from "@/components/shared/LoadingSkeleton";
 
 function VoiceRoomContent() {
   const params    = useSearchParams();
@@ -76,9 +77,11 @@ function VoiceRoomContent() {
 
   if (!sdkReady) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-auth-background">
-        <span className="text-auth-on-surface-variant text-sm">جاري تحميل الجلسة الصوتية…</span>
-      </div>
+      <SectionLoader
+        message="جاري تحميل الجلسة الصوتية…"
+        className="min-h-screen bg-auth-background"
+        minHeight="min-h-screen"
+      />
     );
   }
 
@@ -124,13 +127,7 @@ function VoiceRoomContent() {
 
 export default function VoicePage() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-screen items-center justify-center bg-auth-background">
-          <span className="text-auth-on-surface-variant text-sm">جاري التحميل…</span>
-        </div>
-      }
-    >
+    <Suspense fallback={<PageLoader message="جاري تحميل الغرفة الصوتية..." />}>
       <VoiceRoomContent />
     </Suspense>
   );

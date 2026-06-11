@@ -7,7 +7,7 @@ import AdminPageHeader from "@/components/admin/AdminPageHeader";
 import StatsCard from "@/components/admin/StatsCard";
 import StudyRoomCard from "@/components/student/StudyRoomCard";
 import EmptyState from "@/components/shared/EmptyState";
-import { SectionLoader, StatCardSkeleton } from "@/components/shared/LoadingSkeleton";
+import { ButtonLoader, SectionLoader, StatCardSkeleton } from "@/components/shared/LoadingSkeleton";
 import Icon from "@/components/shared/Icon";
 import { Select } from "@/components/ui/Select";
 import {
@@ -228,7 +228,7 @@ export default function StudentStudyRoomsPage({
               >
                 {joiningId === "random" ? (
                   <>
-                    <Icon name="refresh" size={18} className="animate-spin" />
+                    <ButtonLoader />
                     جاري الانضمام…
                   </>
                 ) : (

@@ -1,4 +1,6 @@
 "use client";
+
+import { PageLoader } from "@/components/shared/LoadingSkeleton";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -75,15 +77,5 @@ export default function GoogleCallbackPage() {
     handleCallback();
   }, [router]);
 
-  return (
-    <div
-      className="min-h-screen flex items-center justify-center bg-background"
-      dir="rtl"
-    >
-      <div className="text-center space-y-4">
-        <div className="w-10 h-10 border-4 border-primary-container border-t-transparent rounded-full animate-spin mx-auto" />
-        <p className="text-on-surface-variant text-sm">{status}</p>
-      </div>
-    </div>
-  );
+  return <PageLoader message={status} />;
 }
