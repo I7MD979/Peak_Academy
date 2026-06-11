@@ -5,13 +5,13 @@ import {
   isProfileComplete,
   resolvePostAuthPath,
   ROLE_HOME
-} from "./lib/role-routes-edge.js";
+} from "./role-routes-edge.js";
 import {
   applySecurityHeaders,
   createRequestSecurityContext,
   issueCsrfCookie,
   SENSITIVE_QUERY_KEYS
-} from "./lib/security-headers.js";
+} from "./security-headers.js";
 
 const PUBLIC_PATHS = [
   "/",
