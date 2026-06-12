@@ -1,6 +1,7 @@
-/** Onboarding profile schema — same rules as register step 2. */
+/** Onboarding profile schema — register step 2 + terms acceptance. */
 export {
-  registerStep2Schema as onboardingSchema,
+  CURRENT_TERMS_VERSION,
+  onboardingSchema,
   REGISTER_ROLES,
   ROLE_SELECT_OPTIONS,
   defaultGradeFromLevelParam

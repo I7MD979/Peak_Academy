@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CURRENT_TERMS_VERSION } from "@/lib/register-form";
 
 export const metadata = {
   title: "سياسة الخصوصية | Peak Academy",
@@ -13,6 +14,9 @@ export default function PrivacyPage() {
           ← العودة للرئيسية
         </Link>
         <h1 className="mt-8 text-3xl font-black">سياسة الخصوصية</h1>
+        <p className="mt-3 text-sm font-semibold text-white/50">
+          رقم الإصدار: {CURRENT_TERMS_VERSION} · آخر تحديث: يونيو 2026
+        </p>
         <p className="mt-6 leading-relaxed text-white/65">
           نحترم خصوصية بياناتك في Peak Academy. لا نشارك معلوماتك الشخصية مع أطراف ثالثة إلا عند الضرورة
           لتشغيل الخدمة أو الامتثال للقانون. للاستفسارات:{" "}

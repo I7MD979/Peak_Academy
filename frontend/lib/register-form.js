@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+export const CURRENT_TERMS_VERSION = "2026-06-12";
+
 export const REGISTER_ROLES = [
   {
     value: "student",
@@ -67,3 +69,9 @@ export const registerStep2Schema = z
       });
     }
   });
+
+export const onboardingSchema = registerStep2Schema.extend({
+  acceptedTerms: z.literal(true, {
+    errorMap: () => ({ message: "يجب الموافقة على الشروط وسياسة الخصوصية" })
+  })
+});

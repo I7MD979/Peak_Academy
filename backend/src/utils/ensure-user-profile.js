@@ -47,7 +47,16 @@ async function upsertUsersRow(supabase, payload) {
 
   if (isMissingColumnError(error)) {
     // eslint-disable-next-line no-unused-vars
-    const { is_verified, avatar_url, phone_hash, national_id, ...rest } = safePayload;
+    const {
+      is_verified,
+      avatar_url,
+      phone_hash,
+      national_id,
+      terms_accepted_at,
+      terms_version,
+      terms_accepted_ip,
+      ...rest
+    } = safePayload;
     ({ error } = await run(rest));
     if (!error) return;
   }
@@ -206,7 +215,19 @@ async function resolveProfileAfterEnsure(supabase, id, safeRole, hints = {}) {
  */
 export async function ensureUserProfile(
   supabase,
-  { id, email, full_name, role, phone = null, grade = null, section = null, subjects = [] }
+  {
+    id,
+    email,
+    full_name,
+    role,
+    phone = null,
+    grade = null,
+    section = null,
+    subjects = [],
+    termsAcceptedAt = null,
+    termsVersion = null,
+    termsAcceptedIp = null
+  }
 ) {
   if (!id) throw new Error("معرّف المستخدم مطلوب");
 
@@ -224,6 +245,13 @@ export async function ensureUserProfile(
   const safeEmail =
     incomingEmail || String(existingUser?.email || "").trim().toLowerCase() || `${id}@peak.local`;
 
+  const termsPayload = {};
+  if (termsAcceptedAt) {
+    termsPayload.terms_accepted_at = termsAcceptedAt;
+    termsPayload.terms_version = termsVersion;
+    termsPayload.terms_accepted_ip = termsAcceptedIp;
+  }
+
   await upsertUsersRow(supabase, {
     id,
     email: safeEmail,
@@ -231,7 +259,8 @@ export async function ensureUserProfile(
     role: roleToWrite,
     phone: phone ? String(phone).trim() : null,
     is_active: true,
-    is_verified: true
+    is_verified: true,
+    ...termsPayload
   });
 
   const effectiveRole = roleToWrite;

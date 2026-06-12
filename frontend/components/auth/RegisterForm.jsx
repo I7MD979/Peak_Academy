@@ -18,6 +18,7 @@ import { GRADE_OPTIONS } from "@/lib/profile-form";
 import { isProfileComplete, resolvePostAuthPathClient, ROLE_HOME } from "@/lib/role-routes";
 import { createClient } from "@/lib/supabase/client";
 import {
+  CURRENT_TERMS_VERSION,
   defaultGradeFromLevelParam,
   registerStep1Schema,
   registerStep2Schema,
@@ -142,7 +143,9 @@ export default function RegisterForm({ redirectTo = null, levelParam = null }) {
         full_name: profileValues.full_name.trim(),
         role: profileValues.role,
         grade: profileValues.role === "student" ? profileValues.grade : undefined,
-        phone: profileValues.phone?.trim() || undefined
+        phone: profileValues.phone?.trim() || undefined,
+        accepted_terms: true,
+        terms_version: CURRENT_TERMS_VERSION
       });
 
       const nextPath = await resolveNextPath(session.access_token, res?.data, profileValues.role);

@@ -21,6 +21,7 @@ import { profileFromAuthUser } from "@/lib/auth-user-profile";
 import { ButtonLoader, LoadingSpinner } from "@/components/shared/LoadingSkeleton";
 import { buildOnboardingLoginUrl } from "@/lib/auth-redirect";
 import {
+  CURRENT_TERMS_VERSION,
   onboardingSchema,
   REGISTER_ROLES,
   defaultGradeFromLevelParam
@@ -50,7 +51,8 @@ export default function OnboardingClient({ deferredReturn = null, levelParam = n
       full_name: "",
       role: "student",
       grade: defaultGradeFromLevelParam(levelParam),
-      phone: ""
+      phone: "",
+      acceptedTerms: false
     }
   });
 
@@ -120,7 +122,9 @@ export default function OnboardingClient({ deferredReturn = null, levelParam = n
         full_name: values.full_name.trim(),
         role: values.role,
         grade: values.role === "student" ? values.grade : undefined,
-        phone: values.phone?.trim() || undefined
+        phone: values.phone?.trim() || undefined,
+        accepted_terms: true,
+        terms_version: CURRENT_TERMS_VERSION
       });
 
       const createdUser = res?.data;
@@ -315,6 +319,27 @@ export default function OnboardingClient({ deferredReturn = null, levelParam = n
               </span>
             </div>
           </AuthField>
+
+          <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-outline-variant bg-surface-container/50 p-3">
+            <input
+              type="checkbox"
+              className="mt-1 h-4 w-4 shrink-0 accent-primary-container"
+              {...register("acceptedTerms")}
+            />
+            <span className="text-xs leading-relaxed text-on-surface-variant">
+              أوافق على{" "}
+              <Link href="/terms" className="font-bold text-md-primary hover:underline" target="_blank">
+                شروط الاستخدام
+              </Link>{" "}
+              و{" "}
+              <Link href="/privacy" className="font-bold text-md-primary hover:underline" target="_blank">
+                سياسة الخصوصية
+              </Link>
+            </span>
+          </label>
+          {errors.acceptedTerms ? (
+            <p className="text-xs font-semibold text-error">{errors.acceptedTerms.message}</p>
+          ) : null}
 
           {error ? <div className={authErrorClass}>{error}</div> : null}
 

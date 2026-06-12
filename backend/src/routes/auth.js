@@ -131,6 +131,18 @@ router.post("/setup-profile", oauthLimiter, authSlowDown, authLimiter, uniformAu
       return error(res, "رقم الهاتف غير صالح", 400);
     }
 
+    const acceptedTerms = req.body.accepted_terms === true;
+    const termsVersion = String(req.body.terms_version || "").trim();
+
+    if (!acceptedTerms) {
+      return error(res, "يجب الموافقة على الشروط والأحكام وسياسة الخصوصية", 400);
+    }
+    if (!termsVersion) {
+      return error(res, "إصدار الشروط غير محدد", 400);
+    }
+
+    const clientIp = (req.headers["x-forwarded-for"]?.split(",")[0] || req.ip || "").trim();
+
     const email = req.user.email || req.body.email;
 
     if (email) {
@@ -149,7 +161,10 @@ router.post("/setup-profile", oauthLimiter, authSlowDown, authLimiter, uniformAu
         role,
         phone: phone || null,
         grade: role === "student" ? grade || "third" : null,
-        section: role === "student" ? section : null
+        section: role === "student" ? section : null,
+        termsAcceptedAt: new Date().toISOString(),
+        termsVersion,
+        termsAcceptedIp: clientIp
       });
     } catch (ensureErr) {
       console.error("POST /auth/setup-profile ensure:", ensureErr?.message || ensureErr);
