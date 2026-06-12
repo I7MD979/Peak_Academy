@@ -7,7 +7,6 @@ import TeacherSessionsList from "@/components/teacher/TeacherSessionsList";
 import TeacherSessionsLiveBanner from "@/components/teacher/TeacherDashboardLiveBanner";
 import TeacherSessionsStats from "@/components/teacher/TeacherSessionsStats";
 import { SectionLoader } from "@/components/shared/LoadingSkeleton";
-import { resolveTeacherOpenSessionsCount } from "@/lib/teacher-sessions-list";
 import { teacherErrorBox } from "@/lib/teacher-styles";
 
 export default function TeacherSessionsPage({
@@ -31,17 +30,14 @@ export default function TeacherSessionsPage({
   emptyTitle = "",
   emptyHint = "",
   actionId = "",
-  closingAll = false,
   onStart,
   onEnd,
   onCancel,
   onJoin,
-  onCloseAllOpen,
   selectedSession = null,
   onSelectSession,
   onCloseDetails
 }) {
-  const openSessionsCount = resolveTeacherOpenSessionsCount(tabCounts);
   const liveCount = tabCounts.live ?? 0;
 
   if (loading && !sessions.length && !error) {
@@ -70,18 +66,7 @@ export default function TeacherSessionsPage({
             label: "جلسة جديدة",
             icon: "plus",
             href: "/teacher/sessions/new"
-          },
-          ...(openSessionsCount > 0
-            ? [
-                {
-                  label: closingAll ? "جارٍ الإغلاق…" : `إغلاق المفتوحة (${openSessionsCount})`,
-                  icon: "close",
-                  variant: "secondary",
-                  onClick: onCloseAllOpen,
-                  disabled: closingAll || countsLoading
-                }
-              ]
-            : [])
+          }
         ]}
       />
 
