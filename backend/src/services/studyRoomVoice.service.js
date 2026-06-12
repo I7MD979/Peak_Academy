@@ -177,3 +177,45 @@ export async function grantSpeak(sessionId, targetUserId, grantedByUserId) {
     .eq("session_id", sessionId)
     .eq("user_id", targetUserId);
 }
+
+/**
+ * Find all "active" voice sessions whose LiveKit room no longer exists
+ * (already auto-deleted by LiveKit emptyTimeout) and mark them "ended" in DB.
+ * Safe to run periodically — crash-safe, isolated per-session errors.
+ */
+export async function closeStaleVoiceSessions() {
+  const { data: activeSessions, error } = await supabase
+    .from("study_room_voice_sessions")
+    .select("id, livekit_room_id")
+    .eq("status", "active");
+
+  if (error) throw error;
+  if (!activeSessions?.length) return { closed: 0 };
+
+  const svc = getRoomSvc();
+  let existingRoomNames = new Set();
+
+  try {
+    const rooms = await svc.listRooms();
+    existingRoomNames = new Set(rooms.map((r) => r.name));
+  } catch (err) {
+    console.error("[closeStaleVoiceSessions] listRooms failed:", err.message);
+    return { closed: 0 };
+  }
+
+  let closed = 0;
+  for (const session of activeSessions) {
+    if (existingRoomNames.has(session.livekit_room_id)) continue;
+
+    const { error: updateError } = await supabase
+      .from("study_room_voice_sessions")
+      .update({ status: "ended", ended_at: new Date().toISOString() })
+      .eq("id", session.id)
+      .eq("status", "active");
+
+    if (!updateError) closed += 1;
+    else console.error(`[closeStaleVoiceSessions] failed for ${session.id}:`, updateError.message);
+  }
+
+  return { closed };
+}

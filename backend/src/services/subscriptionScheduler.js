@@ -9,6 +9,7 @@ import {
   isPayoutCalcDay,
   getCurrentPayoutMonth,
 } from "../services/platformConfig.service.js";
+import { closeStaleVoiceSessions } from "./studyRoomVoice.service.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -44,6 +45,16 @@ export function startSubscriptionResetScheduler() {
         .lt("expires_at", new Date().toISOString());
     } catch (err) {
       console.error("[scheduler] raise-hand revoke failed:", err.message);
+    }
+
+    // Close stale voice sessions whose LiveKit room no longer exists
+    try {
+      const result = await closeStaleVoiceSessions();
+      if (result.closed > 0) {
+        console.info(`[scheduler] closed ${result.closed} stale voice session(s)`);
+      }
+    } catch (err) {
+      console.error("[scheduler] closeStaleVoiceSessions failed:", err.message);
     }
 
     // Day 25: calculate monthly payouts (sessions + rooms)
