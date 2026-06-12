@@ -5,7 +5,6 @@ import TeacherSessionDetailsModal from "@/components/teacher/TeacherSessionDetai
 import TeacherSessionsFilters from "@/components/teacher/TeacherSessionsFilters";
 import TeacherSessionsList from "@/components/teacher/TeacherSessionsList";
 import TeacherSessionsLiveBanner from "@/components/teacher/TeacherDashboardLiveBanner";
-import TeacherSessionsMaintenance from "@/components/teacher/TeacherSessionsMaintenance";
 import TeacherSessionsStats from "@/components/teacher/TeacherSessionsStats";
 import { SectionLoader } from "@/components/shared/LoadingSkeleton";
 import { resolveTeacherOpenSessionsCount } from "@/lib/teacher-sessions-list";
@@ -38,7 +37,6 @@ export default function TeacherSessionsPage({
   onCancel,
   onJoin,
   onCloseAllOpen,
-  onPurgeRooms,
   selectedSession = null,
   onSelectSession,
   onCloseDetails
@@ -116,16 +114,6 @@ export default function TeacherSessionsPage({
             onSearchChange={onSearchChange}
             onSearchSubmit={onSearchSubmit}
             loading={loading}
-          />
-
-          <TeacherSessionsMaintenance
-            openSessionsCount={openSessionsCount}
-            liveCount={liveCount}
-            scheduledCount={tabCounts.scheduled ?? 0}
-            closingAll={closingAll}
-            countsLoading={countsLoading}
-            onCloseAllOpen={onCloseAllOpen}
-            onPurgeRooms={onPurgeRooms}
           />
 
           <TeacherSessionsList
