@@ -17,7 +17,7 @@ import {
   getActiveSubscription,
   resolveSessionSubjectId
 } from "../services/enrollmentService.js";
-import { getPlatformSessionPrice } from "../services/platformConfig.service.js";
+import { getSessionPrice as getPlatformSessionPrice } from "../services/platformConfig.service.js";
 import { countPaidSessionEnrollments } from "../services/subscriptionService.js";
 import { CACHE, invalidateStudentCaches, withCache } from "../lib/cache.js";
 import { isSchemaV2, SCHEMA } from "../lib/schema.js";
