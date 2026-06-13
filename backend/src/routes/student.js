@@ -8,6 +8,9 @@ import {
   enrichSessions,
   normalizeSessionRow,
   querySessionById,
+  querySessionsRange,
+  scheduleFilterColumn,
+  sessionPriceColumn,
   SESSION_LIST_COLUMNS
 } from "../utils/session-select.js";
 import { buildLinkCode, ensureUserProfile, isRoleProfileComplete } from "../utils/ensure-user-profile.js";
@@ -165,15 +168,31 @@ function excludeEnrolledIds(query, enrolledIds) {
   return query.not("id", "in", formatIdInList(enrolledIds));
 }
 
-function applyAvailableFilters(query, { student, enrolledIds, onlyMyGrade, subject, maxPrice, schoolLevel, dateFrom, dateTo }) {
+function applyAvailableFilters(
+  query,
+  {
+    student,
+    enrolledIds,
+    onlyMyGrade,
+    subject,
+    maxPrice,
+    schoolLevel,
+    dateFrom,
+    dateTo,
+    orderColumn = "scheduled_at",
+    priceColumn = "price_per_student",
+    hasSchoolLevelColumn = true
+  }
+) {
+  const scheduleCol = scheduleFilterColumn(orderColumn);
   const now = new Date().toISOString();
-  query = query.eq("status", "scheduled").gte("scheduled_at", now).order("scheduled_at", { ascending: true });
+  query = query.eq("status", "scheduled").gte(scheduleCol, now).order(orderColumn, { ascending: true });
 
   if (onlyMyGrade !== "false" && student.grade) {
     query = applyGradeFilter(query, student.grade);
   }
 
-  if (schoolLevel) {
+  if (schoolLevel && hasSchoolLevelColumn) {
     query = query.eq("school_level", schoolLevel);
   }
 
@@ -182,15 +201,15 @@ function applyAvailableFilters(query, { student, enrolledIds, onlyMyGrade, subje
   }
 
   if (maxPrice) {
-    query = query.lte("price_per_student", maxPrice);
+    query = query.lte(priceColumn, maxPrice);
   }
 
   if (dateFrom) {
-    query = query.gte("scheduled_at", dateFrom);
+    query = query.gte(scheduleCol, dateFrom);
   }
 
   if (dateTo) {
-    query = query.lte("scheduled_at", dateTo);
+    query = query.lte(scheduleCol, dateTo);
   }
 
   if (enrolledIds.length > 0) {
@@ -311,7 +330,7 @@ async function fetchAvailableSessionsPage(ctx, queryParams, userId) {
 
   const [subscription, price, trialRes] = await Promise.all([
     getActiveSubscription(userId),
-    getPlatformSessionPrice(),
+    getPlatformSessionPrice().catch(() => Number(process.env.SESSION_PRICE || 80)),
     supabase.from("free_trial_uses").select("teacher_id, subject_id").eq("student_id", userId)
   ]);
   const enrollCtx = {
@@ -321,41 +340,42 @@ async function fetchAvailableSessionsPage(ctx, queryParams, userId) {
   };
 
   while (dbOffset < 2000) {
-    let query = supabase.from("sessions").select(SESSION_SELECT);
-    query = applyAvailableFilters(query, {
-      student,
-      enrolledIds,
-      onlyMyGrade: only_my_grade,
-      subject: subject || null,
-      maxPrice: maxPrice && maxPrice > 0 ? maxPrice : null,
-      schoolLevel: school_level || null,
-      dateFrom: dateRange.from,
-      dateTo: dateRange.to
-    });
+    const { data, error: dbError } = await querySessionsRange(
+      (query, orderColumn, opts = {}) => {
+        let next = applyAvailableFilters(query, {
+          student,
+          enrolledIds,
+          onlyMyGrade: only_my_grade,
+          subject: subject || null,
+          maxPrice: maxPrice && maxPrice > 0 ? maxPrice : null,
+          schoolLevel: school_level || null,
+          dateFrom: dateRange.from,
+          dateTo: dateRange.to,
+          orderColumn,
+          priceColumn: sessionPriceColumn(orderColumn),
+          hasSchoolLevelColumn: Boolean(opts.columns?.includes("school_level"))
+        });
 
-    if (search) {
-      const term = String(search).trim();
-      if (term) query = query.ilike("title", `%${term}%`);
-    }
+        if (search) {
+          const term = String(search).trim();
+          if (term) next = next.ilike("title", `%${term}%`);
+        }
 
-    const { data, error: dbError } = await query.range(dbOffset, dbOffset + batchSize - 1);
+        return next;
+      },
+      { from: dbOffset, to: dbOffset + batchSize - 1 }
+    );
+
     if (dbError) throw dbError;
     if (!data?.length) break;
 
-    const enriched = await enrichSessions(data);
-    const subjectIds = await resolveSubjectIdsForSessions(enriched);
-    for (const session of enriched) {
+    const subjectIds = await resolveSubjectIdsForSessions(data);
+    for (const session of data) {
       const row = mapSessionRow(session, { isEnrolled: false, enrollmentStatus: null });
-      if (!row.is_full) {
-        nonFull.push(
-          applyAvailableEnrollmentOptions(
-            row,
-            session,
-            enrollCtx,
-            subjectIds.get(session.id)
-          )
-        );
-      }
+      if (!row || row.is_full) continue;
+      nonFull.push(
+        applyAvailableEnrollmentOptions(row, session, enrollCtx, subjectIds.get(session.id))
+      );
     }
 
     dbOffset += batchSize;
@@ -807,9 +827,7 @@ router.get("/sessions", auth, checkRole("student"), async (req, res) => {
 
     return success(res, payload);
   } catch (err) {
-    if (process.env.NODE_ENV !== "production") {
-      console.error("GET /student/sessions", err);
-    }
+    console.error("GET /student/sessions", err?.message || err);
     return error(res, "تعذر تحميل الجلسات", 500);
   }
 });

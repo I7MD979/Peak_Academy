@@ -11,7 +11,10 @@ export async function getPlatformConfig() {
     .from("platform_config")
     .select("key, value");
 
-  if (error) throw error;
+  if (error) {
+    console.warn("[platformConfig] load failed:", error.message);
+    return {};
+  }
 
   const config = {};
   for (const row of data || []) {

@@ -21,8 +21,24 @@ export function sessionsOrderColumns() {
 export const SESSION_LIST_COLUMNS =
   "id, title, subject, subject_id, grade, school_level, scheduled_at, start_time, status, max_students, price_per_student, teacher_id, duration_min, created_at";
 
+/** Fallback selects when optional v2 columns are not migrated yet. */
+export const SESSION_LIST_COLUMN_FALLBACKS = [
+  SESSION_LIST_COLUMNS,
+  "id, title, subject, subject_id, grade, scheduled_at, start_time, status, max_students, price_per_student, teacher_id, duration_min, created_at",
+  "id, title, subject, subject_id, grade, scheduled_at, status, max_students, price_per_student, teacher_id, duration_min, created_at",
+  "id, title, subject, grade, scheduled_at, status, max_students, price_per_student, teacher_id, duration_min, created_at"
+];
+
 /** @deprecated use SESSION_LIST_COLUMNS for lists; detail views may still select * */
 export const SESSION_LIST_SELECT = SESSION_LIST_COLUMNS;
+
+export function scheduleFilterColumn(orderColumn) {
+  return orderColumn === "start_time" ? "start_time" : "scheduled_at";
+}
+
+export function sessionPriceColumn(orderColumn) {
+  return orderColumn === "start_time" && isSchemaV2() ? "price" : "price_per_student";
+}
 
 export function normalizeSessionRow(row, { teacherMap = {}, enrollmentCounts = {} } = {}) {
   if (!row || typeof row !== "object") return row;
@@ -129,34 +145,36 @@ export async function enrichSessions(rows) {
 export async function querySessionsList(applyFilters) {
   let lastError = null;
 
-  for (const skipSubjectId of [false, true]) {
-    for (const orderColumn of sessionsOrderColumns()) {
-      try {
-        let query = supabase.from("sessions").select(SESSION_LIST_COLUMNS, { count: "exact" });
-        query = applyFilters(query, orderColumn, { skipSubjectId });
+  for (const columns of SESSION_LIST_COLUMN_FALLBACKS) {
+    for (const skipSubjectId of [false, true]) {
+      for (const orderColumn of sessionsOrderColumns()) {
+        try {
+          let query = supabase.from("sessions").select(columns, { count: "exact" });
+          query = applyFilters(query, orderColumn, { skipSubjectId, columns });
 
-        const result = await query;
-        if (!result.error) {
-          const data = await enrichSessions(result.data || []);
-          return { data, count: result.count ?? 0, db_warning: null };
-        }
+          const result = await query;
+          if (!result.error) {
+            const data = await enrichSessions(result.data || []);
+            return { data, count: result.count ?? 0, db_warning: null };
+          }
 
-        lastError = result.error;
-        if (!isRetryableSessionsQueryError(result.error)) {
-          return {
-            data: [],
-            count: 0,
-            db_warning: lastError?.message || SQL_SETUP_HINT
-          };
-        }
-      } catch (err) {
-        lastError = err;
-        if (!isRetryableSessionsQueryError(err)) {
-          return {
-            data: [],
-            count: 0,
-            db_warning: lastError?.message || SQL_SETUP_HINT
-          };
+          lastError = result.error;
+          if (!isRetryableSessionsQueryError(result.error)) {
+            return {
+              data: [],
+              count: 0,
+              db_warning: lastError?.message || SQL_SETUP_HINT
+            };
+          }
+        } catch (err) {
+          lastError = err;
+          if (!isRetryableSessionsQueryError(err)) {
+            return {
+              data: [],
+              count: 0,
+              db_warning: lastError?.message || SQL_SETUP_HINT
+            };
+          }
         }
       }
     }
@@ -167,6 +185,41 @@ export async function querySessionsList(applyFilters) {
     count: 0,
     db_warning: lastError?.message || SQL_SETUP_HINT
   };
+}
+
+/**
+ * Paged session query with column/order fallbacks (student available sessions).
+ * @param {(query: import("@supabase/supabase-js").PostgrestFilterBuilder, orderColumn: string, opts?: { columns?: string }) => unknown} applyFilters
+ */
+export async function querySessionsRange(applyFilters, { from, to }) {
+  let lastError = null;
+
+  for (const columns of SESSION_LIST_COLUMN_FALLBACKS) {
+    for (const orderColumn of sessionsOrderColumns()) {
+      try {
+        let query = supabase.from("sessions").select(columns);
+        query = applyFilters(query, orderColumn, { columns });
+
+        const result = await query.range(from, to);
+        if (!result.error) {
+          const data = await enrichSessions(result.data || []);
+          return { data, orderColumn, error: null };
+        }
+
+        lastError = result.error;
+        if (!isRetryableSessionsQueryError(result.error)) {
+          return { data: [], orderColumn, error: lastError };
+        }
+      } catch (err) {
+        lastError = err;
+        if (!isRetryableSessionsQueryError(err)) {
+          return { data: [], orderColumn: "scheduled_at", error: lastError };
+        }
+      }
+    }
+  }
+
+  return { data: [], orderColumn: "scheduled_at", error: lastError };
 }
 
 export async function querySessionById(sessionId, applyFilters = (q) => q) {
