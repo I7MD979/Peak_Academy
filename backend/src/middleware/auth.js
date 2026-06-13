@@ -122,6 +122,37 @@ export async function resolveAuthUserFromToken(token) {
   }
 }
 
+/** Verify JWT only — no profile-complete gate (OAuth cleanup endpoints). */
+export const authBearerOnly = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization || "";
+    if (!authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ success: false, error: "لم يتم توفير رمز المصادقة" });
+    }
+
+    const token = authHeader.slice(7).trim();
+    if (!token) {
+      return res.status(401).json({ success: false, error: "لم يتم توفير رمز المصادقة" });
+    }
+
+    const resolved = await resolveAuthUserFromToken(token);
+    if (!resolved) {
+      return res.status(401).json({
+        success: false,
+        error: "رمز الدخول غير صالح",
+        code: "AUTH_INVALID"
+      });
+    }
+
+    req.user = resolved.user;
+    req.authUser = resolved.authUser;
+    req.profileReady = resolved.profileReady;
+    return next();
+  } catch (_err) {
+    return res.status(500).json({ success: false, error: "خطأ في المصادقة" });
+  }
+};
+
 export const auth = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization || "";

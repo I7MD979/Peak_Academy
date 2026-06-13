@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { auth } from "../middleware/auth.js";
+import { auth, authBearerOnly } from "../middleware/auth.js";
 import { authLimiter, authSlowDown, uniformAuthResponse } from "../middleware/security.js";
 import { oauthLimiter, validateRedirectUrl, validateOAuthEmail } from "../middleware/oauth-security.js";
 import { supabase } from "../lib/supabase.js";
@@ -91,7 +91,7 @@ router.get("/me", auth, async (req, res) => {
  * حسابًا مسجّلًا. Supabase ينشئ auth.users + stub في public.users عبر trigger —
  * هذا المسار يحذف الحساب إذا لم يُكمل onboarding (setup-profile) بعد.
  */
-router.post("/reject-new-account", oauthLimiter, auth, async (req, res) => {
+router.post("/reject-new-account", oauthLimiter, authBearerOnly, async (req, res) => {
   try {
     const userId = req.user.id;
 
@@ -103,15 +103,7 @@ router.post("/reject-new-account", oauthLimiter, auth, async (req, res) => {
 
     if (userErr) throw userErr;
 
-    let profileComplete = false;
-    try {
-      const full = await fetchFullUserProfile(supabase, userId);
-      profileComplete = Boolean(full?.profile_complete);
-    } catch {
-      profileComplete = false;
-    }
-
-    if (userRow?.terms_accepted_at || profileComplete) {
+    if (userRow?.terms_accepted_at) {
       return error(res, "هذا الحساب موجود بالفعل", 409);
     }
 

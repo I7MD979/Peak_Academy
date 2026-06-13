@@ -52,7 +52,7 @@ async function rejectNewLoginAccountAndRedirect({
   if (intent !== "login" || redirectPath !== "/onboarding") return null;
 
   try {
-    await fetch(`${getBackendUrl()}/auth/reject-new-account`, {
+    const res = await fetch(`${getBackendUrl()}/auth/reject-new-account`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -61,6 +61,15 @@ async function rejectNewLoginAccountAndRedirect({
       cache: "no-store",
       signal: AbortSignal.timeout(10_000)
     });
+
+    if (res.status === 409) {
+      return null;
+    }
+
+    if (!res.ok) {
+      console.error("[callback] reject-new-account failed:", res.status, await res.text().catch(() => ""));
+      return null;
+    }
   } catch (rejectErr) {
     console.error("[callback] reject-new-account error:", rejectErr.message);
   }
