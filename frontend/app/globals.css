@@ -655,15 +655,23 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
   transform: translateY(0);
 }
 .landing-page.landing-js .scroll-reveal:not(.visible) {
-  opacity: 0;
+  /* Keep section backgrounds opaque — only slide content in */
+  opacity: 1;
   transform: translateY(32px);
-  transition:
-    opacity 0.85s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.85s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 0.85s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.landing-page.landing-js .scroll-reveal:not(.visible) > .landing-container,
+.landing-page.landing-js .scroll-reveal:not(.visible) > .landing-container > * {
+  opacity: 0;
+  transition: opacity 0.65s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .landing-page.landing-js .scroll-reveal.visible {
   opacity: 1;
   transform: translateY(0);
+}
+.landing-page.landing-js .scroll-reveal.visible > .landing-container,
+.landing-page.landing-js .scroll-reveal.visible > .landing-container > * {
+  opacity: 1;
 }
 .landing-page [id] {
   scroll-margin-top: 5.5rem;

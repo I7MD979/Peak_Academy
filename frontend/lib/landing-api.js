@@ -140,23 +140,6 @@ export function resolveQuickStats(stats, fallback) {
   return merged.length ? merged.slice(0, 4) : fallback;
 }
 
-export function mapPromosToRecord(promos) {
-  if (!promos?.length) return {};
-  return promos.reduce((acc, promo) => {
-    if (!promo?.code) return acc;
-    const code = String(promo.code).trim().toUpperCase();
-    if (!/^[A-Z0-9_-]{2,32}$/.test(code)) return acc;
-    acc[code] = promo.label || `عرض ${code}`;
-    return acc;
-  }, {});
-}
-
-export function resolveHeroPromoLabel(promos) {
-  const first = promos?.[0];
-  if (first?.label) return first.label;
-  return "عرض محدود — سجّل الآن وابدأ رحلتك";
-}
-
 export function parseHeroCounter(stats, key, fallback) {
   const row = stats?.find((item) => item.key === key);
   if (!row?.value) return fallback;

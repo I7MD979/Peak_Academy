@@ -1,5 +1,5 @@
 import LandingPage from "@/components/landing/LandingPage";
-import { getLandingData, resolveHeroPromoLabel } from "@/lib/landing-api";
+import { getLandingData } from "@/lib/landing-api";
 
 export const revalidate = 60;
 
@@ -34,7 +34,6 @@ const jsonLd = {
 
 export default async function HomePage() {
   const landingData = await getLandingData();
-  const heroPromo = resolveHeroPromoLabel(landingData?.promos);
 
   return (
     <>
@@ -43,7 +42,6 @@ export default async function HomePage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
       <LandingPage
-        heroPromo={heroPromo}
         platformStats={landingData?.stats}
         stats={landingData?.stats}
         plans={landingData?.plans}

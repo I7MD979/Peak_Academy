@@ -108,11 +108,11 @@ export default function LandingPricing({ plans }) {
   const gridClass = landingPricingGridClass(displayPlans.length);
 
   return (
-    <>
+    <div className="bg-white">
       <LandingWaveDivider fill="white" />
       <section
         id="pricing"
-        className="scroll-reveal landing-section-y overflow-visible bg-gradient-to-b from-white via-[#fafbfd] to-[#f0f3f8] landing-pattern-dots"
+        className="scroll-reveal landing-section-light landing-section-y overflow-visible landing-pattern-dots"
       >
         <div className="landing-container relative z-10">
           <div className="landing-section-head">
@@ -121,7 +121,7 @@ export default function LandingPricing({ plans }) {
               <span className="landing-title-mark ml-2 sm:ml-3">▲</span>
               استثمارك في مستقبلك
             </h2>
-            <p className="landing-lead text-landing-ink-muted">
+            <p className="landing-lead max-w-2xl text-base font-semibold text-landing-ink/85 sm:text-lg">
               باقات شهرية مرنة — كلما زادت حصصك، وفّرت أكثر
             </p>
           </div>
@@ -132,11 +132,11 @@ export default function LandingPricing({ plans }) {
             ))}
           </div>
 
-          <p className="mx-auto mt-8 max-w-lg text-center text-xs leading-relaxed text-landing-ink-muted/80 sm:mt-10">
+          <p className="mx-auto mt-8 max-w-lg text-center text-xs leading-relaxed text-landing-ink/70 sm:mt-10 sm:text-sm">
             الأسعار تشمل الوصول لجميع المواد والمعلمين. يمكنك الترقية أو الإلغاء من لوحة الطالب.
           </p>
         </div>
       </section>
-    </>
+    </div>
   );
 }

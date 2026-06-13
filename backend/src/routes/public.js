@@ -28,9 +28,7 @@ function promoLabel(promo) {
 router.get("/landing", async (_req, res) => {
   try {
     const data = await withCache("public:landing", 60, async () => {
-      const now = new Date().toISOString();
-
-      const [plansRes, statsRes, promosRes] = await Promise.all([
+      const [plansRes, statsRes] = await Promise.all([
         supabase
           .from("subscription_plans")
           .select(
@@ -43,27 +41,15 @@ router.get("/landing", async (_req, res) => {
           .from("platform_stats")
           .select("key, value, label, hint")
           .eq("is_visible", true)
-          .order("sort_order", { ascending: true }),
-
-        supabase
-          .from("promotions")
-          .select("code, discount_type, discount_value")
-          .eq("is_active", true)
-          .or(`expires_at.is.null,expires_at.gt.${now}`)
-          .limit(5)
+          .order("sort_order", { ascending: true })
       ]);
 
       if (plansRes.error) throw plansRes.error;
       if (statsRes.error) throw statsRes.error;
-      if (promosRes.error) throw promosRes.error;
 
       return {
         plans: normalizeSubscriptionPlans(plansRes.data || []),
-        stats: statsRes.data || [],
-        promos: (promosRes.data || []).map((p) => ({
-          code: p.code,
-          label: promoLabel(p)
-        }))
+        stats: statsRes.data || []
       };
     });
 

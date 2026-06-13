@@ -38,9 +38,8 @@ test.describe("Landing Page — Hero Section", () => {
     await expect(page.locator("#levels")).toBeInViewport();
   });
 
-  test("الـ promo banner ظاهر", async ({ page }) => {
-    const promo = page.locator(".landing-hero").getByText(/عرض (محدود|خاص)/);
-    await expect(promo).toBeVisible();
+  test("الـ hero لا يعرض نسبة خصم تلقائياً", async ({ page }) => {
+    await expect(page.locator(".landing-hero").getByText(/خصم\s*\d+/)).toHaveCount(0);
   });
 
   test('أزرار اختيار المرحلة ("طالب إعدادي" و "طالب ثانوي") ظاهرين', async ({

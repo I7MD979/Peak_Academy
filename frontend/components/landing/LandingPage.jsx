@@ -11,12 +11,12 @@ import LandingCTA from "@/components/landing/LandingCta";
 import LandingFooter from "@/components/landing/LandingFooter";
 import LandingScrollEffects from "@/components/landing/LandingScrollEffects";
 
-export default function LandingPage({ heroPromo, platformStats, stats, plans }) {
+export default function LandingPage({ platformStats, stats, plans }) {
   return (
     <main dir="rtl" className="landing-page overflow-x-hidden font-cairo">
       <LandingScrollEffects />
       <LandingHeader />
-      <LandingHero heroPromo={heroPromo} platformStats={platformStats} />
+      <LandingHero platformStats={platformStats} />
       <LandingStats stats={stats} />
       <LandingLevels />
       <LandingHowItWorks />

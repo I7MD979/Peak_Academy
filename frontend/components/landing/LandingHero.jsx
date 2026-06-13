@@ -34,7 +34,7 @@ function useCountUp(target, isDecimal = false, active = false) {
   return value;
 }
 
-export default function LandingHero({ heroPromo, platformStats }) {
+export default function LandingHero({ platformStats }) {
   const [activeTab, setActiveTab] = useState("prep");
   const [statsActive, setStatsActive] = useState(false);
   const statsRef = useRef(null);
@@ -80,11 +80,6 @@ export default function LandingHero({ heroPromo, platformStats }) {
 
       <div className="landing-container relative z-10 flex justify-center">
         <div className="landing-hero-enter mx-auto flex w-full max-w-3xl flex-col items-center text-center">
-          <div className="mb-6 flex max-w-full items-center justify-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 backdrop-blur-sm sm:mb-8 sm:px-5">
-            <span className="landing-pulse-dot h-2 w-2 shrink-0 rounded-full bg-landing-orange" />
-            <span className="truncate text-xs font-bold tracking-wide text-landing-on-dark-muted">{heroPromo}</span>
-          </div>
-
           <h1 className="mb-6 font-black sm:mb-8">
             <span className="landing-hero-display block text-white">مش بس حصص</span>
             <span className="landing-hero-accent flex flex-wrap items-center justify-center gap-2 text-landing-orange sm:gap-4">
