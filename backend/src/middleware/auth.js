@@ -2,9 +2,7 @@ import { supabase } from "../lib/supabase.js";
 import { decryptIfNeeded } from "../utils/encryption.js";
 import { verifySupabaseAccessToken } from "../lib/verify-supabase-jwt.js";
 import {
-  ensureUserProfile,
   isRoleProfileComplete,
-  isStaffRole,
   normalizeRole
 } from "../utils/ensure-user-profile.js";
 
@@ -94,9 +92,6 @@ export async function resolveAuthUserFromToken(token) {
       return null;
     }
 
-    const meta = authUser.user_metadata || {};
-    const name = metaFullName(meta);
-
     let { data: profile, error: profileError } = await supabase
       .from("users")
       .select("id, full_name, email, role, avatar_url, phone, is_active, is_verified, verification_status")
@@ -105,54 +100,6 @@ export async function resolveAuthUserFromToken(token) {
 
     if (profileError && process.env.NODE_ENV !== "production") {
       console.warn("[auth] users lookup:", profileError.message);
-    }
-
-    if (!profile?.id && name.length >= 2) {
-      const appMeta = authUser.app_metadata || {};
-      const { data: existing } = await supabase
-        .from("users")
-        .select("id, role")
-        .eq("id", authUser.id)
-        .maybeSingle();
-
-      if (!existing?.id) {
-        const metaRole = normalizeRole(meta.role || appMeta.role);
-        // Defer DB profile creation to POST /auth/setup-profile (onboarding).
-        // Never auto-provision staff roles from JWT metadata.
-        if (metaRole && !isStaffRole(metaRole)) {
-          try {
-            await ensureUserProfile(supabase, {
-              id: authUser.id,
-              email: authUser.email,
-              full_name: name,
-              role: metaRole,
-              phone: meta.phone || null,
-              grade: meta.grade || null
-            });
-
-            const retry = await supabase
-              .from("users")
-              .select("id, full_name, email, role, avatar_url, phone, is_active, is_verified, verification_status")
-              .eq("id", authUser.id)
-              .maybeSingle();
-            profile = retry.data;
-          } catch (provisionError) {
-            if (process.env.NODE_ENV !== "production") {
-              console.warn("[auth] auto-provision skipped:", provisionError.message);
-            }
-          }
-        }
-      } else {
-        profile = {
-          id: authUser.id,
-          email: authUser.email,
-          full_name: name,
-          role: existing.role,
-          avatar_url: meta.avatar_url || null,
-          phone: meta.phone || null,
-          is_active: true
-        };
-      }
     }
 
     const reqUser = buildReqUser(authUser, profile);

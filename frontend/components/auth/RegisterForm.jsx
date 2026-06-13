@@ -76,19 +76,12 @@ export default function RegisterForm({ redirectTo = null, levelParam = null, not
 
   const selectedRole = useWatch({ control: step2Form.control, name: "role" });
 
-  const resolveNextPath = async (sessionToken, createdUser, role) => {
-    let nextPath = redirectTo;
-    if (!nextPath) {
-      nextPath =
-        createdUser && isProfileComplete(createdUser)
-          ? ROLE_HOME[createdUser.role] || "/onboarding"
-          : await resolvePostAuthPathClient(sessionToken);
-
-      if (nextPath === "/onboarding" && role && ROLE_HOME[role]) {
-        nextPath = ROLE_HOME[role];
-      }
+  const resolveNextPath = async (sessionToken, createdUser) => {
+    if (redirectTo) return redirectTo;
+    if (createdUser && isProfileComplete(createdUser)) {
+      return ROLE_HOME[createdUser.role] || "/onboarding";
     }
-    return nextPath;
+    return resolvePostAuthPathClient(sessionToken);
   };
 
   const handleGoogle = async () => {
@@ -148,7 +141,7 @@ export default function RegisterForm({ redirectTo = null, levelParam = null, not
         terms_version: CURRENT_TERMS_VERSION
       });
 
-      const nextPath = await resolveNextPath(session.access_token, res?.data, profileValues.role);
+      const nextPath = await resolveNextPath(session.access_token, res?.data);
       router.replace(nextPath);
     } catch (err) {
       const needsOnboarding =

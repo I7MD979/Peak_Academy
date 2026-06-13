@@ -92,10 +92,10 @@ async function loadEnrollmentCounts(sessionIds) {
     if (isSchemaV2()) {
       query = query.in("status", statusFilter);
     }
-    const { data, error } = await query;
-    if (error) return {};
+    const { data: rows, error: countError } = await query;
+    if (countError) return {};
     const counts = {};
-    for (const row of data || []) {
+    for (const row of rows || []) {
       counts[row.session_id] = (counts[row.session_id] || 0) + 1;
     }
     return counts;
