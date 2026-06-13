@@ -88,20 +88,30 @@ router.get("/me", auth, async (req, res) => {
 
 /**
  * يُستدعى من /auth/callback عندما يضغط شخص "تسجيل دخول بـ Google" ولا يملك
- * حسابًا أصلاً. Supabase ينشئ صف auth.users تلقائيًا أثناء OAuth — هذا المسار
- * يتراجع عن ذلك بحذف الحساب فورًا بشرط ألا يكون له أي صف في public.users.
+ * حسابًا مسجّلًا. Supabase ينشئ auth.users + stub في public.users عبر trigger —
+ * هذا المسار يحذف الحساب إذا لم يُكمل onboarding (setup-profile) بعد.
  */
 router.post("/reject-new-account", oauthLimiter, auth, async (req, res) => {
   try {
     const userId = req.user.id;
 
-    const { data: existingProfile } = await supabase
+    const { data: userRow, error: userErr } = await supabase
       .from("users")
-      .select("id")
+      .select("id, terms_accepted_at")
       .eq("id", userId)
       .maybeSingle();
 
-    if (existingProfile) {
+    if (userErr) throw userErr;
+
+    let profileComplete = false;
+    try {
+      const full = await fetchFullUserProfile(supabase, userId);
+      profileComplete = Boolean(full?.profile_complete);
+    } catch {
+      profileComplete = false;
+    }
+
+    if (userRow?.terms_accepted_at || profileComplete) {
       return error(res, "هذا الحساب موجود بالفعل", 409);
     }
 
