@@ -8,8 +8,9 @@ import { sanitizeRedirectPath } from "@/lib/safe-redirect";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "تسجيل الدخول | Peak Academy",
-  description: "سجّل دخولك لمتابعة الجلسات، الأداء، والتقارير على منصة Peak Academy"
+  title: "تسجيل الدخول",
+  description: "سجّل دخولك لمتابعة الجلسات، الأداء، والتقارير على منصة Peak Academy",
+  alternates: { canonical: "/auth/login" }
 };
 
 export default function LoginPage({ searchParams }) {

@@ -4,7 +4,7 @@ import AuthFormCard from "@/components/auth/AuthFormCard";
 import ResetPasswordForm from "@/components/auth/ResetPasswordForm";
 
 export const metadata = {
-  title: "إعادة تعيين كلمة المرور | Peak Academy",
+  title: "إعادة تعيين كلمة المرور",
   description: "تعيين كلمة مرور جديدة"
 };
 

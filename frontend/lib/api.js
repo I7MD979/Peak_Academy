@@ -15,11 +15,35 @@ function withQuery(path, query = "") {
 async function getAuthToken() {
   if (typeof window === "undefined") return null;
 
-  const cached = useAuthStore.getState().session?.access_token;
-  if (cached) return cached;
+  const cachedSession = useAuthStore.getState().session;
+  const cached = cachedSession?.access_token;
+
+  // expires_at is a unix timestamp (seconds). Treat tokens expiring within
+  // the next 60s as stale — background/inactive tabs can miss Supabase's
+  // internal auto-refresh timer, leaving a stale token in the store that
+  // would otherwise be sent as-is and bounce back as 401.
+  const expiresAt = cachedSession?.expires_at;
+  const isFresh = cached && expiresAt && expiresAt * 1000 - Date.now() > 60_000;
+
+  if (isFresh) return cached;
 
   try {
     const supabase = createClient();
+
+    if (cached) {
+      const { data: refreshed, error: refreshErr } = await supabase.auth.refreshSession();
+      if (refreshed?.session?.access_token) {
+        useAuthStore.getState().setAuth({
+          user: refreshed.session.user ?? null,
+          session: refreshed.session
+        });
+        return refreshed.session.access_token;
+      }
+      if (refreshErr) {
+        // Refresh token invalid/expired — fall through to getSession.
+      }
+    }
+
     const {
       data: { session }
     } = await supabase.auth.getSession();
@@ -54,7 +78,7 @@ export function newIdempotencyKey(prefix = "pay") {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-async function performApiFetch(path, options = {}, tokenOverride = null) {
+async function performApiFetch(path, options = {}, tokenOverride = null, isRetry = false) {
   let token = tokenOverride ?? (await getAuthToken());
 
   if (!token && path.startsWith("/auth/me")) {
@@ -84,6 +108,21 @@ async function performApiFetch(path, options = {}, tokenOverride = null) {
       message = `${message} (${dailyInfo})`;
     }
     if (res.status === 401) {
+      if (!isRetry && !tokenOverride && typeof window !== "undefined") {
+        try {
+          const supabase = createClient();
+          const { data: refreshed } = await supabase.auth.refreshSession();
+          if (refreshed?.session?.access_token) {
+            useAuthStore.getState().setAuth({
+              user: refreshed.session.user ?? null,
+              session: refreshed.session
+            });
+            return performApiFetch(path, options, null, true);
+          }
+        } catch {
+          /* fall through to logout below */
+        }
+      }
       useAuthStore.getState().clearAuth();
     }
     if (res.status === 429) {
@@ -116,7 +155,7 @@ async function performApiFetch(path, options = {}, tokenOverride = null) {
 export async function apiRequest(path, options = {}, tokenOverride = null) {
   const token = tokenOverride ?? (await getAuthToken());
   return cachedApiRequest(path, options, token, () =>
-    performApiFetch(path, options, token ?? tokenOverride)
+    performApiFetch(path, options, tokenOverride)
   );
 }
 

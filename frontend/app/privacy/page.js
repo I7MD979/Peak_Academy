@@ -1,8 +1,9 @@
 import LegalPageShell from "@/components/legal/LegalPageShell";
 
 export const metadata = {
-  title: "سياسة الخصوصية | Peak Academy",
-  description: "سياسة الخصوصية لمنصة Peak Academy"
+  title: "سياسة الخصوصية",
+  description: "سياسة الخصوصية لمنصة Peak Academy",
+  alternates: { canonical: "/privacy" }
 };
 
 export default function PrivacyPage() {

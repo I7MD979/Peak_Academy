@@ -1,8 +1,9 @@
 import LegalPageShell from "@/components/legal/LegalPageShell";
 
 export const metadata = {
-  title: "الشروط والأحكام | Peak Academy",
-  description: "شروط استخدام منصة Peak Academy"
+  title: "الشروط والأحكام",
+  description: "شروط استخدام منصة Peak Academy",
+  alternates: { canonical: "/terms" }
 };
 
 export default function TermsPage() {

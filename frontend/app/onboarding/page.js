@@ -2,7 +2,7 @@ import OnboardingClient from "@/components/auth/OnboardingClient";
 import { readNextParam } from "@/lib/auth-redirect";
 
 export const metadata = {
-  title: "إكمال الملف الشخصي | Peak Academy",
+  title: "إكمال الملف الشخصي",
   description: "أكمل بيانات حسابك على منصة Peak Academy — خطوتك الأولى نحو التفوق الأكاديمي"
 };
 

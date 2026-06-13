@@ -1,8 +1,13 @@
+const BASE_URL = "https://peak-academy.net";
+
 export default function sitemap() {
+  const now = new Date();
+
   return [
-    { url: "https://peak-academy.net", lastModified: new Date(), priority: 1 },
-    { url: "https://peak-academy.net/auth/register", lastModified: new Date(), priority: 0.9 },
-    { url: "https://peak-academy.net/auth/login", lastModified: new Date(), priority: 0.8 },
-    { url: "https://peak-academy.net/sessions", lastModified: new Date(), priority: 0.8 }
+    { url: BASE_URL, lastModified: now, changeFrequency: "weekly", priority: 1 },
+    { url: `${BASE_URL}/auth/register`, lastModified: now, changeFrequency: "monthly", priority: 0.8 },
+    { url: `${BASE_URL}/auth/login`, lastModified: now, changeFrequency: "monthly", priority: 0.5 },
+    { url: `${BASE_URL}/privacy`, lastModified: now, changeFrequency: "yearly", priority: 0.3 },
+    { url: `${BASE_URL}/terms`, lastModified: now, changeFrequency: "yearly", priority: 0.3 }
   ];
 }

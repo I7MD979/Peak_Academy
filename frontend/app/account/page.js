@@ -1,7 +1,7 @@
 import AccountPage from "@/components/account/AccountPage";
 
 export const metadata = {
-  title: "إعدادات الحساب — Peak Academy",
+  title: "إعدادات الحساب",
   description: "إدارة بياناتك الشخصية واشتراكاتك"
 };
 

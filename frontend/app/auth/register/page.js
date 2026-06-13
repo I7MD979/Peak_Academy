@@ -6,8 +6,9 @@ import { buildPlanCheckoutPath } from "@/lib/checkout-redirect";
 import { sanitizeRedirectPath } from "@/lib/safe-redirect";
 
 export const metadata = {
-  title: "إنشاء حساب | Peak Academy",
-  description: "سجّل كطالب أو معلّم أو وليّ أمر في منصة Peak Academy للثانوية العامة"
+  title: "إنشاء حساب",
+  description: "سجّل كطالب أو معلّم أو وليّ أمر في منصة Peak Academy للثانوية العامة",
+  alternates: { canonical: "/auth/register" }
 };
 
 export default function RegisterPage({ searchParams }) {

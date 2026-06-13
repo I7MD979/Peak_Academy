@@ -6,8 +6,11 @@ import {
 } from "@/lib/landing-api";
 
 export const metadata = {
-  title: "Peak Academy | مش بس حصص — ده مستقبلك",
+  title: {
+    absolute: "Peak Academy | مش بس حصص — ده مستقبلك"
+  },
   description: "تجربة تعليمية تفاعلية حديثة للمرحلة الإعدادية والثانوية",
+  alternates: { canonical: "/" },
   openGraph: {
     title: "Peak Academy | أكاديمية الذروة",
     description: "جلسات لايف تفاعلية لطلاب الإعدادي والثانوي",
@@ -24,9 +27,11 @@ const jsonLd = {
   name: "Peak Academy",
   alternateName: "أكاديمية الذروة",
   url: "https://peak-academy.net",
+  logo: "https://peak-academy.net/brand/peak_academy_professional_logo.png",
   description: "تجربة تعليمية تفاعلية حديثة للمرحلة الإعدادية والثانوية",
   areaServed: "EG",
   inLanguage: "ar"
+  // sameAs: ["https://www.facebook.com/...", "https://www.instagram.com/..."]
 };
 
 export default async function HomePage() {
