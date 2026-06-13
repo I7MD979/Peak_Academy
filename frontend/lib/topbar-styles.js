@@ -58,7 +58,7 @@ export const TOPBAR_THEMES = {
   },
   brand: {
     header:
-      "sticky top-0 z-30 border-b border-white/10 bg-gradient-to-l from-primary to-[#12182a] shadow-md",
+      "sticky top-0 z-30 border-b border-white/10 bg-gradient-to-l from-primary to-landing-navy2 shadow-md",
     crumbLink: "text-white/70 hover:text-white",
     crumbCurrent: "text-white/90",
     crumbSep: "text-white/50",

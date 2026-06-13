@@ -34,12 +34,12 @@ function roleLabel(role) {
   }
 }
 
-function fileIcon(fileType = "") {
-  if (fileType.startsWith("image/")) return "🖼️";
-  if (fileType.includes("pdf")) return "📄";
-  if (fileType.includes("word") || fileType.includes("msword")) return "📝";
-  if (fileType.includes("excel") || fileType.includes("spreadsheet")) return "📊";
-  return "📎";
+function fileIconName(fileType = "") {
+  if (fileType.startsWith("image/")) return "image";
+  if (fileType.includes("pdf")) return "description";
+  if (fileType.includes("word") || fileType.includes("msword")) return "edit";
+  if (fileType.includes("excel") || fileType.includes("spreadsheet")) return "barChart";
+  return "paperclip";
 }
 
 function formatFileSize(bytes) {
@@ -111,7 +111,7 @@ function MessageBubble({ msg, myId, myRole, onResolve }) {
                 />
               )}
               <div className="flex items-center gap-2">
-                <span className="text-lg">{fileIcon(msg.file_type)}</span>
+                <Icon name={fileIconName(msg.file_type)} size={16} className="text-auth-on-surface-variant" />
                 <div className="min-w-0">
                   <p className="truncate font-bold">{msg.file_name || msg.content || "ملف"}</p>
                   {msg.file_size ? (

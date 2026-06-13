@@ -113,7 +113,7 @@ export default function EnrollButton({
       <button
         type="button"
         disabled
-        className={`w-full cursor-not-allowed rounded-xl bg-zinc-800 py-3 font-bold text-zinc-500 ${className}`}
+        className={`w-full cursor-not-allowed rounded-xl bg-auth-surface-highest py-3 font-bold text-auth-on-surface-variant ${className}`}
       >
         الحصة ممتلئة
       </button>
@@ -123,12 +123,12 @@ export default function EnrollButton({
   return (
     <div className={`space-y-3 ${className}`}>
       {paymentType === "free_trial" ? (
-        <div className="rounded-lg border border-emerald-400/20 bg-emerald-400/10 py-2 text-center text-sm font-bold text-emerald-400">
+        <div className="rounded-lg border border-success/30 bg-success/10 py-2 text-center text-sm font-bold text-success">
           أول حصة مجانية مع هذا المدرس
         </div>
       ) : null}
       {paymentType === "subscription" ? (
-        <div className="rounded-lg border border-orange-400/20 bg-orange-400/10 py-2 text-center text-sm font-bold text-orange-300">
+        <div className="rounded-lg border border-peak-orange/30 bg-peak-orange/10 py-2 text-center text-sm font-bold text-peak-orange">
           من رصيد اشتراكك ({sessionsRemaining} حصة متبقية)
         </div>
       ) : null}
@@ -138,7 +138,7 @@ export default function EnrollButton({
           <button
             type="button"
             onClick={() => setShowPromo(!showPromo)}
-            className="text-sm text-orange-400 hover:underline"
+            className="text-sm text-peak-orange hover:underline"
           >
             عندك كود خصم؟
           </button>
@@ -148,12 +148,12 @@ export default function EnrollButton({
                 value={promoCode}
                 onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
                 placeholder="أدخل الكود"
-                className="flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-orange-400/50"
+                className="flex-1 rounded-lg border border-auth-outline-variant/40 bg-auth-surface-low px-3 py-2 text-sm text-auth-on-surface outline-none focus:border-peak-orange/50"
               />
               <button
                 type="button"
                 onClick={validatePromo}
-                className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-bold text-white hover:bg-orange-400"
+                className="rounded-lg bg-peak-orange px-4 py-2 text-sm font-bold text-white hover:bg-peak-orange/90"
               >
                 تفعيل
               </button>
@@ -161,7 +161,7 @@ export default function EnrollButton({
           ) : null}
           {promoResult ? (
             <p
-              className={`mt-1 text-xs ${promoResult.discount > 0 ? "text-emerald-400" : "text-red-400"}`}
+              className={`mt-1 text-xs ${promoResult.discount > 0 ? "text-success" : "text-danger"}`}
             >
               {promoResult.message}
             </p>
@@ -171,12 +171,12 @@ export default function EnrollButton({
 
       {paymentType === "per_session" ? (
         <div className="flex items-center justify-between px-1 text-sm">
-          <span className="text-zinc-400">السعر</span>
+          <span className="text-auth-on-surface-variant">السعر</span>
           <div className="text-left">
             {promoResult?.discount > 0 ? (
-              <span className="ml-2 text-zinc-500 line-through">{price} جنيه</span>
+              <span className="ml-2 text-auth-on-surface-variant/70 line-through">{price} جنيه</span>
             ) : null}
-            <span className="font-bold text-white">{finalPrice} جنيه</span>
+            <span className="font-bold text-auth-on-surface">{finalPrice} جنيه</span>
           </div>
         </div>
       ) : null}
@@ -190,7 +190,7 @@ export default function EnrollButton({
           })
         }
         disabled={enrollMutation.isPending}
-        className="w-full rounded-xl bg-orange-500 py-3 font-bold text-white transition-all hover:bg-orange-400 disabled:opacity-50"
+        className="w-full rounded-xl bg-peak-orange py-3 font-bold text-white transition-all hover:bg-peak-orange/90 disabled:opacity-50"
       >
         {enrollMutation.isPending
           ? "جاري الحجز..."

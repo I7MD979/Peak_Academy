@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AdminPageHeader from "@/components/admin/AdminPageHeader";
+import AdminStatCard from "@/components/admin/AdminStatCard";
 import DataTable from "@/components/admin/DataTable";
 import RevenueChart from "@/components/admin/RevenueChart";
 import { Select } from "@/components/ui/Select";
@@ -17,61 +18,6 @@ const PERIOD_OPTIONS = [
   { value: "6months", label: "آخر 6 شهور" },
   { value: "year", label: "هذا العام" }
 ];
-
-function StatCard({ icon, label, value, sub, tone = "default", live, href, onClick, loading }) {
-  const toneClasses = {
-    default: "text-md-primary bg-md-primary/10",
-    warning: "text-warning bg-warning/10",
-    blue: "text-accent-blue bg-accent-blue/10",
-    success: "text-success bg-success/10",
-    danger: "text-error bg-error/10"
-  };
-
-  const content = (
-    <>
-      <div className="mb-4 flex items-start justify-between">
-        <div className={cn("rounded-lg p-2", toneClasses[tone] || toneClasses.default)}>
-          <span className="material-symbols-outlined text-xl">{icon}</span>
-        </div>
-        {live ? (
-          <span className="flex items-center gap-1.5">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
-            <span className="text-xs font-semibold text-red-400">مباشر الآن</span>
-          </span>
-        ) : sub ? (
-          <span className="text-xs font-bold text-md-primary">{sub}</span>
-        ) : null}
-      </div>
-      <p className="text-xs font-semibold text-on-surface-variant">{label}</p>
-      <h3 className="mt-1 text-2xl font-bold text-on-surface">
-        {loading ? "…" : typeof value === "number" ? value.toLocaleString("ar-EG") : value}
-      </h3>
-    </>
-  );
-
-  const className = cn(
-    "rounded-xl border p-5 text-start transition-all",
-    "border-outline-variant bg-surface-container-low hover:border-md-primary/40 hover:bg-surface-container"
-  );
-
-  if (href) {
-    return (
-      <Link href={href} className={className}>
-        {content}
-      </Link>
-    );
-  }
-
-  if (onClick) {
-    return (
-      <button type="button" onClick={onClick} className={className}>
-        {content}
-      </button>
-    );
-  }
-
-  return <div className={className}>{content}</div>;
-}
 
 export default function AdminDashboardPage({
   adminName = "مشرف",
@@ -171,7 +117,7 @@ export default function AdminDashboardPage({
         {loading && !stats
           ? Array.from({ length: 4 }).map((_, i) => <StatCardSkeleton key={i} />)
           : statCards.map((card) => (
-              <StatCard key={card.label} {...card} loading={loading} onClick={card.href ? undefined : card.onClick} />
+              <AdminStatCard key={card.label} {...card} loading={loading} onClick={card.href ? undefined : card.onClick} />
             ))}
       </div>
 

@@ -19,6 +19,7 @@ import {
   adminErrorBox,
   adminModalOverlay
 } from "@/lib/admin-styles";
+import { statusInfoSolid, statusWarningSolid } from "@/lib/semantic-styles";
 import { cn } from "@/lib/utils";
 
 // ── Permission checkboxes modal ──────────────────────────────────────────────
@@ -251,9 +252,9 @@ function AddSupervisorModal({ onClose, onAdded }) {
                   className={cn(
                     "shrink-0 rounded-full px-3 py-1 text-xs font-semibold",
                     found.role === "admin"
-                      ? "bg-yellow-500/20 text-yellow-400"
+                      ? statusWarningSolid
                       : found.role === "supervisor"
-                      ? "bg-blue-500/20 text-blue-400"
+                      ? statusInfoSolid
                       : "bg-auth-surface-highest text-auth-on-surface-variant"
                   )}
                 >
@@ -262,10 +263,10 @@ function AddSupervisorModal({ onClose, onAdded }) {
               </div>
 
               {found.role === "admin" && (
-                <p className="text-sm text-yellow-400">هذا المستخدم مدير نظام بالفعل</p>
+                <p className="text-sm text-warning">هذا المستخدم مدير نظام بالفعل</p>
               )}
               {found.role === "supervisor" && (
-                <p className="text-sm text-blue-400">هذا المستخدم مشرف بالفعل</p>
+                <p className="text-sm text-accent-blue">هذا المستخدم مشرف بالفعل</p>
               )}
               {found.role !== "admin" && found.role !== "supervisor" && (
                 <button
@@ -306,12 +307,12 @@ function StaffRow({ user, onEdit, onDemote }) {
       {/* Role + actions */}
       <div className="flex shrink-0 items-center gap-2">
         {user.role === "admin" ? (
-          <span className="rounded-full bg-yellow-500/20 px-3 py-1 text-xs font-bold text-yellow-400">
+          <span className={cn("rounded-full px-3 py-1 text-xs font-bold", statusWarningSolid)}>
             مدير النظام
           </span>
         ) : (
           <>
-            <span className="rounded-full bg-blue-500/20 px-3 py-1 text-xs font-bold text-blue-400">
+            <span className={cn("rounded-full px-3 py-1 text-xs font-bold", statusInfoSolid)}>
               مشرف
             </span>
             <span className="text-xs text-auth-on-surface-variant">
@@ -435,11 +436,11 @@ export default function AdminPermissionsPage() {
           <div className={cn(adminMuted, "mt-1 text-sm")}>إجمالي الفريق</div>
         </div>
         <div className={cn(adminCardSolid, "p-5")}>
-          <div className="text-3xl font-black text-yellow-400">{admins.length}</div>
+          <div className="text-3xl font-black text-warning">{admins.length}</div>
           <div className={cn(adminMuted, "mt-1 text-sm")}>مدير النظام</div>
         </div>
         <div className={cn(adminCardSolid, "p-5")}>
-          <div className="text-3xl font-black text-blue-400">{supervisors.length}</div>
+          <div className="text-3xl font-black text-accent-blue">{supervisors.length}</div>
           <div className={cn(adminMuted, "mt-1 text-sm")}>مشرف</div>
         </div>
       </div>

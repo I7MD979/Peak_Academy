@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import Icon from "@/components/shared/Icon";
 import { createClient } from "@/lib/supabase/client";
 import { sessionsApi } from "@/lib/api";
 import QuickTestModal from "./QuickTestModal";
@@ -57,17 +58,19 @@ export default function TeacherToolsPanel({ sessionId, room }) {
   return (
     <>
       <div className="space-y-2 p-4">
-        <p className="text-sm font-bold text-primary">أدوات المدرس</p>
+        <p className="text-sm font-bold text-auth-on-surface">أدوات المدرس</p>
         <Button
           type="button"
-          className="w-full bg-accent text-white"
+          className="w-full"
           disabled={!room}
           onClick={() => setQuizOpen(true)}
         >
-          📝 اختبار سريع
+          <Icon name="edit" size={16} />
+          اختبار سريع
         </Button>
         <Button type="button" variant="outline" className="w-full" disabled={!room} onClick={handleScreenShare}>
-          🖥 مشاركة سبورة
+          <Icon name="monitor" size={16} />
+          مشاركة سبورة
         </Button>
         <Button
           type="button"
@@ -76,10 +79,12 @@ export default function TeacherToolsPanel({ sessionId, room }) {
           disabled={!room || mutingAll}
           onClick={handleMuteAll}
         >
-          {mutingAll ? "جاري الكتم..." : "🔇 كتم الكل"}
+          <Icon name="micOff" size={16} />
+          {mutingAll ? "جاري الكتم..." : "كتم الكل"}
         </Button>
         <Button type="button" variant="outline" className="w-full" onClick={handleClearHands}>
-          ✋ رفع الأيدي ({raisedHands})
+          <Icon name="hand" size={16} />
+          رفع الأيدي ({raisedHands})
         </Button>
       </div>
       <QuickTestModal open={quizOpen} sessionId={sessionId} onClose={() => setQuizOpen(false)} />

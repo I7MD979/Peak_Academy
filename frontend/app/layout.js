@@ -77,7 +77,7 @@ export default async function RootLayout({ children }) {
 
   return (
     <html lang="ar" dir="rtl" suppressHydrationWarning className={cairo.variable}>
-      <body className={`${cairo.className} bg-bg text-text antialiased`} suppressHydrationWarning>
+      <body className={`${cairo.className} bg-peak-black text-auth-on-surface antialiased`} suppressHydrationWarning>
         <Providers nonce={nonce}>{children}</Providers>
         <Toaster position="top-center" richColors />
       </body>

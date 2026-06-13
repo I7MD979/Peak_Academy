@@ -9,16 +9,24 @@ import {
   CircleHelp,
   CreditCard,
   GraduationCap,
+  Hand,
   Home,
+  Image,
   LayoutDashboard,
   LogOut,
   Menu,
+  Mic,
+  Monitor,
   Mountain,
+  Paperclip,
   Plus,
   Radio,
   Search,
+  Send,
   Shield,
+  Smartphone,
   Star,
+  StopCircle,
   TrendingUp,
   User,
   Users,
@@ -37,7 +45,12 @@ import {
   Unlock,
   Download,
   FileText,
-  Eye
+  Eye,
+  MessageCircle,
+  MicOff,
+  Zap,
+  Tv,
+  Copy
 } from "lucide-react";
 
 /** @type {Record<string, import('lucide-react').LucideIcon>} */
@@ -62,12 +75,15 @@ export const iconMap = {
   close: X,
   mountain: Mountain,
   check: CheckCircle2,
+  checkCircle: CheckCircle2,
   star: Star,
   graduation: GraduationCap,
   trending: TrendingUp,
   bank: Building2,
   live: Radio,
+  liveTv: Tv,
   money: CircleDollarSign,
+  payments: CircleDollarSign,
   search: Search,
   shield: Shield,
   chevronDown: ChevronDown,
@@ -81,9 +97,52 @@ export const iconMap = {
   unlock: Unlock,
   download: Download,
   description: FileText,
-  visibility: Eye
+  fileText: FileText,
+  visibility: Eye,
+  mic: Mic,
+  micOff: MicOff,
+  send: Send,
+  messageCircle: MessageCircle,
+  stopCircle: StopCircle,
+  hand: Hand,
+  paperclip: Paperclip,
+  image: Image,
+  smartphone: Smartphone,
+  monitor: Monitor,
+  zap: Zap,
+  copy: Copy
 };
 
+const ICON_ALIASES = {
+  "arrow-right": "arrowRight",
+  check_circle: "checkCircle",
+  "message-circle": "messageCircle",
+  "stop-circle": "stopCircle",
+  live_tv: "liveTv",
+  workspace_premium: "shield",
+  group: "users",
+  groups: "users",
+  schedule: "calendarDays",
+  account_balance_wallet: "wallet"
+};
+
+function normalizeIconName(name) {
+  const raw = String(name || "").trim();
+  if (!raw) return "";
+  if (iconMap[raw]) return raw;
+  if (ICON_ALIASES[raw]) return ICON_ALIASES[raw];
+  const camel = raw.replace(/[-_]+([a-zA-Z0-9])/g, (_, c) => c.toUpperCase());
+  if (iconMap[camel]) return camel;
+  return raw;
+}
+
 export function resolveIcon(name) {
-  return iconMap[name] || Home;
+  const key = normalizeIconName(name);
+  const icon = iconMap[key];
+  if (icon) return icon;
+
+  if (process.env.NODE_ENV !== "production") {
+    console.warn(`[Icon] Unknown icon name "${name}" — falling back to home`);
+  }
+  return Home;
 }

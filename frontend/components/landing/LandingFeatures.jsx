@@ -45,7 +45,7 @@ export default function LandingFeatures() {
             </p>
           </div>
 
-          <div className="rounded-3xl border border-landing-orange/35 bg-gradient-to-br from-landing-orange/95 to-[#e05f0a] p-7 transition-all duration-700 hover:-translate-y-1 hover:shadow-[0_20px_50px_-12px_rgba(245,114,26,0.45)] sm:p-9 md:col-span-4 md:p-10 lg:p-12">
+          <div className="rounded-3xl border border-landing-orange/35 bg-gradient-to-br from-landing-orange/95 to-peak-orange p-7 transition-all duration-700 hover:-translate-y-1 hover:shadow-[0_20px_50px_-12px_rgba(255,122,0,0.45)] sm:p-9 md:col-span-4 md:p-10 lg:p-12">
             <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 text-white sm:mb-8 sm:h-14 sm:w-14">
               <span className="material-symbols-outlined text-2xl">auto_stories</span>
             </div>

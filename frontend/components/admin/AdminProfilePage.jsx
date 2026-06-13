@@ -1,46 +1,9 @@
+import AdminStatCard from "@/components/admin/AdminStatCard";
 import Icon from "@/components/shared/Icon";
 import { SectionLoader } from "@/components/shared/LoadingSkeleton";
 import { adminBtnPrimary, adminBtnSecondary, adminCardSolid, adminErrorBox } from "@/lib/admin-styles";
 import { formatCurrencyEgp } from "@/lib/format";
 import { cn } from "@/lib/utils";
-
-function StatCard({ icon, label, value, sub, tone = "default", href }) {
-  const toneClasses = {
-    default: "text-md-primary bg-md-primary/10",
-    success: "text-success bg-success/10",
-    warning: "text-warning bg-warning/10",
-    blue: "text-accent-blue bg-accent-blue/10",
-    accent: "text-accent bg-accent/10"
-  };
-
-  const className = cn(
-    "rounded-xl border border-outline-variant bg-surface-container-low p-5 text-start transition-all hover:border-md-primary/40",
-    href && "block"
-  );
-
-  const content = (
-    <>
-      <div className="mb-4 flex items-start justify-between">
-        <div className={cn("rounded-lg p-2", toneClasses[tone] || toneClasses.default)}>
-          <span className="material-symbols-outlined text-xl">{icon}</span>
-        </div>
-      </div>
-      <p className="text-xs font-semibold text-on-surface-variant">{label}</p>
-      <h3 className="mt-1 text-2xl font-bold text-on-surface">{value}</h3>
-      {sub ? <p className="mt-1 text-xs font-bold text-md-primary">{sub}</p> : null}
-    </>
-  );
-
-  if (href) {
-    return (
-      <a href={href} className={className}>
-        {content}
-      </a>
-    );
-  }
-
-  return <div className={className}>{content}</div>;
-}
 
 export function AdminProfileStatsGrid({ stats, loading, error, onRetry }) {
   return (
@@ -54,35 +17,39 @@ export function AdminProfileStatsGrid({ stats, loading, error, onRetry }) {
         ) : null}
       </div>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
+        <AdminStatCard
           icon="groups"
           label="إجمالي المستخدمين"
-          value={loading ? "…" : (stats?.total_users ?? 0).toLocaleString("ar-EG")}
+          value={stats?.total_users ?? 0}
           sub={error ? "تعذّر التحميل" : "مسجّلون على المنصة"}
           tone="blue"
           href="/admin/users"
+          loading={loading}
         />
-        <StatCard
+        <AdminStatCard
           icon="sensors"
           label="جلسات مباشرة"
-          value={loading ? "…" : (stats?.live_sessions ?? 0).toLocaleString("ar-EG")}
+          value={stats?.live_sessions ?? 0}
           sub="الآن"
           tone="accent"
           href="/admin/sessions"
+          loading={loading}
         />
-        <StatCard
+        <AdminStatCard
           icon="payments"
           label="طلبات سحب معلّقة"
-          value={loading ? "…" : (stats?.pending_withdrawals ?? 0).toLocaleString("ar-EG")}
+          value={stats?.pending_withdrawals ?? 0}
           tone="warning"
           href="/admin/withdrawals"
+          loading={loading}
         />
-        <StatCard
+        <AdminStatCard
           icon="account_balance_wallet"
           label="إيرادات المنصة"
-          value={loading ? "…" : formatCurrencyEgp(stats?.total_revenue ?? 0)}
+          value={formatCurrencyEgp(stats?.total_revenue ?? 0)}
           tone="success"
           href="/admin/reports"
+          loading={loading}
         />
       </div>
     </section>

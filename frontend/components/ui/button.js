@@ -3,15 +3,17 @@ import { cva } from "class-variance-authority";
 import { cn } from "../../lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 rounded-xl text-sm font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex items-center justify-center gap-2 rounded-xl text-sm font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-peak-orange/40 disabled:pointer-events-none disabled:opacity-50",
   {
     variants: {
       variant: {
-        default: "bg-primary text-white shadow-sm hover:bg-primary/90 hover:shadow-md",
-        accent: "bg-peak-orange text-white hover:bg-peak-orange/90 shadow-sm",
-        outline: "border border-border bg-card text-text hover:bg-bg",
-        ghost: "text-text-muted hover:bg-bg hover:text-text",
-        destructive: "bg-danger text-white shadow-sm hover:bg-red-500"
+        default:
+          "bg-peak-orange text-white shadow-sm shadow-peak-orange/20 hover:brightness-110",
+        accent: "bg-peak-orange text-white hover:brightness-110 shadow-sm shadow-peak-orange/20",
+        outline:
+          "border border-auth-outline-variant bg-auth-surface-highest text-auth-on-surface hover:bg-auth-surface-bright",
+        ghost: "text-auth-on-surface-variant hover:bg-auth-surface-highest hover:text-auth-on-surface",
+        destructive: "bg-danger text-white shadow-sm hover:bg-danger/90"
       },
       size: {
         default: "h-10 px-4 py-2",

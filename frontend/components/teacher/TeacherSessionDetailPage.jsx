@@ -142,7 +142,7 @@ export default function TeacherSessionDetailPage({
           </ul>
         ) : (
           <EmptyState
-            icon="👥"
+            iconName="users"
             title="لا يوجد طلاب مسجلون بعد"
             description="شارك رابط الجلسة مع طلابك لزيادة التسجيلات."
           />

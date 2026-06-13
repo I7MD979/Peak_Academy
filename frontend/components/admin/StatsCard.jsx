@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 const toneClasses = {
   success: "bg-success/10 text-success",
   blue: "bg-accent-blue/10 text-accent-blue",
-  accent: "bg-accent/10 text-accent",
+  accent: "bg-peak-orange/10 text-peak-orange",
   warning: "bg-warning/10 text-warning"
 };
 

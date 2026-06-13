@@ -7,7 +7,7 @@ function PlanIcon({ featured }) {
     <span
       className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${
         featured
-          ? "bg-gradient-to-br from-landing-orange to-amber-500 text-white shadow-[0_8px_24px_-6px_rgba(245,114,26,0.45)]"
+          ? "bg-gradient-to-br from-landing-orange to-peak-orange text-white shadow-[0_8px_24px_-6px_rgba(255,122,0,0.45)]"
           : "bg-landing-navy/5 text-landing-navy"
       }`}
     >
@@ -23,12 +23,12 @@ function PricingCard({ plan }) {
     <article
       className={`group relative flex h-full max-w-full flex-col overflow-hidden rounded-[1.75rem] transition-all duration-300 ${
         featured
-          ? "z-10 border-2 border-landing-orange bg-white p-6 shadow-[0_28px_64px_-20px_rgba(245,114,26,0.35)] sm:p-7 md:-translate-y-1 md:scale-[1.03] md:p-8"
+          ? "z-10 border-2 border-landing-orange bg-white p-6 shadow-[0_28px_64px_-20px_rgba(255,122,0,0.35)] sm:p-7 md:-translate-y-1 md:scale-[1.03] md:p-8"
           : "border border-landing-ink/[0.08] bg-white/90 p-6 shadow-[0_12px_40px_-16px_rgba(10,18,32,0.12)] backdrop-blur-sm hover:-translate-y-1 hover:border-landing-navy/15 hover:shadow-[0_20px_48px_-14px_rgba(10,18,32,0.18)] sm:p-7 md:p-8"
       }`}
     >
       {featured && plan.featuredLabel ? (
-        <div className="absolute -top-3.5 left-1/2 z-20 -translate-x-1/2 whitespace-nowrap rounded-full bg-gradient-to-r from-landing-orange via-amber-500 to-landing-orange px-4 py-1.5 text-[11px] font-black tracking-wide text-white shadow-[0_6px_20px_-4px_rgba(245,114,26,0.55)] sm:text-xs">
+        <div className="absolute -top-3.5 left-1/2 z-20 -translate-x-1/2 whitespace-nowrap rounded-full bg-gradient-to-r from-landing-orange via-peak-orange to-landing-orange px-4 py-1.5 text-[11px] font-black tracking-wide text-white shadow-[0_6px_20px_-4px_rgba(255,122,0,0.55)] sm:text-xs">
           {plan.featuredLabel}
         </div>
       ) : null}
@@ -53,7 +53,7 @@ function PricingCard({ plan }) {
 
       <div
         className={`mb-6 rounded-2xl px-4 py-4 sm:mb-7 ${
-          featured ? "bg-gradient-to-br from-landing-orange/[0.08] to-amber-500/[0.06]" : "bg-landing-navy/[0.03]"
+          featured ? "bg-gradient-to-br from-landing-orange/[0.08] to-peak-orange/[0.06]" : "bg-landing-navy/[0.03]"
         }`}
       >
         <div className="flex flex-wrap items-end gap-x-2 gap-y-1">
@@ -93,7 +93,7 @@ function PricingCard({ plan }) {
         href={plan.href}
         className={`mt-auto block w-full rounded-2xl py-3.5 text-center text-sm font-black transition-all sm:py-4 ${
           featured
-            ? "bg-gradient-to-r from-landing-orange to-amber-500 text-white shadow-[0_12px_32px_-8px_rgba(245,114,26,0.5)] hover:brightness-105"
+            ? "bg-gradient-to-r from-landing-orange to-peak-orange text-white shadow-[0_12px_32px_-8px_rgba(255,122,0,0.5)] hover:brightness-105"
             : "border-2 border-landing-navy/10 bg-white text-landing-navy hover:border-landing-navy hover:bg-landing-navy hover:text-white"
         }`}
       >

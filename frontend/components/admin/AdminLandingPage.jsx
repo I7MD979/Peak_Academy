@@ -1,8 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import Icon from "@/components/shared/Icon";
+import { resolveAdminStatIcon } from "@/components/admin/AdminStatCard";
 import AdminFilterTabs from "@/components/admin/AdminFilterTabs";
 import AdminPageHeader from "@/components/admin/AdminPageHeader";
+import AdminStatCard from "@/components/admin/AdminStatCard";
 import DataTable from "@/components/admin/DataTable";
 import { adminBtnSecondary, adminCardSolid, adminErrorBox, adminInput } from "@/lib/admin-styles";
 import { cn } from "@/lib/utils";
@@ -21,59 +24,13 @@ const KEY_HINTS = {
   rating: "يظهر في عدّاد الـ Hero (تقييم)"
 };
 
-function StatCard({ icon, label, value, sub, tone = "default", active, onClick, href }) {
-  const toneClasses = {
-    default: "text-md-primary bg-md-primary/10",
-    success: "text-success bg-success/10",
-    warning: "text-warning bg-warning/10",
-    blue: "text-accent-blue bg-accent-blue/10"
-  };
-
-  const className = cn(
-    "rounded-xl border p-5 text-start transition-all",
-    active
-      ? "border-md-primary bg-surface-container-high shadow-lg shadow-md-primary/10"
-      : "border-outline-variant bg-surface-container-low hover:border-md-primary/40",
-    (onClick || href) && "cursor-pointer"
-  );
-
-  const content = (
-    <>
-      <div className="mb-4 flex items-start justify-between">
-        <div className={cn("rounded-lg p-2", toneClasses[tone] || toneClasses.default)}>
-          <span className="material-symbols-outlined text-xl">{icon}</span>
-        </div>
-      </div>
-      <p className="text-xs font-semibold text-on-surface-variant">{label}</p>
-      <h3 className="mt-1 text-2xl font-bold text-on-surface">
-        {typeof value === "number" ? value.toLocaleString("ar-EG") : value}
-      </h3>
-      {sub ? <p className="mt-1 text-xs font-bold text-md-primary">{sub}</p> : null}
-    </>
-  );
-
-  if (href) {
-    return (
-      <Link href={href} className={className}>
-        {content}
-      </Link>
-    );
-  }
-
-  return (
-    <button type="button" onClick={onClick} disabled={!onClick} className={className}>
-      {content}
-    </button>
-  );
-}
-
 function LinkedSectionCard({ title, description, href, linkLabel, icon }) {
   return (
     <section className={cn(adminCardSolid, "p-5")}>
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-md-primary/10 text-md-primary">
-            <span className="material-symbols-outlined">{icon}</span>
+            <Icon name={resolveAdminStatIcon(icon)} size={20} />
           </span>
           <h3 className="text-lg font-bold text-on-surface">{title}</h3>
         </div>
@@ -169,7 +126,7 @@ export default function AdminLandingView({
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {statCards.map((card) => (
-          <StatCard
+          <AdminStatCard
             key={card.key}
             icon={card.icon}
             label={card.label}
@@ -197,9 +154,7 @@ export default function AdminLandingView({
         <AdminFilterTabs tabs={FILTER_TABS} value={visibilityFilter} onChange={onVisibilityFilterChange} />
 
         <div className="relative max-w-md">
-          <span className="material-symbols-outlined pointer-events-none absolute start-3 top-1/2 z-10 -translate-y-1/2 text-base text-on-surface-variant">
-            search
-          </span>
+          <Icon name="search" size={16} className="pointer-events-none absolute start-3 top-1/2 z-10 -translate-y-1/2 text-auth-on-surface-variant" />
           <input
             type="search"
             value={searchInput}

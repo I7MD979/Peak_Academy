@@ -22,9 +22,9 @@ export const landingHeroCountersFallback = {
 };
 
 export const LANDING_COLORS = {
-  navy: "#080d16",
-  navyCard: "#0d1625",
-  surface: "#050606",
-  orange: "#f5721a",
+  navy: "#0a1220",
+  navyCard: "#0f1a2e",
+  surface: "#0a1220",
+  orange: "#ff7a00",
   muted: "#8da3bc"
 };

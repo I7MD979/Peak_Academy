@@ -25,9 +25,17 @@ import { CustomDatePicker } from "@/components/ui/CustomDatePicker";
 import { Select } from "@/components/ui/Select";
 import { teacherBtnSecondary, teacherCardSolid, teacherMuted } from "@/lib/teacher-styles";
 import { formatCurrencyEgp } from "@/lib/format";
+import { chart, semantic, md3 } from "@/lib/design-tokens";
 import { cn } from "@/lib/utils";
 
-const PIE_COLORS = ["#f97316", "#3b82f6", "#22c55e", "#a855f7", "#eab308", "#64748b"];
+const PIE_COLORS = [
+  chart.orange,
+  chart.blue,
+  chart.green,
+  chart.purple,
+  semantic.warning,
+  md3.onSurfaceVariant
+];
 
 const PERIOD_OPTIONS = [
   { value: "month", label: "هذا الشهر" },
@@ -108,7 +116,7 @@ export default function TeacherAnalyticsPage({
     return (
       <div>
         <EmptyState
-          icon="📊"
+          iconName="barChart"
           title="لا توجد تحليلات بعد"
           description="ستظهر إحصائياتك بعد إنشاء جلسات واستقبال طلاب."
           action={{ label: "إنشاء جلسة جديدة", href: "/teacher/sessions/new" }}

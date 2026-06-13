@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { paymentsApi } from "@/lib/api";
+import { statusInfo, lightPanel, lightPanelMuted } from "@/lib/semantic-styles";
+import { cn } from "@/lib/utils";
 
 export default function InstapayDisplay({ referenceCode, ipaAlias, amountEGP, paymentId }) {
   const [receiptFile, setReceiptFile] = useState(null);
@@ -43,24 +45,24 @@ export default function InstapayDisplay({ referenceCode, ipaAlias, amountEGP, pa
   };
 
   return (
-    <div className="rounded-2xl border-2 border-dashed border-blue-300 bg-blue-50 p-6" dir="rtl">
-      <p className="mb-4 text-center text-xl font-bold text-blue-700">تحويل إنستاباي</p>
-      <div className="space-y-3 rounded-xl bg-white p-4 text-sm">
+    <div className={cn("rounded-2xl border-2 border-dashed p-6", statusInfo)} dir="rtl">
+      <p className="mb-4 text-center text-xl font-bold">تحويل إنستاباي</p>
+      <div className={cn("space-y-3 p-4 text-sm", lightPanel)}>
         <div className="flex justify-between">
-          <span className="text-gray-500">IPA Alias:</span>
-          <strong className="font-mono text-blue-600">{ipaAlias}</strong>
+          <span className={lightPanelMuted}>IPA Alias:</span>
+          <strong className="font-mono text-accent-blue">{ipaAlias}</strong>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-500">المبلغ:</span>
+          <span className={lightPanelMuted}>المبلغ:</span>
           <strong>{amountEGP} جنيه</strong>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-500">البيان (مهم!):</span>
-          <strong className="font-mono text-orange-600">{referenceCode}</strong>
+          <span className={lightPanelMuted}>البيان (مهم!):</span>
+          <strong className="font-mono text-peak-orange">{referenceCode}</strong>
         </div>
       </div>
 
-      <div className="mt-4 space-y-1 rounded-lg bg-blue-100 p-3 text-sm text-blue-800">
+      <div className={cn("mt-4 space-y-1 rounded-lg p-3 text-sm", statusInfo)}>
         <p>افتح تطبيق البنك أو تطبيق إنستاباي</p>
         <p>حول المبلغ إلى {ipaAlias}</p>
         <p>
@@ -75,20 +77,20 @@ export default function InstapayDisplay({ referenceCode, ipaAlias, amountEGP, pa
             type="file"
             accept="image/*"
             onChange={(e) => setReceiptFile(e.target.files?.[0] || null)}
-            className="block w-full text-sm text-gray-500"
+            className={cn("block w-full text-sm", lightPanelMuted)}
           />
-          {error ? <p className="text-sm font-semibold text-red-600">{error}</p> : null}
+          {error ? <p className="text-sm font-semibold text-danger">{error}</p> : null}
           <button
             type="button"
             onClick={handleUpload}
             disabled={!receiptFile || uploading}
-            className="w-full rounded-lg bg-blue-600 py-2 text-white disabled:opacity-50"
+            className="w-full rounded-lg bg-accent-blue py-2 text-white disabled:opacity-50"
           >
             {uploading ? "جارٍ الرفع…" : "رفع الإيصال"}
           </button>
         </div>
       ) : (
-        <p className="mt-4 text-center font-semibold text-green-600">
+        <p className="mt-4 text-center font-semibold text-success">
           تم رفع الإيصال، سيتم التحقق خلال ساعات قليلة
         </p>
       )}

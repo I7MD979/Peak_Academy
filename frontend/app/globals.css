@@ -5,11 +5,15 @@
 @tailwind utilities;
 
 :root {
+  --peak-orange: #ff7a00;
+  --peak-black: #0c0f10;
+  --landing-navy: #0a1220;
   --primary: #1a1f35;
-  --accent: #f97316;
+  --accent: #ff7a00;
   --accent-blue: #3b82f6;
   --success: #22c55e;
   --danger: #ef4444;
+  --warning: #f59e0b;
   --bg: #f8fafc;
   --card: #ffffff;
   --text: #1e293b;
@@ -48,7 +52,7 @@ a {
   }
 
   .page-hero {
-    @apply rounded-3xl bg-gradient-to-l from-primary to-[#0f1117] p-4 text-white shadow-lg sm:p-6;
+    @apply rounded-3xl bg-gradient-to-l from-primary to-landing-navy2 p-4 text-white shadow-lg sm:p-6;
   }
 }
 
@@ -78,9 +82,9 @@ a {
   --landing-on-dark: #ffffff;
   --landing-on-dark-muted: rgba(255, 255, 255, 0.82);
   --landing-on-dark-subtle: rgba(255, 255, 255, 0.68);
-  --landing-orange: #f5721a;
-  --landing-orange-soft: rgba(245, 114, 26, 0.12);
-  --landing-orange-glow: rgba(245, 114, 26, 0.22);
+  --landing-orange: var(--peak-orange);
+  --landing-orange-soft: rgba(255, 122, 0, 0.12);
+  --landing-orange-glow: rgba(255, 122, 0, 0.22);
   background-color: var(--landing-navy);
   scroll-behavior: smooth;
 }
@@ -139,7 +143,7 @@ a {
   right: 0;
   left: 0;
   height: 3px;
-  background: linear-gradient(90deg, #f5721a 0%, #ff9a4d 100%);
+  background: linear-gradient(90deg, var(--peak-orange) 0%, #ff9a4d 100%);
   border-radius: inherit;
   border-bottom-left-radius: 0;
   border-bottom-right-radius: 0;
@@ -188,7 +192,7 @@ a {
 
 .landing-page a:focus-visible,
 .landing-page button:focus-visible {
-  outline: 2px solid rgba(245, 114, 26, 0.65);
+  outline: 2px solid rgba(255, 122, 0, 0.65);
   outline-offset: 2px;
 }
 
@@ -319,14 +323,14 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
 
 /* Orange glow for CTA buttons */
 .orange-glow {
-  box-shadow: 0 10px 40px -10px rgba(245, 114, 26, 0.3);
+  box-shadow: 0 10px 40px -10px rgba(255, 122, 0, 0.3);
 }
 
 /* Mesh background gradient */
 .mesh-bg {
   background-image:
     radial-gradient(at 0% 0%, rgba(187, 199, 223, 0.03) 0px, transparent 50%),
-    radial-gradient(at 100% 100%, rgba(245, 114, 26, 0.03) 0px, transparent 50%);
+    radial-gradient(at 100% 100%, rgba(255, 122, 0, 0.03) 0px, transparent 50%);
 }
 
 /* Material Symbols (self-hosted via fontsource — no external SRI risk) */
@@ -424,7 +428,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
 
 .landing-hero-glow {
   background:
-    radial-gradient(ellipse at 70% 50%, rgba(245, 114, 26, 0.06) 0%, transparent 60%),
+    radial-gradient(ellipse at 70% 50%, rgba(255, 122, 0, 0.06) 0%, transparent 60%),
     radial-gradient(ellipse at 30% 80%, rgba(187, 199, 223, 0.04) 0%, transparent 50%);
 }
 
@@ -443,10 +447,10 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
   border-radius: 9999px;
   font-weight: 800;
   font-size: 1rem;
-  background: #f5721a;
+  background: var(--peak-orange);
   color: white;
   transition: all 0.3s;
-  box-shadow: 0 10px 40px -10px rgba(245, 114, 26, 0.4);
+  box-shadow: 0 10px 40px -10px rgba(255, 122, 0, 0.4);
   font-family: "Cairo", sans-serif;
 }
 @media (min-width: 640px) {
@@ -457,7 +461,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
 }
 .landing-btn-primary:hover {
   transform: scale(1.04);
-  box-shadow: 0 14px 48px -8px rgba(245, 114, 26, 0.5);
+  box-shadow: 0 14px 48px -8px rgba(255, 122, 0, 0.5);
 }
 .landing-btn-outline {
   display: inline-flex;
@@ -563,7 +567,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
 }
 
 .landing-title-mark {
-  color: #f5721a;
+  color: var(--peak-orange);
 }
 
 /* Tags */
@@ -575,9 +579,9 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  background: rgba(245, 114, 26, 0.08);
-  color: #f5721a;
-  border: 1px solid rgba(245, 114, 26, 0.2);
+  background: rgba(255, 122, 0, 0.08);
+  color: var(--peak-orange);
+  border: 1px solid rgba(255, 122, 0, 0.2);
 }
 .landing-section-tag-dark {
   display: inline-block;
@@ -587,9 +591,9 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  background: rgba(245, 114, 26, 0.12);
-  color: #f5721a;
-  border: 1px solid rgba(245, 114, 26, 0.25);
+  background: rgba(255, 122, 0, 0.12);
+  color: var(--peak-orange);
+  border: 1px solid rgba(255, 122, 0, 0.25);
 }
 
 /* Cards */
@@ -613,7 +617,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
   background-size: 24px 24px;
 }
 .landing-pattern-dots {
-  background-image: radial-gradient(rgba(245, 114, 26, 0.06) 1px, transparent 1px);
+  background-image: radial-gradient(rgba(255, 122, 0, 0.06) 1px, transparent 1px);
   background-size: 20px 20px;
 }
 
@@ -634,19 +638,19 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
   color: rgba(255, 255, 255, 0.68);
 }
 .text-landing-orange {
-  color: #f5721a;
+  color: var(--peak-orange);
 }
 .bg-landing-navy {
   background-color: #0a1220;
 }
 .bg-landing-orange {
-  background-color: #f5721a;
+  background-color: var(--peak-orange);
 }
 .bg-landing-cream {
   background-color: #f4f6fa;
 }
 .border-landing-orange {
-  border-color: #f5721a;
+  border-color: var(--peak-orange);
 }
 .border-landing-ink {
   border-color: #0a1220;

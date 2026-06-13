@@ -2,6 +2,14 @@
 
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import {
+  statusInfo,
+  statusInfoSolid,
+  statusWarning,
+  statusWarningSolid,
+  statusDanger,
+  statusDangerSolid
+} from "@/lib/semantic-styles";
 
 export function VerificationStatusBanner({
   role,
@@ -13,7 +21,8 @@ export function VerificationStatusBanner({
     return (
       <div
         className={cn(
-          "flex flex-col gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 sm:flex-row sm:items-center sm:justify-between",
+          "flex flex-col gap-3 rounded-2xl border p-4 sm:flex-row sm:items-center sm:justify-between",
+          statusWarning,
           className
         )}
       >
@@ -22,7 +31,7 @@ export function VerificationStatusBanner({
         </p>
         <Link
           href="/student/profile/verification"
-          className="inline-flex shrink-0 items-center justify-center rounded-xl bg-amber-500/20 px-4 py-2 text-sm font-bold text-amber-200 hover:bg-amber-500/30"
+          className={cn("inline-flex shrink-0 items-center justify-center rounded-xl px-4 py-2 text-sm font-bold hover:opacity-90", statusWarningSolid)}
         >
           رفع الآن
         </Link>
@@ -34,7 +43,8 @@ export function VerificationStatusBanner({
     return (
       <div
         className={cn(
-          "flex flex-col gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 sm:flex-row sm:items-center sm:justify-between",
+          "flex flex-col gap-3 rounded-2xl border p-4 sm:flex-row sm:items-center sm:justify-between",
+          statusWarning,
           className
         )}
       >
@@ -46,7 +56,7 @@ export function VerificationStatusBanner({
         </div>
         <Link
           href="/teacher/profile/verification"
-          className="inline-flex shrink-0 items-center justify-center rounded-xl bg-amber-500/20 px-4 py-2 text-sm font-bold text-amber-200 hover:bg-amber-500/30"
+          className={cn("inline-flex shrink-0 items-center justify-center rounded-xl px-4 py-2 text-sm font-bold hover:opacity-90", statusWarningSolid)}
         >
           رفع المستندات
         </Link>
@@ -58,7 +68,8 @@ export function VerificationStatusBanner({
     return (
       <div
         className={cn(
-          "rounded-2xl border border-blue-500/30 bg-blue-500/10 p-4 text-sm text-auth-on-surface",
+          "rounded-2xl border p-4 text-sm text-auth-on-surface",
+          statusInfo,
           className
         )}
       >
@@ -71,7 +82,8 @@ export function VerificationStatusBanner({
     return (
       <div
         className={cn(
-          "flex flex-col gap-3 rounded-2xl border border-danger/30 bg-danger/10 p-4 sm:flex-row sm:items-center sm:justify-between",
+          "flex flex-col gap-3 rounded-2xl border p-4 sm:flex-row sm:items-center sm:justify-between",
+          statusDanger,
           className
         )}
       >
@@ -83,7 +95,7 @@ export function VerificationStatusBanner({
         </div>
         <Link
           href="/teacher/profile/verification"
-          className="inline-flex shrink-0 items-center justify-center rounded-xl bg-danger/20 px-4 py-2 text-sm font-bold text-danger hover:bg-danger/30"
+          className={cn("inline-flex shrink-0 items-center justify-center rounded-xl px-4 py-2 text-sm font-bold hover:opacity-90", statusDangerSolid)}
         >
           إعادة الرفع
         </Link>

@@ -1,8 +1,10 @@
 "use client";
 
+import Icon from "@/components/shared/Icon";
 import AdminActionsMenu from "@/components/admin/AdminActionsMenu";
 import AdminFilterTabs from "@/components/admin/AdminFilterTabs";
 import AdminPageHeader from "@/components/admin/AdminPageHeader";
+import AdminStatCard from "@/components/admin/AdminStatCard";
 import AdminPagination from "@/components/admin/AdminPagination";
 import DataTable from "@/components/admin/DataTable";
 import StatusBadge from "@/components/admin/StatusBadge";
@@ -52,42 +54,6 @@ const TYPE_FILTER_OPTIONS = [
   { value: "early_bird", label: "طائر مبكر" },
   { value: "referral", label: "إحالة" }
 ];
-
-function StatCard({ icon, label, value, sub, tone = "default", active, onClick }) {
-  const toneClasses = {
-    default: "text-md-primary bg-md-primary/10",
-    success: "text-success bg-success/10",
-    warning: "text-warning bg-warning/10",
-    blue: "text-accent-blue bg-accent-blue/10",
-    danger: "text-error bg-error/10"
-  };
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={!onClick}
-      className={cn(
-        "rounded-xl border p-5 text-start transition-all",
-        onClick && "cursor-pointer",
-        active
-          ? "border-md-primary bg-surface-container-high shadow-lg shadow-md-primary/10"
-          : "border-outline-variant bg-surface-container-low hover:border-md-primary/40"
-      )}
-    >
-      <div className="mb-4 flex items-start justify-between">
-        <div className={cn("rounded-lg p-2", toneClasses[tone] || toneClasses.default)}>
-          <span className="material-symbols-outlined text-xl">{icon}</span>
-        </div>
-      </div>
-      <p className="text-xs font-semibold text-on-surface-variant">{label}</p>
-      <h3 className="mt-1 text-2xl font-bold text-on-surface">
-        {typeof value === "number" ? value.toLocaleString("ar-EG") : value}
-      </h3>
-      {sub ? <p className="mt-1 text-xs font-bold text-md-primary">{sub}</p> : null}
-    </button>
-  );
-}
 
 function UsageBar({ used, max }) {
   if (!max) {
@@ -209,7 +175,7 @@ export default function AdminCouponsView({
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {statCards.map((card) => (
-          <StatCard
+          <AdminStatCard
             key={card.key}
             icon={card.icon}
             label={card.label}
@@ -227,9 +193,7 @@ export default function AdminCouponsView({
 
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div className="relative w-full max-w-md">
-            <span className="material-symbols-outlined pointer-events-none absolute start-3 top-1/2 z-10 -translate-y-1/2 text-base text-on-surface-variant">
-              search
-            </span>
+            <Icon name="search" size={16} className="pointer-events-none absolute start-3 top-1/2 z-10 -translate-y-1/2 text-auth-on-surface-variant" />
             <input
               type="search"
               value={searchInput}
@@ -306,7 +270,7 @@ export function PromoCodeCell({ row, onCopy, onView }) {
         onClick={() => onCopy?.(row)}
         aria-label="نسخ الكود"
       >
-        <span className="material-symbols-outlined text-base">content_copy</span>
+        <Icon name="copy" size={16} />
       </button>
     </div>
   );

@@ -1,7 +1,9 @@
 "use client";
 
+import Icon from "@/components/shared/Icon";
 import AdminFilterTabs from "@/components/admin/AdminFilterTabs";
 import AdminPageHeader from "@/components/admin/AdminPageHeader";
+import AdminStatCard from "@/components/admin/AdminStatCard";
 import AdminPagination from "@/components/admin/AdminPagination";
 import DataTable from "@/components/admin/DataTable";
 import { CustomDatePicker } from "@/components/ui/CustomDatePicker";
@@ -31,44 +33,6 @@ const GRADES_BY_LEVEL = {
   preparatory: ALL_GRADE_OPTIONS.filter((o) => !o.value || o.value.startsWith("prep_")),
   secondary: ALL_GRADE_OPTIONS.filter((o) => !o.value || o.value.startsWith("sec_"))
 };
-
-function StatCard({ icon, label, value, tone = "default", active, live, onClick }) {
-  const toneClasses = {
-    default: "text-md-primary bg-md-primary/10",
-    live: "text-green-400 bg-green-500/10",
-    blue: "text-accent-blue bg-accent-blue/10",
-    danger: "text-error bg-error/10"
-  };
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "rounded-xl border p-5 text-start transition-all",
-        active
-          ? "border-md-primary bg-auth-surface-high shadow-lg shadow-md-primary/10"
-          : "border-auth-outline-variant/40 bg-auth-surface-low hover:border-md-primary/40"
-      )}
-    >
-      <div className="mb-4 flex items-start justify-between">
-        <div className={cn("rounded-lg p-2", toneClasses[tone] || toneClasses.default)}>
-          <span className="material-symbols-outlined text-xl">{icon}</span>
-        </div>
-        {live ? (
-          <span className="flex items-center gap-1.5">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-green-500" />
-            <span className="text-xs font-semibold text-green-400">مباشر</span>
-          </span>
-        ) : null}
-      </div>
-      <p className="text-xs font-semibold text-auth-on-surface-variant">{label}</p>
-      <h3 className="mt-1 text-2xl font-bold text-auth-on-surface">
-        {typeof value === "number" ? value.toLocaleString("ar-EG") : value}
-      </h3>
-    </button>
-  );
-}
 
 export default function AdminSessionsPage({
   sessions = [],
@@ -184,7 +148,7 @@ export default function AdminSessionsPage({
         {statsLoading && !stats
           ? Array.from({ length: 5 }).map((_, i) => <StatCardSkeleton key={i} />)
           : statCards.map((card) => (
-              <StatCard
+              <AdminStatCard
                 key={card.key}
                 icon={card.icon}
                 label={card.label}
@@ -252,9 +216,7 @@ export default function AdminSessionsPage({
             </div>
 
             <div className="relative w-full max-w-sm">
-              <span className="material-symbols-outlined pointer-events-none absolute start-3 top-1/2 z-10 -translate-y-1/2 text-base text-auth-on-surface-variant">
-                search
-              </span>
+              <Icon name="search" size={16} className="pointer-events-none absolute start-3 top-1/2 z-10 -translate-y-1/2 text-auth-on-surface-variant" />
               <input
                 type="search"
                 value={searchInput}

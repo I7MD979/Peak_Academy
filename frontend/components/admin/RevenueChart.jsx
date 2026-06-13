@@ -11,6 +11,7 @@ import {
   YAxis
 } from "recharts";
 import { SectionLoader } from "@/components/shared/LoadingSkeleton";
+import { chart, md3 } from "@/lib/design-tokens";
 import { formatCurrencyEgp } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -40,7 +41,7 @@ function ChartTooltip({ active, payload, label, variant }) {
 
 export default function RevenueChart({ data = [], loading, variant = "dark" }) {
   const isDark = variant === "dark";
-  const tickColor = isDark ? "#a8acac" : "#64748b";
+  const tickColor = isDark ? md3.onSurfaceVariant : "#64748b";
   const gridColor = isDark ? "rgba(88, 66, 53, 0.4)" : "#e2e8f0";
 
   if (loading) {
@@ -89,8 +90,8 @@ export default function RevenueChart({ data = [], loading, variant = "dark" }) {
               </span>
             )}
           />
-          <Bar dataKey="revenue" name="إيرادات المنصة" fill="#22c55e" radius={[6, 6, 0, 0]} maxBarSize={48} />
-          <Bar dataKey="withdrawn" name="المسحوبات" fill="#3b82f6" radius={[6, 6, 0, 0]} maxBarSize={48} />
+          <Bar dataKey="revenue" name="إيرادات المنصة" fill={chart.green} radius={[6, 6, 0, 0]} maxBarSize={48} />
+          <Bar dataKey="withdrawn" name="المسحوبات" fill={chart.blue} radius={[6, 6, 0, 0]} maxBarSize={48} />
         </BarChart>
       </ResponsiveContainer>
     </div>

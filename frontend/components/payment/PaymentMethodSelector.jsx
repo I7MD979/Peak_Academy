@@ -1,24 +1,26 @@
 "use client";
 
+import Icon from "@/components/shared/Icon";
+
 const PAYMENT_METHODS = [
   {
     id: "paymob",
     name: "بطاقة بنكية",
     description: "Visa / Mastercard / Meeza",
-    icon: "💳"
+    iconName: "creditCard"
   },
   {
     id: "vodafone_cash",
     name: "فودافون كاش",
     description: "ادفع من محفظتك بضغطة واحدة",
-    icon: "📱",
+    iconName: "smartphone",
     badge: "الأسرع"
   },
   {
     id: "instapay",
     name: "إنستاباي",
     description: "تحويل مباشر من تطبيق بنكك",
-    icon: "⚡"
+    iconName: "zap"
   }
 ];
 
@@ -37,18 +39,18 @@ export default function PaymentMethodSelector({ selected, onChange, availability
           onClick={() => onChange?.(method.id)}
           className={`relative flex flex-col items-center gap-2 rounded-xl border-2 p-4 text-center transition-all ${
             selected === method.id
-              ? "border-orange-500 bg-orange-50 shadow-md"
-              : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+              ? "border-peak-orange bg-peak-orange/10 shadow-md"
+              : "border-auth-outline-variant/50 hover:border-peak-orange/40 hover:bg-auth-surface-highest"
           }`}
         >
           {method.badge ? (
-            <span className="absolute -top-2 right-2 rounded-full bg-green-500 px-2 py-0.5 text-xs text-white">
+            <span className="absolute -top-2 right-2 rounded-full bg-success px-2 py-0.5 text-xs text-white">
               {method.badge}
             </span>
           ) : null}
-          <span className="text-2xl">{method.icon}</span>
-          <span className="text-sm font-semibold text-gray-900">{method.name}</span>
-          <span className="text-xs text-gray-500">{method.description}</span>
+          <Icon name={method.iconName} variant="xl" className="text-auth-on-surface-variant" />
+          <span className="text-sm font-semibold text-auth-on-surface">{method.name}</span>
+          <span className="text-xs text-auth-on-surface-variant">{method.description}</span>
         </button>
       ))}
     </div>

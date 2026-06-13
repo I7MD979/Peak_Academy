@@ -42,7 +42,7 @@ export default function LandingPromoStrip() {
   }
 
   return (
-    <section className="border-t border-landing-ink/[0.06] bg-[#f0f3f8] px-4 py-10 md:px-8" aria-label="كود الخصم">
+    <section className="border-t border-landing-ink/[0.06] bg-landing-cream px-4 py-10 md:px-8" aria-label="كود الخصم">
       <LandingReveal>
         <div className="mx-auto max-w-3xl overflow-hidden rounded-2xl border border-landing-orange/20 bg-white shadow-[0_12px_40px_-16px_rgba(10,18,32,0.1)]">
           <div className="flex flex-col gap-5 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6 md:p-8">

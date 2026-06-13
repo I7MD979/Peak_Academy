@@ -1,6 +1,7 @@
 "use client";
 
 import AdminPageHeader from "@/components/admin/AdminPageHeader";
+import AdminStatCard from "@/components/admin/AdminStatCard";
 import DataTable from "@/components/admin/DataTable";
 import RevenueChart from "@/components/admin/RevenueChart";
 import { CustomDatePicker } from "@/components/ui/CustomDatePicker";
@@ -46,38 +47,6 @@ function RatingStars({ value }) {
       ))}
       <span className="mr-1 text-sm font-bold text-on-surface">{value || "—"}</span>
     </span>
-  );
-}
-
-function StatCard({ icon, label, value, sub, tone = "default", active, onClick }) {
-  const toneClasses = {
-    default: "text-md-primary bg-md-primary/10",
-    success: "text-success bg-success/10",
-    blue: "text-accent-blue bg-accent-blue/10",
-    accent: "text-accent bg-accent/10",
-    warning: "text-warning bg-warning/10"
-  };
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "rounded-xl border p-5 text-start transition-all",
-        active
-          ? "border-md-primary bg-surface-container-high shadow-lg shadow-md-primary/10"
-          : "border-outline-variant bg-surface-container-low hover:border-md-primary/40"
-      )}
-    >
-      <div className="mb-4 flex items-start justify-between">
-        <div className={cn("rounded-lg p-2", toneClasses[tone] || toneClasses.default)}>
-          <span className="material-symbols-outlined text-xl">{icon}</span>
-        </div>
-      </div>
-      <p className="text-xs font-semibold text-on-surface-variant">{label}</p>
-      <h3 className="mt-1 text-2xl font-bold text-on-surface">{value}</h3>
-      {sub ? <p className="mt-1 text-xs font-bold text-md-primary">{sub}</p> : null}
-    </button>
   );
 }
 
@@ -246,7 +215,7 @@ export default function AdminReportsView({
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {statCards.map((card) => (
-          <StatCard
+          <AdminStatCard
             key={card.key}
             icon={card.icon}
             label={card.label}

@@ -1,7 +1,10 @@
 "use client";
 
+import Icon from "@/components/shared/Icon";
+import { resolveAdminStatIcon } from "@/components/admin/AdminStatCard";
 import AdminFilterTabs from "@/components/admin/AdminFilterTabs";
 import AdminPageHeader from "@/components/admin/AdminPageHeader";
+import AdminStatCard from "@/components/admin/AdminStatCard";
 import AdminActionsMenu from "@/components/admin/AdminActionsMenu";
 import StatusBadge from "@/components/admin/StatusBadge";
 import { SectionLoader } from "@/components/shared/LoadingSkeleton";
@@ -16,40 +19,6 @@ const SORT_OPTIONS = [
   { value: "price_desc", label: "السعر: الأعلى أولاً" },
   { value: "subscribers", label: "الأكثر اشتراكاً" }
 ];
-
-function StatCard({ icon, label, value, sub, tone = "default", active, onClick }) {
-  const toneClasses = {
-    default: "text-md-primary bg-md-primary/10",
-    success: "text-success bg-success/10",
-    warning: "text-warning bg-warning/10",
-    blue: "text-accent-blue bg-accent-blue/10",
-    danger: "text-error bg-error/10"
-  };
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "rounded-xl border p-5 text-start transition-all",
-        active
-          ? "border-md-primary bg-surface-container-high shadow-lg shadow-md-primary/10"
-          : "border-outline-variant bg-surface-container-low hover:border-md-primary/40"
-      )}
-    >
-      <div className="mb-4 flex items-start justify-between">
-        <div className={cn("rounded-lg p-2", toneClasses[tone] || toneClasses.default)}>
-          <span className="material-symbols-outlined text-xl">{icon}</span>
-        </div>
-      </div>
-      <p className="text-xs font-semibold text-on-surface-variant">{label}</p>
-      <h3 className="mt-1 text-2xl font-bold text-on-surface">
-        {typeof value === "number" ? value.toLocaleString("ar-EG") : value}
-      </h3>
-      {sub ? <p className="mt-1 text-xs font-bold text-md-primary">{sub}</p> : null}
-    </button>
-  );
-}
 
 function PlanCard({ plan, onView, onEdit, onToggle, onDelete, mutating }) {
   const features = plan.features || [];
@@ -94,9 +63,11 @@ function PlanCard({ plan, onView, onEdit, onToggle, onDelete, mutating }) {
       </div>
 
       <div className="mb-5 flex items-center gap-3">
-        <span className="material-symbols-outlined text-3xl text-md-primary">
-          {featured ? "stars" : "workspace_premium"}
-        </span>
+        <Icon
+          name={resolveAdminStatIcon(featured ? "stars" : "workspace_premium")}
+          variant="xl"
+          className="text-md-primary"
+        />
         <div>
           <h3 className="text-xl font-bold text-on-surface">{plan.name}</h3>
           <StatusBadge status={plan.is_active ? "active" : "suspended"} />
@@ -123,7 +94,7 @@ function PlanCard({ plan, onView, onEdit, onToggle, onDelete, mutating }) {
       <ul className="mb-6 flex-grow space-y-3">
         {features.slice(0, 5).map((feature, index) => (
           <li key={index} className="flex items-center gap-2 text-sm text-on-surface">
-            <span className="material-symbols-outlined text-sm text-md-primary">check_circle</span>
+            <Icon name="checkCircle" size={14} className="text-md-primary shrink-0" />
             {feature}
           </li>
         ))}
@@ -245,7 +216,7 @@ export default function AdminSubscriptionsView({
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {statCards.map((card) => (
-          <StatCard
+          <AdminStatCard
             key={card.key}
             icon={card.icon}
             label={card.label}
@@ -263,9 +234,7 @@ export default function AdminSubscriptionsView({
 
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div className="relative w-full max-w-md">
-            <span className="material-symbols-outlined pointer-events-none absolute start-3 top-1/2 z-10 -translate-y-1/2 text-base text-on-surface-variant">
-              search
-            </span>
+            <Icon name="search" size={16} className="pointer-events-none absolute start-3 top-1/2 z-10 -translate-y-1/2 text-auth-on-surface-variant" />
             <input
               type="search"
               value={searchInput}
