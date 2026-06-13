@@ -14,12 +14,17 @@ import { ButtonLoader } from "@/components/shared/LoadingSkeleton";
 import { useAuth } from "@/hooks/useAuth";
 import { authApi } from "@/lib/api";
 import { getAuthErrorMessage } from "@/lib/auth-errors";
-import { GRADE_OPTIONS } from "@/lib/profile-form";
 import { isProfileComplete, resolvePostAuthPathClient, ROLE_HOME } from "@/lib/role-routes";
 import { createClient } from "@/lib/supabase/client";
+import StudentAcademicFields from "@/components/auth/StudentAcademicFields";
+import {
+  defaultGradeForSchoolLevel,
+  gradesForSchoolLevel
+} from "@/lib/student-grade-form";
 import {
   CURRENT_TERMS_VERSION,
   defaultGradeFromLevelParam,
+  defaultSchoolLevelFromLevelParam,
   registerStep1Schema,
   registerStep2Schema,
   ROLE_SELECT_OPTIONS
@@ -69,12 +74,19 @@ export default function RegisterForm({ redirectTo = null, levelParam = null, not
     defaultValues: {
       full_name: "",
       role: "student",
+      school_level: defaultSchoolLevelFromLevelParam(levelParam),
       grade: defaultGradeFromLevelParam(levelParam),
       phone: ""
     }
   });
 
   const selectedRole = useWatch({ control: step2Form.control, name: "role" });
+  const selectedSchoolLevel = useWatch({ control: step2Form.control, name: "school_level" });
+  const gradeOptions = gradesForSchoolLevel(selectedSchoolLevel);
+
+  const handleSchoolLevelSelect = (level) => {
+    step2Form.setValue("grade", defaultGradeForSchoolLevel(level), { shouldValidate: true });
+  };
 
   const resolveNextPath = async (sessionToken, createdUser) => {
     if (redirectTo) return redirectTo;
@@ -356,22 +368,13 @@ export default function RegisterForm({ redirectTo = null, levelParam = null, not
             </AuthField>
 
             {selectedRole === "student" ? (
-              <AuthField id="grade" label="الصف الدراسي" error={step2Form.formState.errors.grade?.message}>
-                <Controller
-                  name="grade"
-                  control={step2Form.control}
-                  render={({ field }) => (
-                    <Select
-                      id="grade"
-                      variant="dark"
-                      placeholder="اختر الصف"
-                      options={GRADE_OPTIONS}
-                      showError={false}
-                      {...field}
-                    />
-                  )}
-                />
-              </AuthField>
+              <StudentAcademicFields
+                control={step2Form.control}
+                errors={step2Form.formState.errors}
+                schoolLevel={selectedSchoolLevel}
+                gradeOptions={gradeOptions}
+                onSchoolLevelSelect={handleSchoolLevelSelect}
+              />
             ) : null}
 
             <AuthField

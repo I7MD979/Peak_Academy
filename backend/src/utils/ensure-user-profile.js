@@ -1,10 +1,10 @@
 import { encryptUserFields, decryptUserFields } from "./encryption.js";
 import { normalizeTeacherSubjectKeys } from "../lib/subjects.js";
+import { isValidGrade, defaultGradeForLevel } from "../lib/grades.js";
 
 const VALID_ROLES = ["student", "teacher", "parent", "admin", "supervisor"];
 const STAFF_ROLES = new Set(["admin", "supervisor"]);
 const ONBOARDING_ROLES = new Set(["student", "teacher", "parent"]);
-const VALID_GRADES = ["first", "second", "third"];
 
 export function isStaffRole(role) {
   return STAFF_ROLES.has(normalizeRole(role));
@@ -263,14 +263,15 @@ export async function ensureUserProfile(
   const effectiveRole = roleToWrite;
 
   if (effectiveRole === "student") {
-    const safeGrade = grade && VALID_GRADES.includes(grade) ? grade : "third";
+    const fallbackGrade = defaultGradeForLevel("secondary");
+    const safeGrade = grade && isValidGrade(grade) ? grade : fallbackGrade;
     const { data: existing } = await supabase
       .from("student_profiles")
       .select("id, link_code, grade, section")
       .eq("user_id", id)
       .maybeSingle();
 
-    const requestedGrade = grade && VALID_GRADES.includes(grade) ? grade : null;
+    const requestedGrade = grade && isValidGrade(grade) ? grade : null;
 
     await upsertStudentProfileRow(supabase, {
       user_id: id,

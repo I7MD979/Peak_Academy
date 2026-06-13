@@ -3,28 +3,32 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useForm, useWatch, Controller } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import Icon from "@/components/shared/Icon";
 import AuthPageLayout from "@/components/auth/AuthPageLayout";
 import AuthFormCard from "@/components/auth/AuthFormCard";
 import AuthField, { authInputClass } from "@/components/auth/AuthField";
-import { Select } from "@/components/ui/Select";
 import { authBtnPrimaryClass, authErrorClass } from "@/components/auth/auth-styles";
 import CsrfField from "@/components/auth/CsrfField";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { authApi } from "@/lib/api";
-import { GRADE_OPTIONS } from "@/lib/profile-form";
 import { isProfileComplete, resolvePostAuthPathClient, ROLE_HOME } from "@/lib/role-routes";
 import { profileFromAuthUser } from "@/lib/auth-user-profile";
 import { ButtonLoader, LoadingSpinner } from "@/components/shared/LoadingSkeleton";
 import { buildOnboardingLoginUrl } from "@/lib/auth-redirect";
+import StudentAcademicFields from "@/components/auth/StudentAcademicFields";
+import {
+  defaultGradeForSchoolLevel,
+  defaultGradeFromLevelParam,
+  defaultSchoolLevelFromLevelParam,
+  gradesForSchoolLevel
+} from "@/lib/student-grade-form";
 import {
   CURRENT_TERMS_VERSION,
   onboardingSchema,
-  REGISTER_ROLES,
-  defaultGradeFromLevelParam
+  REGISTER_ROLES
 } from "@/lib/onboarding-form";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
@@ -43,12 +47,14 @@ export default function OnboardingClient({ deferredReturn = null, levelParam = n
     handleSubmit,
     control,
     reset,
+    setValue,
     formState: { errors }
   } = useForm({
     resolver: zodResolver(onboardingSchema),
     defaultValues: {
       full_name: "",
       role: "student",
+      school_level: defaultSchoolLevelFromLevelParam(levelParam),
       grade: defaultGradeFromLevelParam(levelParam),
       phone: "",
       acceptedTerms: false
@@ -56,6 +62,12 @@ export default function OnboardingClient({ deferredReturn = null, levelParam = n
   });
 
   const selectedRole = useWatch({ control, name: "role" });
+  const selectedSchoolLevel = useWatch({ control, name: "school_level" });
+  const gradeOptions = gradesForSchoolLevel(selectedSchoolLevel);
+
+  const handleSchoolLevelSelect = (level) => {
+    setValue("grade", defaultGradeForSchoolLevel(level), { shouldValidate: true });
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -82,6 +94,7 @@ export default function OnboardingClient({ deferredReturn = null, levelParam = n
               hint?.role && ["student", "teacher", "parent"].includes(hint.role)
                 ? hint.role
                 : "student",
+            school_level: defaultSchoolLevelFromLevelParam(levelParam),
             grade: defaultGradeFromLevelParam(levelParam),
             phone: hint.phone || ""
           });
@@ -281,22 +294,13 @@ export default function OnboardingClient({ deferredReturn = null, levelParam = n
           </div>
 
           {selectedRole === "student" ? (
-            <AuthField id="grade" label="الصف الدراسي" error={errors.grade?.message}>
-              <Controller
-                name="grade"
-                control={control}
-                render={({ field }) => (
-                  <Select
-                    id="grade"
-                    variant="dark"
-                    placeholder="اختر الصف الدراسي"
-                    options={GRADE_OPTIONS}
-                    showError={false}
-                    {...field}
-                  />
-                )}
-              />
-            </AuthField>
+            <StudentAcademicFields
+              control={control}
+              errors={errors}
+              schoolLevel={selectedSchoolLevel}
+              gradeOptions={gradeOptions}
+              onSchoolLevelSelect={handleSchoolLevelSelect}
+            />
           ) : null}
 
           <AuthField

@@ -15,7 +15,7 @@ import {
   assertOnboardingRole
 } from "../utils/ensure-user-profile.js";
 import { ensureReferralCode } from "../services/referralService.js";
-import { isValidGrade } from "../lib/grades.js";
+import { isValidGrade, defaultGradeForLevel } from "../lib/grades.js";
 import { normalizeTeacherSubjectKeys } from "../lib/subjects.js";
 import { encryptUserFields } from "../utils/encryption.js";
 import { allowSchema } from "../middleware/allowlist.js";
@@ -148,7 +148,7 @@ router.post("/setup-profile", oauthLimiter, authSlowDown, authLimiter, uniformAu
       return error(res, "الاسم يجب أن يكون حرفين على الأقل", 400);
     }
 
-    if (role === "student" && grade && !["first", "second", "third"].includes(grade)) {
+    if (role === "student" && grade && !isValidGrade(grade)) {
       return error(res, "الصف الدراسي غير صالح", 400);
     }
 
@@ -189,7 +189,7 @@ router.post("/setup-profile", oauthLimiter, authSlowDown, authLimiter, uniformAu
         full_name: fullName,
         role,
         phone: phone || null,
-        grade: role === "student" ? grade || "third" : null,
+        grade: role === "student" ? grade || defaultGradeForLevel("secondary") : null,
         section: role === "student" ? section : null,
         termsAcceptedAt: new Date().toISOString(),
         termsVersion,
@@ -210,7 +210,7 @@ router.post("/setup-profile", oauthLimiter, authSlowDown, authLimiter, uniformAu
       });
       if (role === "student") {
         user.student_profile = {
-          grade: grade && ["first", "second", "third"].includes(grade) ? grade : "third",
+          grade: grade && isValidGrade(grade) ? grade : defaultGradeForLevel("secondary"),
           section: section || null,
           link_code: buildLinkCode(req.user.id)
         };
@@ -433,7 +433,7 @@ router.put("/profile", auth, allowSchema("userProfile"), async (req, res) => {
       const studentUpdate = {};
 
       if (grade !== undefined && grade !== null && grade !== "") {
-        if (!["first", "second", "third"].includes(grade)) {
+        if (!isValidGrade(grade)) {
           return error(res, "الصف الدراسي غير صالح", 400);
         }
         studentUpdate.grade = grade;
@@ -550,7 +550,7 @@ router.post("/complete-profile", oauthLimiter, authSlowDown, authLimiter, unifor
       return error(res, "الاسم يجب أن يكون حرفين على الأقل", 400);
     }
 
-    if (role === "student" && grade && !["first", "second", "third"].includes(grade)) {
+    if (role === "student" && grade && !isValidGrade(grade)) {
       return error(res, "الصف الدراسي غير صالح", 400);
     }
 
