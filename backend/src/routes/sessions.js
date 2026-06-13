@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import { Router } from "express";
 import { z } from "zod";
+import { auth } from "../middleware/auth.js";
 import { requireTeacherVerified } from "../middleware/requireTeacherVerified.js";
 import { checkRole } from "../middleware/checkRole.js";
 import { supabase } from "../lib/supabase.js";
