@@ -3,6 +3,21 @@ import { getApiBaseUrl } from "@/lib/api-base";
 
 export { ROLE_HOME, isProfileComplete };
 
+/**
+ * Reads the `x-user-profile` request header that proxy.js (middleware) sets
+ * after verifying the user's role and profile completeness for this request.
+ * The value is URI-encoded JSON (header values must be ASCII; full_name is
+ * often Arabic). Returns null if absent or malformed.
+ */
+export function readUserProfileHeader(headerValue) {
+  if (!headerValue) return null;
+  try {
+    return JSON.parse(decodeURIComponent(headerValue));
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchAuthProfile(accessToken) {
   if (!accessToken) return null;
   try {

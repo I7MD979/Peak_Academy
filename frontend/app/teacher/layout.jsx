@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import { readUserProfileHeader } from "@/lib/role-routes-server";
 import TeacherLayoutClient from "./layout.client.jsx";
 
 export const dynamic = "force-dynamic";
@@ -9,15 +10,7 @@ export const dynamic = "force-dynamic";
  * second client-side /auth/me call + full-page loader on every navigation.
  */
 export default async function TeacherLayout({ children }) {
-  const raw = (await headers()).get("x-user-profile");
-  let initialProfile = null;
-  if (raw) {
-    try {
-      initialProfile = JSON.parse(raw);
-    } catch {
-      initialProfile = null;
-    }
-  }
+  const initialProfile = readUserProfileHeader((await headers()).get("x-user-profile"));
 
   return <TeacherLayoutClient initialProfile={initialProfile}>{children}</TeacherLayoutClient>;
 }

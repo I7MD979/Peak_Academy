@@ -10,24 +10,25 @@ export const PROFILE_UPDATED = "peak-profile-updated";
 export function useSidebarProfile() {
   const { user: authUser, session } = useAuth();
   const [apiUser, setApiUser] = useState(null);
+  const accessToken = session?.access_token;
 
   const refresh = useCallback(async () => {
-    if (!session?.access_token) {
+    if (!accessToken) {
       setApiUser(null);
       return;
     }
     try {
-      const res = await authApi.me(session.access_token);
+      const res = await authApi.me(accessToken);
       setApiUser(res?.data || null);
     } catch {
       setApiUser(null);
     }
-  }, [session?.access_token]);
+  }, [accessToken]);
 
   useEffect(() => {
-    if (!session?.access_token) return;
+    if (!accessToken) return;
     refresh();
-  }, [session?.access_token, refresh]);
+  }, [accessToken, refresh]);
 
   useEffect(() => {
     const onUpdated = () => refresh();

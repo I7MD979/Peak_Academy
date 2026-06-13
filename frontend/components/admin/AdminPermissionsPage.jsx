@@ -484,7 +484,7 @@ export default function AdminPermissionsPage() {
             <p className={cn(adminMuted, "mt-1 text-sm leading-relaxed")}>
               مدير النظام لديه وصول كامل لكل الصفحات والعمليات.
               المشرف يرى فقط الصفحات التي تم منحه إذن الوصول إليها.
-              يمكن تعديل صلاحيات المشرف في أي وقت من خلال زر "الصلاحيات".
+              يمكن تعديل صلاحيات المشرف في أي وقت من خلال زر &quot;الصلاحيات&quot;.
             </p>
           </div>
         </div>

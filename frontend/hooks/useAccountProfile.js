@@ -27,8 +27,10 @@ export function useAccountProfile({ autoLoad = true } = {}) {
     });
   }, []);
 
+  const accessToken = session?.access_token;
+
   const loadProfile = useCallback(async () => {
-    if (!session?.access_token) {
+    if (!accessToken) {
       setLoading(false);
       return;
     }
@@ -37,7 +39,7 @@ export function useAccountProfile({ autoLoad = true } = {}) {
     setError("");
     setIsAuthFallback(false);
     try {
-      const res = await authApi.me(session.access_token);
+      const res = await authApi.me(accessToken);
       const user = res?.data || null;
       if (user) {
         applyUser(user);
@@ -57,16 +59,16 @@ export function useAccountProfile({ autoLoad = true } = {}) {
     } finally {
       setLoading(false);
     }
-  }, [applyUser, authUser, session?.access_token]);
+  }, [applyUser, authUser, accessToken]);
 
   useEffect(() => {
     if (!autoLoad) return;
-    if (!session?.access_token) {
+    if (!accessToken) {
       setLoading(false);
       return;
     }
     loadProfile();
-  }, [autoLoad, session?.access_token, loadProfile]);
+  }, [autoLoad, accessToken, loadProfile]);
 
   const handleChange = (key) => (event) => {
     const value = event.target.value;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { apiRequest, clearApiCache } from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
 
@@ -67,13 +67,18 @@ export function useSubscription() {
 
   const status = subscription?.status ?? null;
 
-  const daysRemaining = (() => {
+  // `Date.now()` may not be called directly during render (react-hooks/purity).
+  // Capture it once via a lazy initializer — sufficient precision for a
+  // "days remaining" display that re-renders on subscription changes anyway.
+  const [now] = useState(() => Date.now());
+
+  const daysRemaining = useMemo(() => {
     const endDate =
       status === "trialing" ? subscription?.trial_end : subscription?.current_period_end;
     if (!endDate) return null;
-    const diff = Math.ceil((new Date(endDate) - Date.now()) / (1000 * 60 * 60 * 24));
+    const diff = Math.ceil((new Date(endDate) - now) / (1000 * 60 * 60 * 24));
     return Math.max(diff, 0);
-  })();
+  }, [status, subscription?.trial_end, subscription?.current_period_end, now]);
 
   const hasAccess =
     (status === "trialing" && (daysRemaining ?? 0) > 0) ||

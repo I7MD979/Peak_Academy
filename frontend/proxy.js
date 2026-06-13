@@ -80,8 +80,11 @@ function finalizeResponse(response, request, pathname, ctx) {
  */
 function withUserProfileHeader(prevRes, request, pathname, ctx, user) {
   const headers = new Headers(ctx.requestHeaders);
-  headers.set(
-    "x-user-profile",
+  // Header values must be ByteString (ASCII-only) — Headers.set() throws a
+  // TypeError on non-Latin1 characters (e.g. Arabic full_name), which would
+  // otherwise surface as an uncaught middleware exception ("Internal Server
+  // Error") for every admin/teacher/etc whose name isn't pure ASCII.
+  const payload = encodeURIComponent(
     JSON.stringify({
       id: user.id,
       role: user.role,
@@ -89,6 +92,7 @@ function withUserProfileHeader(prevRes, request, pathname, ctx, user) {
       profile_complete: true
     })
   );
+  headers.set("x-user-profile", payload);
 
   const res = NextResponse.next({ request: { headers } });
   prevRes.cookies.getAll().forEach(({ name, value }) => {

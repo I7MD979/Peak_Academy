@@ -1,17 +1,13 @@
 "use client";
 
-import { useRef } from "react";
+import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { clearApiCache } from "@/lib/api-cache";
 import { useAuthStore } from "@/store/authStore";
 import { buildOAuthCallbackUrl } from "@/lib/auth-redirect";
 
 export const useAuth = () => {
-  const supabaseRef = useRef(null);
-  if (!supabaseRef.current) {
-    supabaseRef.current = createClient();
-  }
-  const supabase = supabaseRef.current;
+  const [supabase] = useState(() => createClient());
 
   const { user, session, loading, clearAuth } = useAuthStore();
 

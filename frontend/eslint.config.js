@@ -1,6 +1,6 @@
-const coreWebVitals = require("eslint-config-next/core-web-vitals");
+import coreWebVitals from "eslint-config-next/core-web-vitals";
 
-module.exports = [
+export default [
   ...coreWebVitals,
   {
     rules: {

@@ -9,7 +9,7 @@
     "dev:clean": "node ../backend/scripts/kill-port.mjs 3000 && node ../backend/scripts/kill-port.mjs 3001 && node scripts/rm-next.mjs && next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint --dir app --dir components --dir lib --dir hooks --dir store"
+    "lint": "eslint ."
   },
   "keywords": [],
   "author": "",

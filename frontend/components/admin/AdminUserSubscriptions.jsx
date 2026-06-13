@@ -282,12 +282,14 @@ export default function AdminUserSubscriptions({ user, visible }) {
   const [targetSub, setTargetSub] = useState(null);
   const [cancelling, setCancelling] = useState(null);
 
+  const userId = user?.id;
+
   const load = useCallback(async () => {
-    if (!user?.id || !visible) return;
+    if (!userId || !visible) return;
     setLoading(true);
     setError("");
     try {
-      const res = await dashboardApi.adminUserSubscriptions(user.id);
+      const res = await dashboardApi.adminUserSubscriptions(userId);
       setSubs(res?.data || []);
     } catch (err) {
       setError(err.message || "تعذر تحميل الاشتراكات");
@@ -295,7 +297,7 @@ export default function AdminUserSubscriptions({ user, visible }) {
     } finally {
       setLoading(false);
     }
-  }, [user?.id, visible]);
+  }, [userId, visible]);
 
   useEffect(() => { load(); }, [load]);
 
