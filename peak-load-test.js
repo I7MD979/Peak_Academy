@@ -17,12 +17,40 @@
  *          -e API_URL=https://peak-academy.net/peak-api \
  *          -e SUPABASE_URL=https://YOUR_PROJECT.supabase.co \
  *          -e SUPABASE_ANON_KEY=your_anon_key \
+ *          -e K6_TARGET_VUS=150 \
  *          peak-load-test.js
+ *
+ * VU scaling: K6_TARGET_VUS = combined peak (80% browsing + 20% login).
+ * Default 500 when unset (local stress profile). GitHub Actions passes 100–300 via workflow_dispatch.
  */
 import http from "k6/http";
 import { check, group, sleep } from "k6";
 import { SharedArray } from "k6/data";
 import exec from "k6/execution";
+
+const TARGET_VUS = Math.max(1, parseInt(__ENV.K6_TARGET_VUS || "500", 10));
+const BROWSING_PEAK = Math.round(TARGET_VUS * 0.8);
+const LOGIN_PEAK = TARGET_VUS - BROWSING_PEAK;
+
+function browsingStages(peak) {
+  return [
+    { duration: "2m", target: Math.max(1, Math.round(peak * 0.25)) },
+    { duration: "3m", target: Math.max(1, Math.round(peak * 0.625)) },
+    { duration: "3m", target: peak },
+    { duration: "2m", target: 0 }
+  ];
+}
+
+function loginStages(peak) {
+  if (peak <= 0) {
+    return [{ duration: "1s", target: 0 }];
+  }
+  return [
+    { duration: "2m", target: Math.max(1, Math.round(peak * 0.3)) },
+    { duration: "4m", target: peak },
+    { duration: "2m", target: 0 }
+  ];
+}
 
 // ── Targets (match production topology) ──────────────────────────────────────
 // Frontend: peak-academy.net (Vercel)
@@ -43,11 +71,12 @@ const ROUTES = {
   studentDashboardApi: "/student/dashboard"
 };
 
-const TEST_USERS = new SharedArray("loadtest-users", () => [
-  { email: "loadtest1@test.com", password: "TestPass123!" },
-  { email: "loadtest2@test.com", password: "TestPass123!" },
-  { email: "loadtest3@test.com", password: "TestPass123!" }
-]);
+const TEST_USERS = new SharedArray("loadtest-users", () =>
+  Array.from({ length: 15 }, (_, i) => ({
+    email: `loadtest${i + 1}@test.com`,
+    password: "TestPass123!"
+  }))
+);
 
 export const options = {
   scenarios: {
@@ -55,26 +84,18 @@ export const options = {
       executor: "ramping-vus",
       exec: "browsingFlow",
       startVUs: 0,
-      stages: [
-        { duration: "30s", target: 10 },
-        { duration: "1m", target: 25 },
-        { duration: "30s", target: 0 }
-      ],
-      gracefulRampDown: "15s"
+      stages: browsingStages(BROWSING_PEAK),
+      gracefulRampDown: "30s"
     },
     login: {
       executor: "ramping-vus",
       exec: "loginFlow",
       startVUs: 0,
-      stages: [
-        { duration: "30s", target: 3 },
-        { duration: "1m", target: 8 },
-        { duration: "30s", target: 0 }
-      ],
-      gracefulRampDown: "15s",
-      startTime: "30s"
+      stages: loginStages(LOGIN_PEAK),
+      gracefulRampDown: "30s"
     }
   },
+  maxDuration: "12m",
   thresholds: {
     http_req_failed: ["rate<0.05"],
     http_req_duration: ["p(95)<3000"],
@@ -258,5 +279,14 @@ export function setup() {
         "Export NEXT_PUBLIC_SUPABASE_ANON_KEY or pass -e SUPABASE_ANON_KEY=..."
     );
   }
-  return { baseUrl: BASE_URL, apiUrl: API_URL };
+  console.info(
+    `Load profile: K6_TARGET_VUS=${TARGET_VUS} → browsing peak ${BROWSING_PEAK}, login peak ${LOGIN_PEAK}`
+  );
+  return {
+    baseUrl: BASE_URL,
+    apiUrl: API_URL,
+    targetVus: TARGET_VUS,
+    browsingPeak: BROWSING_PEAK,
+    loginPeak: LOGIN_PEAK
+  };
 }
