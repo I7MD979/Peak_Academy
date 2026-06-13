@@ -1,18 +1,6 @@
--- Peak Academy — query performance helpers for hot paths
+-- Fix count_enrollments_by_sessions for schema v1 (session_enrollments) and text session IDs
 
-CREATE INDEX IF NOT EXISTS idx_sessions_status_scheduled_grade
-  ON public.sessions (status, scheduled_at, grade);
-
-CREATE INDEX IF NOT EXISTS idx_sessions_status_scheduled_school_level
-  ON public.sessions (status, scheduled_at, school_level);
-
-CREATE OR REPLACE FUNCTION public.admin_total_platform_revenue()
-RETURNS numeric
-LANGUAGE sql
-STABLE
-AS $$
-  SELECT COALESCE(SUM(platform_amount), 0) FROM public.teacher_earnings;
-$$;
+DROP FUNCTION IF EXISTS public.count_enrollments_by_sessions(uuid[]);
 
 CREATE OR REPLACE FUNCTION public.count_enrollments_by_sessions(session_ids text[])
 RETURNS TABLE(session_id text, enrollment_count bigint)

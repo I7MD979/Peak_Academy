@@ -79,13 +79,11 @@ async function loadTeachersMap(teacherIds) {
 async function loadEnrollmentCounts(sessionIds) {
   if (!sessionIds.length) return {};
   try {
-    if (isSchemaV2()) {
-      const { data, error } = await supabase.rpc("count_enrollments_by_sessions", {
-        session_ids: sessionIds
-      });
-      if (!error && data?.length) {
-        return Object.fromEntries(data.map((row) => [row.session_id, Number(row.enrollment_count)]));
-      }
+    const { data, error } = await supabase.rpc("count_enrollments_by_sessions", {
+      session_ids: sessionIds.map(String)
+    });
+    if (!error && Array.isArray(data)) {
+      return Object.fromEntries(data.map((row) => [row.session_id, Number(row.enrollment_count)]));
     }
 
     const table = isSchemaV2() ? "enrollments" : "session_enrollments";

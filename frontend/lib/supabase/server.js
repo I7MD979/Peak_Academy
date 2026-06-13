@@ -27,12 +27,12 @@ const createMockServerClient = () => ({
   }
 });
 
-export const createServerSupabaseClient = () => {
+export async function createServerSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) return createMockServerClient();
 
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
 
   return createServerClient(url, key, {
     cookies: {
@@ -47,4 +47,4 @@ export const createServerSupabaseClient = () => {
       }
     }
   });
-};
+}

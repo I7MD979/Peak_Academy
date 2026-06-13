@@ -3,7 +3,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { ROLE_HOME } from "@/lib/role-routes";
 
 export default async function SessionsPage() {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const {
     data: { session }
   } = await supabase.auth.getSession();

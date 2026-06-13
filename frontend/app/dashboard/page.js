@@ -3,7 +3,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { resolvePostAuthPath } from "@/lib/role-routes-server";
 
 export default async function DashboardRedirectPage() {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const {
     data: { session }
   } = await supabase.auth.getSession();
