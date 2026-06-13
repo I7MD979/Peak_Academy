@@ -1,7 +1,7 @@
 /** طلبات متزامنة + طابور + تخزين مؤقت لتقليل 429 أثناء التطوير */
 
 const isDev = process.env.NODE_ENV !== "production";
-const GET_TTL_MS = isDev ? 60_000 : 8_000;
+const DEFAULT_GET_TTL_MS = isDev ? 60_000 : 20_000;
 const ERROR_TTL_MS = 15_000;
 const MAX_CONCURRENT = isDev ? 4 : 8;
 
@@ -14,6 +14,25 @@ const waitQueue = [];
 
 function buildKey(method, path, body, authScope = "anon") {
   return `${method}:${path}:${body || ""}:${authScope}`;
+}
+
+function getTtlForPath(path) {
+  const p = String(path || "").split("?")[0];
+  if (p === "/auth/me") return isDev ? 60_000 : 60_000;
+  if (p.includes("/notifications/unread-count")) return isDev ? 60_000 : 30_000;
+  if (p.includes("/notifications")) return isDev ? 60_000 : 30_000;
+  if (p.includes("/admin/me/permissions")) return isDev ? 120_000 : 120_000;
+  if (
+    p === "/student/dashboard" ||
+    p === "/teacher/dashboard" ||
+    p === "/admin/dashboard" ||
+    p === "/admin/stats"
+  ) {
+    return isDev ? 60_000 : 45_000;
+  }
+  if (p.includes("/subscriptions/me")) return isDev ? 60_000 : 30_000;
+  if (p.includes("/student/sessions")) return isDev ? 60_000 : 30_000;
+  return DEFAULT_GET_TTL_MS;
 }
 
 function runQueued(task) {
@@ -71,15 +90,17 @@ export function clearApiCache(prefix = "") {
   }
 }
 
-function wrapFetch(key, method, performFetch) {
+function wrapFetch(key, method, path, performFetch) {
   const cachedErr = getCachedError(key);
   if (cachedErr) {
     return Promise.reject(cachedErr);
   }
 
+  const ttlMs = method === "GET" ? getTtlForPath(path) : 0;
+
   if (method === "GET") {
     const hit = getCache.get(key);
-    if (hit && Date.now() - hit.at < GET_TTL_MS) {
+    if (hit && Date.now() - hit.at < ttlMs) {
       return Promise.resolve(hit.data);
     }
   }
@@ -103,12 +124,11 @@ function wrapFetch(key, method, performFetch) {
         }
         throw err;
       })
-  )
-    .finally(() => {
-      if (inflight.get(key) === promise) {
-        inflight.delete(key);
-      }
-    });
+  ).finally(() => {
+    if (inflight.get(key) === promise) {
+      inflight.delete(key);
+    }
+  });
 
   inflight.set(key, promise);
   return promise;
@@ -120,7 +140,7 @@ function wrapFetch(key, method, performFetch) {
 export function fetchAuthMe(fetcher, tokenOverride = null) {
   const scope = tokenOverride ? String(tokenOverride).slice(-16) : "anon";
   const key = buildKey("GET", "/auth/me", "", scope);
-  return wrapFetch(key, "GET", fetcher);
+  return wrapFetch(key, "GET", "/auth/me", fetcher);
 }
 
 export async function cachedApiRequest(path, options = {}, tokenOverride = null, performFetch) {
@@ -136,5 +156,5 @@ export async function cachedApiRequest(path, options = {}, tokenOverride = null,
     return performFetch();
   }
 
-  return wrapFetch(key, method, performFetch);
+  return wrapFetch(key, method, path, performFetch);
 }

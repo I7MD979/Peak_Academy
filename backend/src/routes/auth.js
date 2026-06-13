@@ -19,6 +19,7 @@ import { isValidGrade } from "../lib/grades.js";
 import { normalizeTeacherSubjectKeys } from "../lib/subjects.js";
 import { encryptUserFields } from "../utils/encryption.js";
 import { allowSchema } from "../middleware/allowlist.js";
+import { withCache, invalidateAuthMeCache, CACHE } from "../lib/cache.js";
 
 const router = Router();
 
@@ -53,34 +54,29 @@ function profileFromReqUser(reqUser) {
 
 router.get("/me", auth, async (req, res) => {
   try {
-    let user = null;
+    const user = await withCache(CACHE.authMe(req.user.id), CACHE.TTL.authMe, async () => {
+      let profile = null;
 
-    try {
-      user = await fetchFullUserProfile(supabase, req.user.id);
-    } catch (fetchErr) {
-      console.error("GET /auth/me fetchFullUserProfile:", fetchErr?.message || fetchErr);
-    }
+      try {
+        profile = await fetchFullUserProfile(supabase, req.user.id);
+      } catch (fetchErr) {
+        console.error("GET /auth/me fetchFullUserProfile:", fetchErr?.message || fetchErr);
+      }
 
-    if (!user) {
-      // Do not auto-provision DB rows here — onboarding POST /auth/setup-profile owns profile creation.
-      user = {
-        ...profileFromReqUser(req.user),
-        student_profile: null,
-        teacher_profile: null,
-        profile_complete: false
-      };
-    }
+      if (!profile) {
+        profile = {
+          ...profileFromReqUser(req.user),
+          student_profile: null,
+          teacher_profile: null,
+          profile_complete: false
+        };
+      }
+
+      return profile;
+    });
 
     if (!user) {
       return error(res, "تعذر تحميل بيانات الحساب", 404);
-    }
-
-    if (user.role === "student") {
-      try {
-        await ensureReferralCode(user);
-      } catch (refErr) {
-        console.warn("GET /auth/me referral:", refErr?.message || refErr);
-      }
     }
 
     return success(res, user);
@@ -295,6 +291,15 @@ router.post("/setup-profile", oauthLimiter, authSlowDown, authLimiter, uniformAu
       return error(res, `تعذر إكمال الملف الشخصي. ${hint}`, 500);
     }
 
+    if (role === "student") {
+      try {
+        await ensureReferralCode(fresh);
+      } catch (refErr) {
+        console.warn("POST /auth/setup-profile referral:", refErr?.message || refErr);
+      }
+    }
+
+    await invalidateAuthMeCache(req.user.id);
     return success(res, fresh, "تم إنشاء ملفك الشخصي بنجاح");
   } catch (err) {
     console.error("POST /auth/setup-profile", err?.message || err);
@@ -462,6 +467,7 @@ router.put("/profile", auth, allowSchema("userProfile"), async (req, res) => {
     }
 
     const user = await fetchFullUserProfile(supabase, req.user.id);
+    await invalidateAuthMeCache(req.user.id);
     return success(res, user, "تم حفظ الملف الشخصي بنجاح");
   } catch (err) {
     if (process.env.NODE_ENV !== "production") {
@@ -515,6 +521,7 @@ router.post("/avatar", auth, async (req, res) => {
     if (userError) throw userError;
 
     const user = await fetchFullUserProfile(supabase, req.user.id);
+    await invalidateAuthMeCache(req.user.id);
     return success(res, { avatar_url: publicUrl, user }, "تم تحديث الصورة الشخصية");
   } catch (err) {
     console.error("POST /auth/avatar", err?.message || err);

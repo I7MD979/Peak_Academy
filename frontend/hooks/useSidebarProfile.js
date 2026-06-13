@@ -4,10 +4,12 @@ import { useCallback, useEffect, useState } from "react";
 import { authApi } from "@/lib/api";
 import { getUserDisplay } from "@/lib/user-display";
 import { useAuth } from "@/hooks/useAuth";
+import { useProfileContext } from "@/components/providers/ProfileProvider";
 
 export const PROFILE_UPDATED = "peak-profile-updated";
 
 export function useSidebarProfile() {
+  const profileCtx = useProfileContext();
   const { user: authUser, session } = useAuth();
   const [apiUser, setApiUser] = useState(null);
   const accessToken = session?.access_token;
@@ -18,7 +20,7 @@ export function useSidebarProfile() {
       return;
     }
     try {
-      const res = await authApi.me(accessToken);
+      const res = await authApi.me();
       setApiUser(res?.data || null);
     } catch {
       setApiUser(null);
@@ -26,15 +28,21 @@ export function useSidebarProfile() {
   }, [accessToken]);
 
   useEffect(() => {
+    if (profileCtx) return;
     if (!accessToken) return;
     refresh();
-  }, [accessToken, refresh]);
+  }, [profileCtx, accessToken, refresh]);
 
   useEffect(() => {
+    if (profileCtx) return;
     const onUpdated = () => refresh();
     window.addEventListener(PROFILE_UPDATED, onUpdated);
     return () => window.removeEventListener(PROFILE_UPDATED, onUpdated);
-  }, [refresh]);
+  }, [profileCtx, refresh]);
+
+  if (profileCtx) {
+    return getUserDisplay(authUser, profileCtx.apiUser);
+  }
 
   return getUserDisplay(authUser, apiUser);
 }

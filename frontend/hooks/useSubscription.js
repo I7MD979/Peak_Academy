@@ -48,7 +48,7 @@ export function useSubscription() {
 
   const activateTrial = async () => {
     const res = await apiRequest("/subscriptions/activate-trial", { method: "POST" });
-    clearApiCache();
+    clearApiCache("/subscriptions");
     const data = res?.data;
     if (data?.trial_end) {
       setSubscription((prev) => ({

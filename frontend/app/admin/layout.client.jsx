@@ -6,11 +6,14 @@ import AdminTopBar from "@/components/shared/AdminTopBar";
 import AppLayoutFrame from "@/components/layout/AppLayoutFrame";
 import RoleGate from "@/components/layout/RoleGate";
 
+import RoleShellProviders from "@/components/providers/RoleShellProviders";
+
 export default function AdminLayoutClient({ children, initialProfile }) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <RoleGate roles={["admin", "supervisor"]} initialProfile={initialProfile}>
+    <RoleShellProviders initialProfile={initialProfile}>
+      <RoleGate roles={["admin", "supervisor"]} initialProfile={initialProfile}>
       <AppLayoutFrame
         shellClassName="admin-shell"
         sidebar={
@@ -20,6 +23,7 @@ export default function AdminLayoutClient({ children, initialProfile }) {
       >
         {children}
       </AppLayoutFrame>
-    </RoleGate>
+      </RoleGate>
+    </RoleShellProviders>
   );
 }

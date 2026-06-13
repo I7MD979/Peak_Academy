@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Icon from "@/components/shared/Icon";
 import { SectionLoader } from "@/components/shared/LoadingSkeleton";
-import { useNotifications } from "@/hooks/useNotifications";
+import { useNotificationsContext } from "@/components/providers/NotificationsProvider";
 import { getNotificationTypeMeta } from "@/lib/notification-types";
 import { cn } from "@/lib/utils";
 
@@ -61,7 +61,7 @@ function notifyThemeClasses(theme) {
 
 export default function NotificationBell({ theme = "light" }) {
   const router = useRouter();
-  const { items, unreadCount, loading, error, markRead, markAllRead } = useNotifications();
+  const { items, unreadCount, loading, error, markRead, markAllRead } = useNotificationsContext();
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const styles = notifyThemeClasses(theme);

@@ -17,8 +17,12 @@ export function sessionsOrderColumns() {
   return [...new Set([primary, "scheduled_at", "start_time", "created_at"])];
 }
 
-/** @deprecated */
-export const SESSION_LIST_SELECT = "*";
+/** Columns for session lists (avoid select * payload bloat). */
+export const SESSION_LIST_COLUMNS =
+  "id, title, subject, subject_id, grade, school_level, scheduled_at, start_time, status, max_students, price_per_student, teacher_id, duration_min, created_at";
+
+/** @deprecated use SESSION_LIST_COLUMNS for lists; detail views may still select * */
+export const SESSION_LIST_SELECT = SESSION_LIST_COLUMNS;
 
 export function normalizeSessionRow(row, { teacherMap = {}, enrollmentCounts = {} } = {}) {
   if (!row || typeof row !== "object") return row;
@@ -75,6 +79,15 @@ async function loadTeachersMap(teacherIds) {
 async function loadEnrollmentCounts(sessionIds) {
   if (!sessionIds.length) return {};
   try {
+    if (isSchemaV2()) {
+      const { data, error } = await supabase.rpc("count_enrollments_by_sessions", {
+        session_ids: sessionIds
+      });
+      if (!error && data?.length) {
+        return Object.fromEntries(data.map((row) => [row.session_id, Number(row.enrollment_count)]));
+      }
+    }
+
     const table = isSchemaV2() ? "enrollments" : "session_enrollments";
     const statusFilter = SCHEMA.confirmedEnrollmentStatuses();
     let query = supabase.from(table).select("session_id").in("session_id", sessionIds);
@@ -121,7 +134,7 @@ export async function querySessionsList(applyFilters) {
   for (const skipSubjectId of [false, true]) {
     for (const orderColumn of sessionsOrderColumns()) {
       try {
-        let query = supabase.from("sessions").select("*", { count: "exact" });
+        let query = supabase.from("sessions").select(SESSION_LIST_COLUMNS, { count: "exact" });
         query = applyFilters(query, orderColumn, { skipSubjectId });
 
         const result = await query;

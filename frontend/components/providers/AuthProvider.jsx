@@ -32,8 +32,12 @@ export default function AuthProvider({ children }) {
     bootstrap();
 
     if (!authSubscription) {
-      const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-        clearApiCache();
+      const { data } = supabase.auth.onAuthStateChange((event, nextSession) => {
+        if (event === "SIGNED_OUT") {
+          clearApiCache();
+        } else {
+          clearApiCache("/auth/me");
+        }
         setAuth({ user: nextSession?.user || null, session: nextSession || null });
         setLoading(false);
       });

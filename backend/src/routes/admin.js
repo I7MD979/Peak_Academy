@@ -49,19 +49,25 @@ function assertSupabaseResults(results) {
 
 
 async function fetchAdminDashboardStats() {
-  const [users, liveSessions, scheduledSessions, revenue, withdrawals] = await Promise.all([
+  const [users, liveSessions, scheduledSessions, revenueRpc, withdrawals] = await Promise.all([
     supabase.from("users").select("id", { count: "exact", head: true }),
     supabase.from("sessions").select("id", { count: "exact", head: true }).eq("status", "live"),
     supabase.from("sessions").select("id", { count: "exact", head: true }).eq("status", "scheduled"),
-    supabase.from("teacher_earnings").select("platform_amount"),
+    supabase.rpc("admin_total_platform_revenue"),
     supabase.from("withdrawal_requests").select("id", { count: "exact", head: true }).eq("status", "pending")
   ]);
 
   assertSupabaseResults([users, liveSessions, scheduledSessions, withdrawals]);
 
-  if (revenue.error) throw revenue.error;
-
-  const totalRevenue = revenue.data?.reduce((sum, e) => sum + Number(e.platform_amount || 0), 0) || 0;
+  let totalRevenue = 0;
+  if (revenueRpc.error) {
+    const revenue = await supabase.from("teacher_earnings").select("platform_amount");
+    if (revenue.error) throw revenue.error;
+    totalRevenue =
+      revenue.data?.reduce((sum, e) => sum + Number(e.platform_amount || 0), 0) || 0;
+  } else {
+    totalRevenue = Number(revenueRpc.data ?? 0);
+  }
 
   return {
     total_users: users.count || 0,

@@ -253,7 +253,9 @@ export const CACHE = {
     studentDashboard: 120,
     teacherDashboard: 120,
     parentReport: 600,
-    adminDashboard: 120
+    adminDashboard: 120,
+    authMe: 60,
+    studentSessions: 30
   },
   sessionsList: (filters) => `sessions:list:${JSON.stringify(filters)}`,
   sessionDetail: (id, scope = "public") => `session:${id}:${scope}`,
@@ -265,7 +267,9 @@ export const CACHE = {
   subscriptionPlans: () => "subscription:plans",
   parentReport: (parentId, studentId, month) => `parent:${parentId}:${studentId}:${month}`,
   adminDashboard: () => "admin:dashboard",
-  adminDashboardFull: () => "admin:dashboard:full"
+  adminDashboardFull: () => "admin:dashboard:full",
+  authMe: (userId) => `auth:me:${userId}`,
+  studentSessions: (userId, queryKey) => `student:${userId}:sessions:${queryKey}`
 };
 
 export async function getCacheEntry(key) {
@@ -327,7 +331,7 @@ export async function invalidateSessionCaches(sessionId, teacherUserId = null) {
   await Promise.all([
     invalidatePattern(`session:${sessionId}:`),
     invalidatePattern("sessions:list:"),
-    invalidatePattern(`teacher:`),
+    teacherUserId ? invalidatePattern(`teacher:${teacherUserId}:`) : Promise.resolve(),
     teacherUserId ? invalidate(CACHE.teacherDashboard(teacherUserId)) : Promise.resolve(),
     invalidate(CACHE.adminDashboard()),
     invalidate(CACHE.adminDashboardFull())
@@ -358,6 +362,11 @@ export async function invalidateTeacherCaches(teacherUserId) {
     invalidate(CACHE.teacherDashboard(teacherUserId)),
     invalidatePattern(`teacher:${teacherUserId}:`)
   ]);
+}
+
+export async function invalidateAuthMeCache(userId) {
+  if (!userId) return;
+  await invalidate(CACHE.authMe(userId));
 }
 
 export async function invalidateSubscriptionCaches(studentUserId) {

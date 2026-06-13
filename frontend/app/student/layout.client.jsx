@@ -6,12 +6,14 @@ import StudentBottomNav from "@/components/student/StudentBottomNav";
 import AppTopbar from "@/components/shared/AppTopbar";
 import AppLayoutFrame from "@/components/layout/AppLayoutFrame";
 import RoleGate from "@/components/layout/RoleGate";
+import RoleShellProviders from "@/components/providers/RoleShellProviders";
 
 export default function StudentLayoutClient({ children, initialProfile }) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <RoleGate roles={["student"]} initialProfile={initialProfile}>
+    <RoleShellProviders initialProfile={initialProfile}>
+      <RoleGate roles={["student"]} initialProfile={initialProfile}>
       <AppLayoutFrame
         mobileNavPadding
         sidebar={
@@ -29,6 +31,7 @@ export default function StudentLayoutClient({ children, initialProfile }) {
       >
         {children}
       </AppLayoutFrame>
-    </RoleGate>
+      </RoleGate>
+    </RoleShellProviders>
   );
 }

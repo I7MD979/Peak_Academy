@@ -6,11 +6,14 @@ import AppTopbar from "@/components/shared/AppTopbar";
 import AppLayoutFrame from "@/components/layout/AppLayoutFrame";
 import RoleGate from "@/components/layout/RoleGate";
 
+import RoleShellProviders from "@/components/providers/RoleShellProviders";
+
 export default function TeacherLayoutClient({ children, initialProfile }) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <RoleGate roles={["teacher"]} initialProfile={initialProfile}>
+    <RoleShellProviders initialProfile={initialProfile}>
+      <RoleGate roles={["teacher"]} initialProfile={initialProfile}>
       <AppLayoutFrame
         sidebar={
           <TeacherSidebar mobileOpen={mobileOpen} onCloseMobile={() => setMobileOpen(false)} />
@@ -26,6 +29,7 @@ export default function TeacherLayoutClient({ children, initialProfile }) {
       >
         {children}
       </AppLayoutFrame>
-    </RoleGate>
+      </RoleGate>
+    </RoleShellProviders>
   );
 }

@@ -19,6 +19,27 @@ import {
   resolveStudentSessionTab
 } from "@/lib/student-sessions";
 
+const SESSIONS_CACHE_PREFIX = "peak:student-sessions:";
+
+function readSessionsCache(query) {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(`${SESSIONS_CACHE_PREFIX}${query}`);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeSessionsCache(query, payload) {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(`${SESSIONS_CACHE_PREFIX}${query}`, JSON.stringify(payload));
+  } catch {
+    /* quota or private mode */
+  }
+}
+
 function StudentSessionsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -63,23 +84,36 @@ function StudentSessionsContent() {
 
   const loadSessions = useCallback(
     async ({ silent = false } = {}) => {
-      if (silent) setRefreshing(true);
-      else setLoading(true);
+      const query = buildStudentSessionsApiQuery({
+        tab,
+        page,
+        urlSearch,
+        onlyMyGrade,
+        schoolLevel,
+        subject,
+        maxPrice,
+        dateFrom,
+        dateTo
+      });
+
+      const cached = readSessionsCache(query);
+      const hasStale = Boolean(cached?.sessions?.length || cached?.pagination);
+
+      if (hasStale && !silent) {
+        setSessions(cached.sessions);
+        setTabCounts(cached.tabCounts || {});
+        setGradeLabel(cached.gradeLabel || "");
+        setPagination(cached.pagination || null);
+        setLoading(false);
+        setRefreshing(true);
+      } else if (silent) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
       setError("");
 
       try {
-        const query = buildStudentSessionsApiQuery({
-          tab,
-          page,
-          urlSearch,
-          onlyMyGrade,
-          schoolLevel,
-          subject,
-          maxPrice,
-          dateFrom,
-          dateTo
-        });
-
         const res = await studentApi.sessions(query);
         const payload = res?.data || {};
         const mapped = (payload.sessions || []).map((session) =>
@@ -90,9 +124,16 @@ function StudentSessionsContent() {
         setTabCounts(payload.tab_counts || {});
         setGradeLabel(payload.grade_label || "");
         setPagination(payload.pagination || null);
+
+        writeSessionsCache(query, {
+          sessions: mapped,
+          tabCounts: payload.tab_counts || {},
+          gradeLabel: payload.grade_label || "",
+          pagination: payload.pagination || null
+        });
       } catch (err) {
         logApiError("student/sessions", err);
-        if (!silent) setSessions([]);
+        if (!silent && !hasStale) setSessions([]);
         setError(err.message || "تعذر تحميل المحاضرات");
       } finally {
         setLoading(false);

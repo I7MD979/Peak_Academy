@@ -7,19 +7,25 @@ import { success, error } from "../utils/response.js";
 import {
   enrichSessions,
   normalizeSessionRow,
-  querySessionById
+  querySessionById,
+  SESSION_LIST_COLUMNS
 } from "../utils/session-select.js";
 import { buildLinkCode, ensureUserProfile, isRoleProfileComplete } from "../utils/ensure-user-profile.js";
-import { getEnrollmentOptionsForSession, getSessionForEnroll } from "../services/enrollmentService.js";
+import {
+  getEnrollmentOptionsForSession,
+  getSessionForEnroll,
+  getActiveSubscription,
+  resolveSessionSubjectId
+} from "../services/enrollmentService.js";
+import { getPlatformSessionPrice } from "../services/platformConfig.service.js";
 import { countPaidSessionEnrollments } from "../services/subscriptionService.js";
-import { getActiveSubscription } from "../services/enrollmentService.js";
 import { CACHE, invalidateStudentCaches, withCache } from "../lib/cache.js";
 import { isSchemaV2, SCHEMA } from "../lib/schema.js";
 import { getSessionJoinWindow } from "../utils/session-join.js";
 import { applyGradeFilter, isValidGrade } from "../lib/grades.js";
 import { SUBJECT_LABELS_AR } from "../lib/subjects.js";
 
-const SESSION_SELECT = "*";
+const SESSION_SELECT = SESSION_LIST_COLUMNS;
 
 const router = Router();
 
@@ -228,17 +234,57 @@ function applyScheduledDateRange(query, { from, to }) {
   return query;
 }
 
-async function countAvailableSessions(ctx, queryParams, userId) {
-  const { total } = await fetchAvailableSessionsPage(
-    ctx,
-    {
-      ...queryParams,
-      page: 1,
-      limit: 1
-    },
-    userId
+async function resolveSubjectIdsForSessions(sessions) {
+  const map = new Map();
+  await Promise.all(
+    (sessions || []).map(async (session) => {
+      map.set(session.id, await resolveSessionSubjectId(session));
+    })
   );
-  return total;
+  return map;
+}
+
+function applyAvailableEnrollmentOptions(row, session, ctx, subjectId) {
+  const trialUsed = subjectId ? ctx.trialUsed.has(`${session.teacher_id}:${subjectId}`) : true;
+  const seatsLeft =
+    row.seats_left ?? Math.max(0, (row.max_students || 0) - (row.enrollment_count || 0));
+  return {
+    ...row,
+    free_trial_available: Boolean(subjectId) && !trialUsed && ctx.price > 0,
+    active_subscription: ctx.subscription
+      ? {
+          id: ctx.subscription.id,
+          sessions_remaining: ctx.subscription.sessions_remaining,
+          plan_name: ctx.subscription.plan?.name
+        }
+      : null,
+    seats_left: seatsLeft,
+    low_seats: seatsLeft > 0 && seatsLeft <= 3
+  };
+}
+
+async function countAvailableSessions(ctx, queryParams, userId) {
+  const filterKey = JSON.stringify({
+    only_my_grade: queryParams.only_my_grade ?? "true",
+    subject: queryParams.subject || "",
+    max_price: queryParams.max_price || "",
+    school_level: queryParams.school_level || "",
+    from: queryParams.from || "",
+    to: queryParams.to || "",
+    search: queryParams.search || ""
+  });
+  return withCache(
+    CACHE.studentSessions(userId, `available-count:${filterKey}`),
+    CACHE.TTL.studentSessions,
+    async () => {
+      const { total } = await fetchAvailableSessionsPage(
+        ctx,
+        { ...queryParams, page: 1, limit: 1 },
+        userId
+      );
+      return total;
+    }
+  );
 }
 
 async function fetchAvailableSessionsPage(ctx, queryParams, userId) {
@@ -263,6 +309,17 @@ async function fetchAvailableSessionsPage(ctx, queryParams, userId) {
   let dbOffset = 0;
   const nonFull = [];
 
+  const [subscription, price, trialRes] = await Promise.all([
+    getActiveSubscription(userId),
+    getPlatformSessionPrice(),
+    supabase.from("free_trial_uses").select("teacher_id, subject_id").eq("student_id", userId)
+  ]);
+  const enrollCtx = {
+    subscription,
+    price,
+    trialUsed: new Set((trialRes.data || []).map((r) => `${r.teacher_id}:${r.subject_id}`))
+  };
+
   while (dbOffset < 2000) {
     let query = supabase.from("sessions").select(SESSION_SELECT);
     query = applyAvailableFilters(query, {
@@ -286,21 +343,18 @@ async function fetchAvailableSessionsPage(ctx, queryParams, userId) {
     if (!data?.length) break;
 
     const enriched = await enrichSessions(data);
+    const subjectIds = await resolveSubjectIdsForSessions(enriched);
     for (const session of enriched) {
       const row = mapSessionRow(session, { isEnrolled: false, enrollmentStatus: null });
       if (!row.is_full) {
-        const opts = await getEnrollmentOptionsForSession(userId, {
-          ...session,
-          enrolled_count: row.enrollment_count,
-          seats_left: Math.max(0, (row.max_students || 0) - (row.enrollment_count || 0))
-        });
-        nonFull.push({
-          ...row,
-          free_trial_available: opts.free_trial_available,
-          active_subscription: opts.active_subscription,
-          seats_left: opts.seats_left,
-          low_seats: opts.low_seats
-        });
+        nonFull.push(
+          applyAvailableEnrollmentOptions(
+            row,
+            session,
+            enrollCtx,
+            subjectIds.get(session.id)
+          )
+        );
       }
     }
 
@@ -602,133 +656,156 @@ router.get("/sessions", auth, checkRole("student"), async (req, res) => {
       return error(res, "نطاق التاريخ غير صالح", 400);
     }
 
-    const { from, to } = paginate(pageNum, limitNum);
-
-    let query = supabase.from("sessions").select(SESSION_SELECT, { count: "exact" });
-
-    const emptyPayload = (tabCounts) =>
-      success(res, {
-        sessions: [],
-        pagination: paginationMeta(0, pageNum, limitNum),
-        tab_counts: tabCounts,
-        grade_label: GRADE_LABELS[student.grade] || student.grade
-      });
-
-    if (tab === "mine") {
-      if (enrolledIds.length === 0) {
-        return emptyPayload({ available: 0, mine: 0, live: 0, completed: 0 });
-      }
-      query = query.in("id", enrolledIds).order("scheduled_at", { ascending: false });
-    } else if (tab === "live") {
-      query = query.eq("status", "live").order("scheduled_at", { ascending: true });
-      if (enrolledIds.length > 0) {
-        query = query.in("id", enrolledIds);
-      } else {
-        return emptyPayload({ available: 0, mine: 0, live: 0, completed: 0 });
-      }
-    } else if (tab === "completed") {
-      if (enrolledIds.length === 0) {
-        return emptyPayload({ available: 0, mine: 0, live: 0, completed: 0 });
-      }
-      query = query.in("id", enrolledIds).eq("status", "completed").order("scheduled_at", { ascending: false });
-    } else {
-      query = applyAvailableFilters(query, {
-        student,
-        enrolledIds,
-        onlyMyGrade: only_my_grade,
-        subject: subjectKey || null,
-        maxPrice: maxPrice && maxPrice > 0 ? maxPrice : null,
-        schoolLevel,
-        dateFrom: dateRange.from,
-        dateTo: dateRange.to
-      });
-    }
-
-    if (tab !== "available" && schoolLevel) {
-      query = query.eq("school_level", schoolLevel);
-    }
-
-    if (tab !== "available" && subjectKey) {
-      query = query.eq("subject", subjectKey);
-    }
-    if (tab !== "available" && maxPrice && maxPrice > 0) {
-      query = query.lte("price_per_student", maxPrice);
-    }
-
-    if (tab !== "available" && (dateRange.from || dateRange.to)) {
-      query = applyScheduledDateRange(query, dateRange);
-    }
-
-    if (searchTerm) {
-      query = query.ilike("title", `%${searchTerm}%`);
-    }
-
-    let sessions = [];
-    let totalForPagination = 0;
-
-    if (tab === "available") {
-      const available = await fetchAvailableSessionsPage(ctx, req.query, req.user.id);
-      sessions = available.sessions;
-      totalForPagination = available.total;
-    } else {
-      query = query.range(from, to);
-
-      const { data, count, error: dbError } = await query;
-      if (dbError) throw dbError;
-
-      const enriched = await enrichSessions(data || []);
-      sessions = enriched.map((session) => {
-        const isEnrolled = enrolledIds.includes(session.id);
-        return mapSessionRow(session, {
-          isEnrolled,
-          enrollmentStatus: enrollmentMap[session.id] || null
-        });
-      });
-
-      totalForPagination = count;
-    }
-
-    const tabCounts = {
-      available: 0,
-      mine: enrolledIds.length,
-      live: 0,
-      completed: 0
-    };
-
-    const [availableTotal, liveCountRes, completedCountRes] = await Promise.all([
-      tab === "available"
-        ? Promise.resolve(totalForPagination)
-        : countAvailableSessions(ctx, req.query, req.user.id),
-      enrolledIds.length
-        ? supabase
-            .from("sessions")
-            .select("id", { count: "exact", head: true })
-            .eq("status", "live")
-            .in("id", enrolledIds)
-        : Promise.resolve({ count: 0 }),
-      enrolledIds.length
-        ? supabase
-            .from("sessions")
-            .select("id", { count: "exact", head: true })
-            .eq("status", "completed")
-            .in("id", enrolledIds)
-        : Promise.resolve({ count: 0 })
-    ]);
-
-    tabCounts.available = availableTotal;
-    tabCounts.live = liveCountRes.count || 0;
-    tabCounts.completed = completedCountRes.count || 0;
-
-    if (tab !== "available") {
-      totalForPagination = totalForPagination || 0;
-    }
-
-    return success(res, {
-      sessions,
-      pagination: paginationMeta(totalForPagination, pageNum, limitNum),
-      tab_counts: tabCounts,
-      grade_label: GRADE_LABELS[student.grade] || student.grade
+    const sessionsCacheKey = JSON.stringify({
+      tab,
+      page: pageNum,
+      limit: limitNum,
+      search: searchTerm,
+      only_my_grade,
+      subject: subjectKey,
+      max_price,
+      school_level: schoolLevel,
+      from: fromRaw,
+      to: toRaw
     });
+
+    const payload = await withCache(
+      CACHE.studentSessions(req.user.id, sessionsCacheKey),
+      CACHE.TTL.studentSessions,
+      async () => {
+        const { from, to } = paginate(pageNum, limitNum);
+
+        let query = supabase.from("sessions").select(SESSION_SELECT, { count: "exact" });
+
+        const emptyPayload = (tabCounts) => ({
+          sessions: [],
+          pagination: paginationMeta(0, pageNum, limitNum),
+          tab_counts: tabCounts,
+          grade_label: GRADE_LABELS[student.grade] || student.grade
+        });
+
+        if (tab === "mine") {
+          if (enrolledIds.length === 0) {
+            return emptyPayload({ available: 0, mine: 0, live: 0, completed: 0 });
+          }
+          query = query.in("id", enrolledIds).order("scheduled_at", { ascending: false });
+        } else if (tab === "live") {
+          query = query.eq("status", "live").order("scheduled_at", { ascending: true });
+          if (enrolledIds.length > 0) {
+            query = query.in("id", enrolledIds);
+          } else {
+            return emptyPayload({ available: 0, mine: 0, live: 0, completed: 0 });
+          }
+        } else if (tab === "completed") {
+          if (enrolledIds.length === 0) {
+            return emptyPayload({ available: 0, mine: 0, live: 0, completed: 0 });
+          }
+          query = query
+            .in("id", enrolledIds)
+            .eq("status", "completed")
+            .order("scheduled_at", { ascending: false });
+        } else {
+          query = applyAvailableFilters(query, {
+            student,
+            enrolledIds,
+            onlyMyGrade: only_my_grade,
+            subject: subjectKey || null,
+            maxPrice: maxPrice && maxPrice > 0 ? maxPrice : null,
+            schoolLevel,
+            dateFrom: dateRange.from,
+            dateTo: dateRange.to
+          });
+        }
+
+        if (tab !== "available" && schoolLevel) {
+          query = query.eq("school_level", schoolLevel);
+        }
+
+        if (tab !== "available" && subjectKey) {
+          query = query.eq("subject", subjectKey);
+        }
+        if (tab !== "available" && maxPrice && maxPrice > 0) {
+          query = query.lte("price_per_student", maxPrice);
+        }
+
+        if (tab !== "available" && (dateRange.from || dateRange.to)) {
+          query = applyScheduledDateRange(query, dateRange);
+        }
+
+        if (searchTerm) {
+          query = query.ilike("title", `%${searchTerm}%`);
+        }
+
+        let sessions = [];
+        let totalForPagination = 0;
+
+        if (tab === "available") {
+          const available = await fetchAvailableSessionsPage(ctx, req.query, req.user.id);
+          sessions = available.sessions;
+          totalForPagination = available.total;
+        } else {
+          query = query.range(from, to);
+
+          const { data, count, error: dbError } = await query;
+          if (dbError) throw dbError;
+
+          const enriched = await enrichSessions(data || []);
+          sessions = enriched.map((session) => {
+            const isEnrolled = enrolledIds.includes(session.id);
+            return mapSessionRow(session, {
+              isEnrolled,
+              enrollmentStatus: enrollmentMap[session.id] || null
+            });
+          });
+
+          totalForPagination = count;
+        }
+
+        const tabCounts = {
+          available: 0,
+          mine: enrolledIds.length,
+          live: 0,
+          completed: 0
+        };
+
+        const [availableTotal, liveCountRes, completedCountRes] = await Promise.all([
+          tab === "available"
+            ? Promise.resolve(totalForPagination)
+            : countAvailableSessions(ctx, req.query, req.user.id),
+          enrolledIds.length
+            ? supabase
+                .from("sessions")
+                .select("id", { count: "exact", head: true })
+                .eq("status", "live")
+                .in("id", enrolledIds)
+            : Promise.resolve({ count: 0 }),
+          enrolledIds.length
+            ? supabase
+                .from("sessions")
+                .select("id", { count: "exact", head: true })
+                .eq("status", "completed")
+                .in("id", enrolledIds)
+            : Promise.resolve({ count: 0 })
+        ]);
+
+        tabCounts.available = availableTotal;
+        tabCounts.live = liveCountRes.count || 0;
+        tabCounts.completed = completedCountRes.count || 0;
+
+        if (tab !== "available") {
+          totalForPagination = totalForPagination || 0;
+        }
+
+        return {
+          sessions,
+          pagination: paginationMeta(totalForPagination, pageNum, limitNum),
+          tab_counts: tabCounts,
+          grade_label: GRADE_LABELS[student.grade] || student.grade
+        };
+      }
+    );
+
+    return success(res, payload);
   } catch (err) {
     if (process.env.NODE_ENV !== "production") {
       console.error("GET /student/sessions", err);
