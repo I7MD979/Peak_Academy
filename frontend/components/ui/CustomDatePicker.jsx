@@ -249,7 +249,10 @@ const CustomDatePicker = forwardRef(
 
         {open ? (
           <div
-            className={cn("absolute z-50 mt-1 w-full min-w-[280px] rounded-xl border p-3", styles.popover)}
+            className={cn(
+              "absolute z-50 mt-1 w-[min(100%,280px)] max-w-[calc(100vw-2rem)] rounded-xl border p-3",
+              styles.popover
+            )}
             style={{ top: "100%", left: 0 }}
           >
             <div className="mb-3 flex items-center justify-between">

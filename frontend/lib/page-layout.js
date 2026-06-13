@@ -1,17 +1,18 @@
 /** Shared app shell — applied once in role layouts via AppLayoutFrame */
 
 export const APP_SHELL =
-  "min-h-screen bg-background font-cairo text-on-background [color-scheme:dark]";
+  "min-h-screen min-w-0 overflow-x-hidden bg-background font-cairo text-on-background [color-scheme:dark]";
 
-export const APP_CONTENT_COLUMN = "flex min-h-screen flex-col md:ps-[260px]";
+export const APP_CONTENT_COLUMN = "flex min-h-screen min-w-0 flex-col md:ps-[260px]";
 
-export const APP_MAIN = "flex flex-1 flex-col overflow-y-auto";
+export const APP_MAIN = "flex min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto";
 
 export const APP_PAGE =
-  "mx-auto flex w-full max-w-6xl flex-1 flex-col p-4 md:p-8";
+  "mx-auto flex w-full min-w-0 max-w-6xl flex-1 flex-col p-4 sm:p-6 md:p-8";
 
 /** Extra bottom padding when a mobile bottom nav is present */
-export const APP_PAGE_MOBILE_NAV_PADDING = "pb-20 md:pb-8";
+export const APP_PAGE_MOBILE_NAV_PADDING =
+  "pb-[calc(5rem+env(safe-area-inset-bottom,0px))] md:pb-8";
 
 const IMMERSIVE_PATH_PATTERNS = [
   /^\/teacher\/live\/[^/]+$/,

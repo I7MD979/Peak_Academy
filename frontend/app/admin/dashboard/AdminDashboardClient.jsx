@@ -191,7 +191,7 @@ export default function AdminDashboardClient({ initialDashboard = null }) {
         key: "title",
         label: "الجلسة",
         render: (row) => (
-          <button type="button" className="min-w-[160px] text-start" onClick={() => setSelectedSession(row)}>
+          <button type="button" className="min-w-0 max-w-full text-start sm:min-w-[160px]" onClick={() => setSelectedSession(row)}>
             <p className="font-bold text-on-surface hover:text-md-primary">{row.title}</p>
             <p className="mt-0.5 text-xs text-on-surface-variant">
               {row.subject?.icon ? `${row.subject.icon} ` : ""}

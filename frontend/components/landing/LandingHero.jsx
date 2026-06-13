@@ -138,7 +138,7 @@ export default function LandingHero({ platformStats }) {
 
           <div
             ref={statsRef}
-            className="grid w-full max-w-2xl grid-cols-3 gap-3 rounded-2xl border border-white/[0.12] bg-landing-navy/50 p-4 pt-6 text-center backdrop-blur-md sm:flex sm:flex-wrap sm:justify-center sm:gap-10 sm:p-5 sm:pt-8 md:gap-16"
+            className="grid w-full max-w-2xl grid-cols-1 gap-4 rounded-2xl border border-white/[0.12] bg-landing-navy/50 p-4 pt-6 text-center backdrop-blur-md min-[420px]:grid-cols-3 min-[420px]:gap-3 sm:flex sm:flex-wrap sm:justify-center sm:gap-10 sm:p-5 sm:pt-8 md:gap-16"
           >
             <div className="min-w-0">
               <div className="mb-0.5 text-2xl font-black text-white sm:mb-1 sm:text-3xl">

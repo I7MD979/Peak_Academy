@@ -18,7 +18,7 @@ export default function AdminPageHeader({
             {eyebrow}
           </p>
         ) : null}
-        <h1 className="text-2xl font-black text-auth-on-surface md:text-3xl">{title}</h1>
+        <h1 className="text-xl font-black text-auth-on-surface sm:text-2xl md:text-3xl">{title}</h1>
         {subtitle ? (
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-auth-on-surface-variant">{subtitle}</p>
         ) : null}

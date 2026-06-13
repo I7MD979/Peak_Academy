@@ -18,7 +18,7 @@ export default function StudentBottomNav({ className }) {
   return (
     <nav
       className={cn(
-        "fixed bottom-0 left-0 right-0 z-40 border-t border-auth-outline-variant/40 bg-auth-surface-high/95 shadow-[0_-4px_24px_rgba(0,0,0,0.35)] backdrop-blur-md supports-[backdrop-filter]:bg-auth-surface-high/85",
+        "fixed bottom-0 left-0 right-0 z-40 border-t border-auth-outline-variant/40 bg-auth-surface-high/95 pb-[env(safe-area-inset-bottom,0px)] shadow-[0_-4px_24px_rgba(0,0,0,0.35)] backdrop-blur-md supports-[backdrop-filter]:bg-auth-surface-high/85",
         className
       )}
       aria-label="تنقل سفلي للطالب"

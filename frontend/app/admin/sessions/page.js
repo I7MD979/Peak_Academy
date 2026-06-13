@@ -248,7 +248,7 @@ function AdminSessionsRoute() {
         key: "title",
         label: "الجلسة",
         render: (row) => (
-          <button type="button" className="min-w-[180px] text-start" onClick={() => openSession(row)}>
+          <button type="button" className="min-w-0 max-w-full text-start sm:min-w-[180px]" onClick={() => openSession(row)}>
             <p className="font-bold text-on-surface hover:text-md-primary">{row.title}</p>
             <p className="mt-0.5 text-xs text-on-surface-variant">
               {row.subject?.icon ? `${row.subject.icon} ` : ""}

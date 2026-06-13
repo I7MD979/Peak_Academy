@@ -14,10 +14,10 @@ export const adminSelect =
   "h-11 rounded-lg border border-auth-outline-variant/50 bg-auth-surface-highest px-4 text-sm text-auth-on-surface focus:border-peak-orange focus:outline-none focus:ring-1 focus:ring-peak-orange/30";
 
 export const adminFilterBar =
-  "rounded-xl border border-auth-outline-variant/30 bg-auth-surface-low p-2 flex flex-wrap items-center gap-2";
+  "flex max-w-full items-center gap-2 overflow-x-auto rounded-xl border border-auth-outline-variant/30 bg-auth-surface-low p-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:flex-wrap";
 
 export const adminFilterTab =
-  "px-5 py-2 rounded-lg text-xs font-bold transition-all";
+  "shrink-0 whitespace-nowrap rounded-lg px-4 py-2 text-xs font-bold transition-all sm:px-5";
 
 export const adminFilterTabActive =
   "bg-peak-orange text-white shadow-lg shadow-peak-orange/20";
@@ -35,4 +35,8 @@ export const adminSectionTitle = "text-lg font-bold text-auth-on-surface";
 export const adminMuted = "text-auth-on-surface-variant";
 export const adminLabel = "text-xs font-bold text-auth-on-surface-variant";
 export const adminErrorBox = "rounded-xl border border-danger/30 bg-danger/10 p-4 text-sm font-semibold text-danger";
-export const adminModalOverlay = "fixed inset-0 z-[60] flex items-center justify-center p-4";
+export const adminModalOverlay =
+  "fixed inset-0 z-[60] flex items-end justify-center overflow-y-auto overscroll-contain bg-black/50 p-3 sm:items-center sm:p-4";
+
+export const adminModalPanel =
+  "relative z-10 max-h-[min(92dvh,100%)] w-full overflow-y-auto rounded-2xl border border-auth-outline-variant/40 bg-auth-surface-high shadow-2xl sm:max-h-[90vh]";

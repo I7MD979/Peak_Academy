@@ -11,6 +11,12 @@ const cairo = Cairo({
   display: "swap"
 });
 
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover"
+};
+
 export const metadata = {
   metadataBase: new URL("https://peak-academy.net"),
   title: {

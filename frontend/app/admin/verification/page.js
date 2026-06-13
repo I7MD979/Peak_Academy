@@ -91,7 +91,7 @@ export default function AdminVerificationPage() {
   }
 
   return (
-    <div className="space-y-6 p-4 md:p-8">
+    <div className="space-y-6">
       <AdminPageHeader
         eyebrow="التحقق من الهوية"
         title="مراجعة المستندات"
@@ -106,7 +106,74 @@ export default function AdminVerificationPage() {
           لا توجد طلبات قيد المراجعة
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-auth-outline-variant/20">
+        <>
+          <div className="space-y-3 md:hidden">
+            {rows.map((row) => {
+              const user = row.users || {};
+              return (
+                <article
+                  key={row.id}
+                  className="rounded-2xl border border-auth-outline-variant/20 bg-auth-surface-high p-4 shadow-sm"
+                >
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-xs font-bold text-auth-on-surface-variant">المستخدم</p>
+                      <p className="font-bold">{user.full_name || "—"}</p>
+                      {user.email ? (
+                        <p className="text-xs text-auth-on-surface-variant" dir="ltr">
+                          {user.email}
+                        </p>
+                      ) : null}
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <p className="text-xs font-bold text-auth-on-surface-variant">الدور</p>
+                        <p>{ROLE_LABELS[user.role] || user.role}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-auth-on-surface-variant">المستند</p>
+                        <p>{DOC_LABELS[row.doc_type] || row.doc_type}</p>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-auth-on-surface-variant">التاريخ</p>
+                      <p className="text-sm">{new Date(row.created_at).toLocaleString("ar-EG")}</p>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2 border-t border-auth-outline-variant/10 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => openDoc(row.id)}
+                      className={cn(studentBtnSecondary, "text-xs py-1.5 px-3")}
+                    >
+                      عرض
+                    </button>
+                    <button
+                      type="button"
+                      disabled={mutatingId === row.id}
+                      onClick={() => approve(row.id)}
+                      className={cn(studentBtnPrimary, "text-xs py-1.5 px-3")}
+                    >
+                      اعتماد
+                    </button>
+                    <button
+                      type="button"
+                      disabled={mutatingId === row.id}
+                      onClick={() => {
+                        setRejectId(row.id);
+                        setRejectReason("");
+                      }}
+                      className="rounded-lg border border-danger/40 px-3 py-1.5 text-xs font-bold text-danger hover:bg-danger/10"
+                    >
+                      رفض
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+
+          <div className="hidden overflow-x-auto rounded-xl border border-auth-outline-variant/20 md:block">
           <table className="min-w-full text-sm">
             <thead className="bg-auth-surface-variant/20 text-auth-on-surface-variant">
               <tr>
@@ -169,11 +236,12 @@ export default function AdminVerificationPage() {
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       {rejectId ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-auth-surface p-6 shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black/50 p-3 sm:items-center sm:p-4">
+          <div className="max-h-[min(92dvh,100%)] w-full max-w-md overflow-y-auto rounded-2xl bg-auth-surface p-5 shadow-xl sm:p-6">
             <h3 className="text-lg font-black">سبب الرفض</h3>
             <textarea
               value={rejectReason}

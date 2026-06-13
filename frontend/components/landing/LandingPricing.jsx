@@ -21,7 +21,7 @@ function PricingCard({ plan }) {
 
   return (
     <article
-      className={`group relative flex h-full flex-col overflow-visible rounded-[1.75rem] transition-all duration-300 ${
+      className={`group relative flex h-full max-w-full flex-col overflow-hidden rounded-[1.75rem] transition-all duration-300 ${
         featured
           ? "z-10 border-2 border-landing-orange bg-white p-6 shadow-[0_28px_64px_-20px_rgba(245,114,26,0.35)] sm:p-7 md:-translate-y-1 md:scale-[1.03] md:p-8"
           : "border border-landing-ink/[0.08] bg-white/90 p-6 shadow-[0_12px_40px_-16px_rgba(10,18,32,0.12)] backdrop-blur-sm hover:-translate-y-1 hover:border-landing-navy/15 hover:shadow-[0_20px_48px_-14px_rgba(10,18,32,0.18)] sm:p-7 md:p-8"
@@ -108,7 +108,7 @@ export default function LandingPricing({ plans }) {
   const gridClass = landingPricingGridClass(displayPlans.length);
 
   return (
-    <div className="bg-white">
+    <div className="bg-white overflow-x-hidden">
       <LandingWaveDivider fill="white" />
       <section
         id="pricing"

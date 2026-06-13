@@ -3,7 +3,7 @@ import { adminFilterBar, adminFilterTab, adminFilterTabActive, adminFilterTabIdl
 
 export default function AdminFilterTabs({ tabs, value, onChange, className }) {
   return (
-    <div className={cn(adminFilterBar, "w-fit", className)}>
+    <div className={cn(adminFilterBar, className)}>
       {tabs.map((tab) => {
         const active = value === tab.key;
         return (

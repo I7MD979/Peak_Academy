@@ -246,7 +246,10 @@ const CustomTimePicker = forwardRef(
 
         {open ? (
           <div
-            className={cn("absolute z-50 mt-1 w-full min-w-[260px] overflow-hidden rounded-xl border", styles.popover)}
+            className={cn(
+              "absolute z-50 mt-1 w-[min(100%,260px)] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border",
+              styles.popover
+            )}
             style={{ top: "100%", left: 0 }}
           >
             <div className={cn("border-b px-4 py-3 text-center", styles.header)}>

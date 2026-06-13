@@ -19,7 +19,7 @@ export default function ProfileHero({
           <ProfileAvatar name={name || title} avatarUrl={avatarUrl} />
           <div>
             <p className="text-sm text-white/70">{eyebrow}</p>
-            <h1 className="mt-1 text-2xl font-black">{title}</h1>
+            <h1 className="mt-1 text-xl font-black sm:text-2xl">{title}</h1>
             {subtitle ? <p className="mt-1 text-sm text-white/75">{subtitle}</p> : null}
           </div>
         </div>

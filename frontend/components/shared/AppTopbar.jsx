@@ -44,7 +44,7 @@ function TopbarBreadcrumbs({ crumbs, t }) {
   if (!crumbs?.length) return null;
 
   return (
-    <nav aria-label="مسار الصفحة" className="mb-0.5 flex flex-wrap items-center gap-1.5 text-xs">
+    <nav aria-label="مسار الصفحة" className="mb-0.5 hidden flex-wrap items-center gap-1.5 text-xs sm:flex">
       {crumbs.map((crumb, index) => (
         <Fragment key={`${crumb.label}-${index}`}>
           {index > 0 ? (
@@ -129,7 +129,7 @@ function UserMenu({ profile, roleLabel, profileHref, profileMenuLabel, onLogout,
         aria-haspopup="menu"
         aria-controls="topbar-user-menu"
       >
-        <UserAvatar fullName={profile.full_name} avatarUrl={profile.avatar_url} className={t.avatar} />
+        <UserAvatar fullName={profile.full_name} avatarUrl={profile.avatar_url} className={t.avatar} size="sm" />
         <span className={cn("hidden max-w-[110px] truncate text-sm font-bold sm:inline", t.userName)}>
           {profile.full_name || "مستخدم"}
         </span>
@@ -256,7 +256,7 @@ export default function AppTopbar({
   if (variant === "brand") {
     return (
       <header className={t.header}>
-        <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 py-3 md:px-8">
+        <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-2 px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3 md:px-8">
           <Link href={meta.homeHref} className="shrink-0 transition-opacity hover:opacity-90">
             <PeakLogo variant="compact" subtitle={meta.panelLabel} showSubtitle={false} />
           </Link>
@@ -290,7 +290,7 @@ export default function AppTopbar({
 
   return (
     <header className={t.header}>
-      <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 py-3 md:px-8">
+      <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-2 px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3 md:px-8">
         <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
           {onOpenMobile ? (
             <div className={cn("shrink-0", menuClass)}>
