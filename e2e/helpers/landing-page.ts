@@ -26,25 +26,21 @@ export async function scrollToSection(page: Page, selector: string) {
   await section.waitFor({ state: "visible", timeout: 15_000 });
 }
 
-/** Switch hero study level via desktop tab buttons. */
+/** Switch hero study level via tab buttons (all viewports). */
 export async function selectStudyLevelDesktop(
   page: Page,
   level: "طالب إعدادي" | "طالب ثانوي"
 ) {
-  const btn = page
-    .locator(".landing-hero div.sm\\:inline-flex")
-    .getByRole("button", { name: level, exact: true });
-  await btn.click();
+  await page
+    .locator(".landing-hero [role='tablist']")
+    .getByRole("tab", { name: level, exact: true })
+    .click();
 }
 
-/** Switch hero study level via mobile LandingSelect combobox. */
+/** @deprecated Use selectStudyLevelDesktop — mobile now uses the same tab control. */
 export async function selectStudyLevelMobile(
   page: Page,
   level: "طالب إعدادي" | "طالب ثانوي"
 ) {
-  await page.getByRole("button", { name: "المرحلة الدراسية" }).click();
-  await page
-    .getByRole("listbox")
-    .getByRole("button", { name: level, exact: true })
-    .click();
+  await selectStudyLevelDesktop(page, level);
 }

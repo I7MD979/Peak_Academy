@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import LandingSelect from "@/components/landing/LandingSelect";
 import { registerHrefForLevel } from "@/lib/level-params";
 import { resolveHeroCounters } from "@/lib/landing-api";
+import { cn } from "@/lib/utils";
 
 const LEVEL_OPTIONS = [
   { value: "prep", label: "طالب إعدادي" },
@@ -93,40 +93,37 @@ export default function LandingHero({ platformStats }) {
             التفوق والوصول إلى القمة.
           </p>
 
-          <div className="mb-8 w-full max-w-md sm:mb-10">
-            <p className="mb-2 text-xs font-semibold text-landing-on-dark-subtle sm:mb-3">اختر مرحلتك الدراسية</p>
-            <div className="hidden rounded-2xl border border-white/5 bg-white/5 p-1 backdrop-blur-sm sm:mx-auto sm:inline-flex">
-              {LEVEL_OPTIONS.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => setActiveTab(option.value)}
-                  className="rounded-xl px-6 py-3 text-sm font-bold transition-all md:px-8 md:py-3.5"
-                  style={
-                    activeTab === option.value
-                      ? {
-                          background: "#f5721a",
-                          color: "white",
-                          boxShadow: "0 4px 20px rgba(245,114,26,0.2)"
-                        }
-                      : { color: "rgba(255, 255, 255, 0.72)" }
-                  }
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-            <div className="sm:hidden">
-              <LandingSelect
-                value={activeTab}
-                onChange={setActiveTab}
-                options={LEVEL_OPTIONS}
-                aria-label="المرحلة الدراسية"
-              />
+          <div className="relative z-20 mb-6 w-full max-w-md sm:mb-10">
+            <p className="mb-3 text-xs font-semibold text-landing-on-dark-subtle">اختر مرحلتك الدراسية</p>
+            <div
+              role="tablist"
+              aria-label="المرحلة الدراسية"
+              className="grid grid-cols-2 gap-1 rounded-2xl border border-white/10 bg-white/5 p-1 backdrop-blur-sm"
+            >
+              {LEVEL_OPTIONS.map((option) => {
+                const active = activeTab === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setActiveTab(option.value)}
+                    className={cn(
+                      "rounded-xl px-2 py-3 text-xs font-bold transition-all sm:px-6 sm:py-3 sm:text-sm md:px-8 md:py-3.5",
+                      active
+                        ? "bg-landing-orange text-white shadow-[0_4px_20px_rgba(245,114,26,0.2)]"
+                        : "text-landing-on-dark-muted hover:bg-white/5 hover:text-white"
+                    )}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          <div className="mb-10 flex w-full flex-col items-center justify-center gap-3 sm:mb-14 sm:w-auto sm:flex-row sm:flex-wrap sm:gap-4">
+          <div className="relative z-10 mb-10 flex w-full max-w-md flex-col items-stretch gap-3 sm:mb-14 sm:w-auto sm:flex-row sm:flex-wrap sm:justify-center sm:gap-4">
             <Link href={registerHref} className="landing-btn-primary w-full sm:w-auto">
               <span>ابدأ رحلتك</span>
               <span>→</span>

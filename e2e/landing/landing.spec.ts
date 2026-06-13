@@ -45,8 +45,8 @@ test.describe("Landing Page — Hero Section", () => {
   test('أزرار اختيار المرحلة ("طالب إعدادي" و "طالب ثانوي") ظاهرين', async ({
     page
   }) => {
-    await expect(page.getByRole("button", { name: "طالب إعدادي" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "طالب ثانوي" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "طالب إعدادي" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "طالب ثانوي" })).toBeVisible();
   });
 
   test('الضغط على "طالب ثانوي" يغيّر الـ active state', async ({ page }) => {
