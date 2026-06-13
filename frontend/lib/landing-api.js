@@ -20,7 +20,7 @@ export async function getLandingData() {
     const baseUrl = getApiBaseUrl();
     const resolvedBase = baseUrl.includes("localhost") ? RAILWAY_API : baseUrl;
     const res = await fetch(`${resolvedBase}/public/landing`, {
-      next: { revalidate: 300 },
+      next: { revalidate: 60, tags: ["landing-data"] },
       headers: { Accept: "application/json" }
     });
     if (!res.ok) return null;
@@ -28,6 +28,31 @@ export async function getLandingData() {
     return json?.data ?? null;
   } catch {
     return null;
+  }
+}
+
+export async function validatePublicPromoCode(code, paymentType = "subscription") {
+  const normalized = String(code || "").trim().toUpperCase();
+  if (!normalized) {
+    return { valid: false, message: "أدخل كود الخصم أولاً" };
+  }
+
+  try {
+    const baseUrl = getApiBaseUrl();
+    const resolvedBase = baseUrl.includes("localhost") ? RAILWAY_API : baseUrl;
+    const res = await fetch(`${resolvedBase}/public/validate-promo`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ code: normalized, payment_type: paymentType })
+    });
+    const json = await res.json().catch(() => ({}));
+    const payload = json?.data ?? json;
+    return {
+      valid: Boolean(payload?.valid),
+      message: payload?.message || json?.message || "تعذر التحقق من الكود"
+    };
+  } catch {
+    return { valid: false, message: "تعذر التحقق من الكود حالياً" };
   }
 }
 
@@ -39,19 +64,26 @@ export function mapPlansToLanding(plans) {
 
     return {
       id: plan.id,
-      label: plan.name,
-      name: plan.name,
+      label: plan.name_ar || plan.name,
+      name: plan.name_ar || plan.name,
       price:
         plan.price === 0 || Number(plan.price) === 0
           ? "مجاناً"
           : Number(plan.price).toLocaleString("ar-EG"),
+      priceNumeric: Number(plan.price) || 0,
       priceIsText: plan.price === 0 || Number(plan.price) === 0,
       priceSuffix: Number(plan.price) > 0 ? "جنيه" : null,
+      sessionsCount: sessions,
+      perSessionLabel:
+        sessions > 0 && Number(plan.price) > 0
+          ? `${Math.round(Number(plan.price) / sessions).toLocaleString("ar-EG")} جنيه للحصة`
+          : null,
       period: sessions ? `/ شهر — ${sessions} حصص` : "الحصة الواحدة",
+      description: plan.description || null,
       featured: Boolean(plan.is_featured),
-      featuredLabel: plan.featured_label || "الموصى به",
+      featuredLabel: plan.featured_label || "الأكثر طلباً",
       features,
-      cta: sessions > 0 ? `اشترك في ${plan.name}` : "اشترك الآن",
+      cta: sessions > 0 ? `اشترك في ${plan.name_ar || plan.name}` : "اشترك الآن",
       href: safePlanRegisterHref(plan.id),
       variant: plan.is_featured ? "primary" : "outline"
     };
@@ -60,8 +92,16 @@ export function mapPlansToLanding(plans) {
 
 export function resolveLandingPlans(plans) {
   const mapped = mapPlansToLanding(plans);
-  if (!mapped || mapped.length < 2) return landingPricingPlansFallback;
-  return mapped;
+  if (mapped?.length) return mapped;
+  return landingPricingPlansFallback;
+}
+
+/** Responsive grid for N pricing cards (centered, no empty columns). */
+export function landingPricingGridClass(count = 1) {
+  if (count <= 1) return "mx-auto max-w-sm grid-cols-1";
+  if (count === 2) return "mx-auto max-w-3xl grid-cols-1 sm:grid-cols-2";
+  if (count === 3) return "mx-auto max-w-5xl grid-cols-1 md:grid-cols-3";
+  return "grid-cols-1 sm:grid-cols-2 xl:grid-cols-4";
 }
 
 const GROUP_SIZE_STAT_PATTERN = /8\s*طلاب|مجموعات?\s*صغ|حد\s*أقصى.*طل/i;
@@ -113,10 +153,7 @@ export function mapPromosToRecord(promos) {
 
 export function resolveHeroPromoLabel(promos) {
   const first = promos?.[0];
-  if (first?.label && first?.code) {
-    return `${first.label} — كود ${first.code}`;
-  }
-  if (first?.code) return `عرض خاص — كود ${first.code}`;
+  if (first?.label) return first.label;
   return "عرض محدود — سجّل الآن وابدأ رحلتك";
 }
 

@@ -74,6 +74,56 @@ export async function validatePromoCode(code, userId, paymentType) {
   return { valid: true, ...promo };
 }
 
+/** Landing / pre-login check — skips per-user and referral owner rules. */
+export async function validatePromoCodePublic(code, paymentType) {
+  const normalized = String(code || "")
+    .trim()
+    .toUpperCase();
+  if (!normalized) {
+    return { valid: false, reason: "أدخل كود الخصم" };
+  }
+
+  const { data: promo, error } = await supabase
+    .from("promotions")
+    .select("*")
+    .eq("code", normalized)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!promo) return { valid: false, reason: "الكود غير موجود أو غير نشط" };
+
+  if (promo.expires_at && new Date(promo.expires_at) < new Date()) {
+    return { valid: false, reason: "انتهت صلاحية الكود" };
+  }
+
+  if (promo.max_uses != null && promo.used_count >= promo.max_uses) {
+    return { valid: false, reason: "الكود وصل للحد الأقصى للاستخدام" };
+  }
+
+  const mappedType = PAYMENT_TYPE_MAP[paymentType] || paymentType;
+  if (promo.applies_to !== "all" && promo.applies_to !== mappedType) {
+    const scope =
+      promo.applies_to === "subscription"
+        ? "الاشتراكات"
+        : promo.applies_to === "per_session"
+          ? "الحصص المنفردة"
+          : "هذا النوع من الدفع";
+    return { valid: false, reason: `هذا الكود مخصّص لـ${scope} فقط` };
+  }
+
+  if (promo.type === "referral") {
+    const { data: ref } = await supabase
+      .from("referral_codes")
+      .select("code")
+      .eq("code", normalized)
+      .maybeSingle();
+    if (!ref) return { valid: false, reason: "كود الإحالة غير صالح" };
+  }
+
+  return { valid: true, ...promo };
+}
+
 async function validateReferralPromo(promo, userId, code) {
   const { data: ref } = await supabase
     .from("referral_codes")

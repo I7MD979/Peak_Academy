@@ -12,22 +12,22 @@ import { formatCurrencyEgp, formatDateAr } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export const TYPE_LABELS = {
-  coupon: "كوبون",
-  bundle: "باقة",
-  early_bird: "طائر مبكر",
-  referral: "إحالة"
+  coupon: "كوبون — خصم عام",
+  bundle: "باقة — حصص/مزايا",
+  early_bird: "طائر مبكر — محدود",
+  referral: "إحالة — برنامج الإحالة"
 };
 
 export const DISCOUNT_LABELS = {
-  percent: "نسبة مئوية",
-  fixed: "مبلغ ثابت",
+  percent: "نسبة مئوية (%)",
+  fixed: "مبلغ ثابت (جنيه)",
   free_session: "حصة مجانية"
 };
 
 export const APPLIES_LABELS = {
-  per_session: "لكل جلسة",
-  subscription: "الاشتراك",
-  all: "الكل"
+  per_session: "حصة منفردة",
+  subscription: "اشتراك شهري",
+  all: "حصص + اشتراك"
 };
 
 export function formatDiscountValue(row) {
@@ -190,7 +190,7 @@ export default function AdminCouponsView({
       <AdminPageHeader
         eyebrow="التسويق"
         title="العروض والخصومات"
-        subtitle="إنشاء وتتبع كوبونات الخصم، الباقات، وعروض الطائر المبكر."
+        subtitle="إنشاء أكواد الخصم وتتبع استخدامها. الأكواد تُتحقَّق عند الدفع ولا تُعرض على الصفحة الرئيسية."
         actions={[
           {
             label: "تحديث",

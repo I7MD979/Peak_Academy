@@ -5,6 +5,7 @@ import { requirePermission } from "../middleware/requirePermission.js";
 import { supabase } from "../lib/supabase.js";
 import { paginate, paginationMeta } from "../utils/paginate.js";
 import { success, error, paginated } from "../utils/response.js";
+import { invalidate } from "../lib/cache.js";
 
 const router = Router();
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -191,6 +192,7 @@ router.post("/promotions", auth, requirePermission("promotions.create"), async (
       throw dbError;
     }
 
+    await invalidate("public:landing");
     return success(res, data, "تم إنشاء العرض", 201);
   } catch (_err) {
     return error(res, "تعذر إنشاء العرض", 500);
@@ -261,6 +263,7 @@ router.put("/promotions/:id", auth, requirePermission("promotions.edit"), async 
     }
     if (!data) return error(res, "العرض غير موجود", 404);
 
+    await invalidate("public:landing");
     return success(res, data, "تم تحديث العرض");
   } catch (_err) {
     return error(res, "تعذر تحديث العرض", 500);
@@ -284,6 +287,7 @@ router.delete("/promotions/:id", auth, requirePermission("promotions.delete"), a
     if (dbError) throw dbError;
     if (!data) return error(res, "العرض غير موجود", 404);
 
+    await invalidate("public:landing");
     return success(res, data, "تم إيقاف العرض");
   } catch (_err) {
     return error(res, "تعذر إيقاف العرض", 500);
@@ -326,6 +330,7 @@ router.post("/early-bird/activate", auth, requirePermission("promotions.create")
       .single();
 
     if (dbError) throw dbError;
+    await invalidate("public:landing");
     return success(res, data, "تم تفعيل عرض الطائر المبكر", 201);
   } catch (_err) {
     return error(res, "تعذر تفعيل عرض الطائر المبكر", 500);

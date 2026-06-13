@@ -1,9 +1,7 @@
 import LandingPage from "@/components/landing/LandingPage";
-import {
-  getLandingData,
-  mapPromosToRecord,
-  resolveHeroPromoLabel
-} from "@/lib/landing-api";
+import { getLandingData, resolveHeroPromoLabel } from "@/lib/landing-api";
+
+export const revalidate = 60;
 
 export const metadata = {
   title: {
@@ -36,7 +34,6 @@ const jsonLd = {
 
 export default async function HomePage() {
   const landingData = await getLandingData();
-  const promoCodes = mapPromosToRecord(landingData?.promos);
   const heroPromo = resolveHeroPromoLabel(landingData?.promos);
 
   return (
@@ -50,7 +47,6 @@ export default async function HomePage() {
         platformStats={landingData?.stats}
         stats={landingData?.stats}
         plans={landingData?.plans}
-        promoCodes={promoCodes}
       />
     </>
   );

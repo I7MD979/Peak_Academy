@@ -14,23 +14,41 @@ import {
 import { cn } from "@/lib/utils";
 
 const TYPE_OPTIONS = [
-  { value: "coupon", label: "كوبون" },
-  { value: "bundle", label: "باقة" },
-  { value: "early_bird", label: "طائر مبكر" },
-  { value: "referral", label: "إحالة" }
+  { value: "coupon", label: "كوبون — خصم عام بكود" },
+  { value: "bundle", label: "باقة — حصص إضافية أو خصم على باقة" },
+  { value: "early_bird", label: "طائر مبكر — عرض محدود بوقت" },
+  { value: "referral", label: "إحالة — كود مرتبط ببرنامج الإحالة" }
 ];
 
 const DISCOUNT_TYPE_OPTIONS = [
-  { value: "percent", label: "نسبة مئوية" },
-  { value: "fixed", label: "مبلغ ثابت" },
-  { value: "free_session", label: "حصة مجانية" }
+  { value: "percent", label: "نسبة مئوية (%)" },
+  { value: "fixed", label: "مبلغ ثابت (جنيه)" },
+  { value: "free_session", label: "حصة مجانية (خصم كامل)" }
 ];
 
 const APPLIES_TO_OPTIONS = [
-  { value: "per_session", label: "لكل جلسة" },
-  { value: "subscription", label: "الاشتراك" },
-  { value: "all", label: "الكل" }
+  { value: "per_session", label: "حصة منفردة — عند دفع جلسة واحدة" },
+  { value: "subscription", label: "اشتراك شهري — عند شراء باقة" },
+  { value: "all", label: "الكل — حصص واشتراكات" }
 ];
+
+const FIELD_HINTS = {
+  code: "الكود الذي يدخله الطالب (أحرف إنجليزية وأرقام). لا يُعرض تلقائياً على الصفحة الرئيسية.",
+  type: "كوبون: خصم عام. باقة: مزايا إضافية. طائر مبكر: ينتهي بتاريخ. إحالة: يُربط بكود إحالة موجود.",
+  discount_type: "نسبة: من السعر. ثابت: مبلغ بالجنيه. حصة مجانية: يصفر سعر الحصة/الباقة.",
+  discount_value: "للنسبة: 1–100. للثابت: بالجنيه. للحصة المجانية: اترك 0.",
+  applies_to: "حدّد أين يُقبل الكود: دفع حصة، اشتراك، أو كلاهما.",
+  min_sessions: "لنوع «باقة» فقط: أقل عدد حصص ليُفعَّل العرض.",
+  bonus_sessions: "حصص مجانية إضافية تُمنح مع الاشتراك (اختياري).",
+  per_user_limit: "كم مرة يمكن لنفس المستخدم استخدام هذا الكود.",
+  max_uses: "إجمالي مرات استخدام الكود على المنصة (اتركه فارغاً = بلا حد).",
+  expires_at: "بعد هذا التاريخ لا يُقبل الكود حتى لو كان نشطاً."
+};
+
+function FieldHint({ children }) {
+  if (!children) return null;
+  return <p className="text-xs leading-relaxed text-on-surface-variant">{children}</p>;
+}
 
 export default function AdminPromotionFormModal({
   open,
@@ -56,8 +74,11 @@ export default function AdminPromotionFormModal({
               {editId ? "تعديل عرض" : "عرض جديد"}
             </p>
             <h2 id="promo-form-title" className="text-lg font-black text-on-surface">
-              {editId ? "تحديث الكوبون أو الخصم" : "إنشاء كوبون أو خصم"}
+              {editId ? "تحديث كود الخصم" : "إنشاء كود خصم"}
             </h2>
+            <p className="mt-1 text-xs text-on-surface-variant">
+              الأكواد تُتحقَّق عند الدفع داخل المنصة — لا تُطبع على الصفحة الرئيسية.
+            </p>
           </div>
           <button
             type="button"
@@ -72,7 +93,7 @@ export default function AdminPromotionFormModal({
         <div className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-1">
-              <label className={adminLabel}>كود العرض *</label>
+              <label className={adminLabel}>كود الخصم *</label>
               <Input
                 value={form.code}
                 onChange={(e) => onChange({ code: e.target.value.toUpperCase() })}
@@ -81,26 +102,40 @@ export default function AdminPromotionFormModal({
                 dir="ltr"
                 required
               />
+              <FieldHint>{FIELD_HINTS.code}</FieldHint>
             </div>
-            <Select
-              variant="dark"
-              label="نوع العرض"
-              value={form.type}
-              onChange={(e) => onChange({ type: e.target.value })}
-              options={TYPE_OPTIONS}
-            />
+            <div className="space-y-1">
+              <Select
+                variant="dark"
+                label="تصنيف العرض"
+                value={form.type}
+                onChange={(e) => onChange({ type: e.target.value })}
+                options={TYPE_OPTIONS}
+              />
+              <FieldHint>{FIELD_HINTS.type}</FieldHint>
+            </div>
           </div>
 
           <div className="grid gap-4 md:grid-cols-3">
-            <Select
-              variant="dark"
-              label="نوع الخصم"
-              value={form.discount_type}
-              onChange={(e) => onChange({ discount_type: e.target.value })}
-              options={DISCOUNT_TYPE_OPTIONS}
-            />
             <div className="space-y-1">
-              <label className={adminLabel}>قيمة الخصم *</label>
+              <Select
+                variant="dark"
+                label="آلية الخصم"
+                value={form.discount_type}
+                onChange={(e) => onChange({ discount_type: e.target.value })}
+                options={DISCOUNT_TYPE_OPTIONS}
+              />
+              <FieldHint>{FIELD_HINTS.discount_type}</FieldHint>
+            </div>
+            <div className="space-y-1">
+              <label className={adminLabel}>
+                قيمة الخصم *
+                {form.discount_type === "percent"
+                  ? " (%)"
+                  : form.discount_type === "fixed"
+                    ? " (جنيه)"
+                    : ""}
+              </label>
               <Input
                 type="number"
                 min="0"
@@ -111,14 +146,18 @@ export default function AdminPromotionFormModal({
                 dir="ltr"
                 required
               />
+              <FieldHint>{FIELD_HINTS.discount_value}</FieldHint>
             </div>
-            <Select
-              variant="dark"
-              label="ينطبق على"
-              value={form.applies_to}
-              onChange={(e) => onChange({ applies_to: e.target.value })}
-              options={APPLIES_TO_OPTIONS}
-            />
+            <div className="space-y-1">
+              <Select
+                variant="dark"
+                label="يُطبَّق على"
+                value={form.applies_to}
+                onChange={(e) => onChange({ applies_to: e.target.value })}
+                options={APPLIES_TO_OPTIONS}
+              />
+              <FieldHint>{FIELD_HINTS.applies_to}</FieldHint>
+            </div>
           </div>
 
           <div className="grid gap-4 md:grid-cols-3">
@@ -133,9 +172,10 @@ export default function AdminPromotionFormModal({
                 className={cn(adminInput, "dir-ltr text-start")}
                 dir="ltr"
               />
+              <FieldHint>{FIELD_HINTS.min_sessions}</FieldHint>
             </div>
             <div className="space-y-1">
-              <label className={adminLabel}>حصص إضافية</label>
+              <label className={adminLabel}>حصص إضافية مجانية</label>
               <Input
                 type="number"
                 min="0"
@@ -145,6 +185,7 @@ export default function AdminPromotionFormModal({
                 className={cn(adminInput, "dir-ltr text-start")}
                 dir="ltr"
               />
+              <FieldHint>{FIELD_HINTS.bonus_sessions}</FieldHint>
             </div>
             <div className="space-y-1">
               <label className={adminLabel}>حد الاستخدام لكل مستخدم</label>
@@ -156,12 +197,13 @@ export default function AdminPromotionFormModal({
                 className={cn(adminInput, "dir-ltr text-start")}
                 dir="ltr"
               />
+              <FieldHint>{FIELD_HINTS.per_user_limit}</FieldHint>
             </div>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-1">
-              <label className={adminLabel}>الحد الأقصى للاستخدام</label>
+              <label className={adminLabel}>الحد الأقصى للاستخدام (كل المنصة)</label>
               <Input
                 type="number"
                 min="1"
@@ -171,19 +213,23 @@ export default function AdminPromotionFormModal({
                 className={cn(adminInput, "dir-ltr text-start")}
                 dir="ltr"
               />
+              <FieldHint>{FIELD_HINTS.max_uses}</FieldHint>
             </div>
-            <DateTimePicker
-              variant="dark"
-              label="تاريخ الانتهاء (اختياري)"
-              value={form.expires_at}
-              onChange={(e) => onChange({ expires_at: e.target.value })}
-            />
+            <div className="space-y-1">
+              <DateTimePicker
+                variant="dark"
+                label="تاريخ انتهاء الصلاحية"
+                value={form.expires_at}
+                onChange={(e) => onChange({ expires_at: e.target.value })}
+              />
+              <FieldHint>{FIELD_HINTS.expires_at}</FieldHint>
+            </div>
           </div>
         </div>
 
         <div className="mt-6 flex flex-wrap gap-2">
           <button type="submit" className={adminBtnPrimary} disabled={saving}>
-            {saving ? "جارٍ الحفظ..." : editId ? "حفظ التغييرات" : "إنشاء العرض"}
+            {saving ? "جارٍ الحفظ..." : editId ? "حفظ التغييرات" : "إنشاء الكود"}
           </button>
           <button type="button" className={adminBtnSecondary} onClick={onClose} disabled={saving}>
             إلغاء

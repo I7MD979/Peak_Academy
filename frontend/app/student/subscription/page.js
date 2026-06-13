@@ -69,6 +69,19 @@ function StudentSubscriptionContent() {
   }, [load]);
 
   useEffect(() => {
+    const fromUrl = searchParams.get("promo")?.trim().toUpperCase();
+    const fromStorage =
+      typeof window !== "undefined" ? sessionStorage.getItem("peak-pending-promo") : null;
+    const promo = fromUrl || fromStorage;
+    if (promo) {
+      setPromoCode(promo);
+      if (fromStorage && typeof window !== "undefined") {
+        sessionStorage.removeItem("peak-pending-promo");
+      }
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
     if (typeof window === "undefined") return;
     if (searchParams.get("paid") !== "1") return;
 
