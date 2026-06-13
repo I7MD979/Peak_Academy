@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { Cairo } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "sonner";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import Providers from "./providers";
 
 const cairo = Cairo({
@@ -74,6 +75,7 @@ export default async function RootLayout({ children }) {
       <body className={`${cairo.className} bg-bg text-text antialiased`} suppressHydrationWarning>
         <Providers nonce={nonce}>{children}</Providers>
         <Toaster position="top-center" richColors />
+        <SpeedInsights />
       </body>
     </html>
   );
