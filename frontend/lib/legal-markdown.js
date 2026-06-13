@@ -6,8 +6,19 @@ const CONTENT_DIR = join(process.cwd(), "content", "legal");
 
 const EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
 
+const LEGAL_FILES = {
+  privacy: "privacy.md",
+  terms: "terms.md",
+  about: "about.md",
+  delivery: "delivery.md",
+  refund: "refund.md"
+};
+
 export function loadLegalMarkdown(slug) {
-  const file = slug === "privacy" ? "privacy.md" : "terms.md";
+  const file = LEGAL_FILES[slug];
+  if (!file) {
+    throw new Error(`Unknown legal slug: ${slug}`);
+  }
   return readFileSync(join(CONTENT_DIR, file), "utf8");
 }
 

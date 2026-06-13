@@ -2,7 +2,12 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
-import { limiter } from "./middleware/rateLimit.js";
+import {
+  authenticatedReadLimiter,
+  healthLimiter,
+  limiter,
+  publicLimiter
+} from "./middleware/rateLimit.js";
 import { timeout } from "./middleware/timeout.js";
 import { requestId } from "./middleware/requestId.js";
 import { auditLog } from "./middleware/auditLog.js";
@@ -182,7 +187,11 @@ app.use(sanitizeLogging);
 app.use(stripOwnershipFields);
 
 // ── Layer 6: Rate Limiting (OWASP A07) ────
+// Tiered buckets first (see rateLimit.js + RATE_LIMIT_AUDIT.md); global limiter is the fallback.
 app.use(timeout);
+app.use(healthLimiter);
+app.use(publicLimiter);
+app.use(authenticatedReadLimiter);
 app.use(["/api", "/auth"], limiter);
 
 // ── Layer 8: Audit Logging (NIST AU-2) ────

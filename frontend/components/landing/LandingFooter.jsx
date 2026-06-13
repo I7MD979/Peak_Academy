@@ -1,5 +1,6 @@
 import Link from "next/link";
 import PeakLogo from "@/components/shared/PeakLogo";
+import { FOOTER_CONTACT_LINK, FOOTER_LEGAL_LINKS } from "@/lib/legal-pages";
 
 const platformLinks = [
   { label: "إنشاء حساب", href: "/auth/register" },
@@ -9,9 +10,8 @@ const platformLinks = [
 ];
 
 const legalLinks = [
-  { label: "سياسة الخصوصية", href: "/privacy" },
-  { label: "الشروط والأحكام", href: "/terms" },
-  { label: "تواصل معنا", href: "mailto:support@peak-academy.net" }
+  ...FOOTER_LEGAL_LINKS.map((page) => ({ label: page.title, href: page.href })),
+  { label: FOOTER_CONTACT_LINK.label, href: FOOTER_CONTACT_LINK.href }
 ];
 
 export default function LandingFooter() {

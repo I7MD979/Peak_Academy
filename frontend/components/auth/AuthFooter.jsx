@@ -1,10 +1,15 @@
 import Link from "next/link";
 import PeakLogo from "@/components/shared/PeakLogo";
+import { FOOTER_CONTACT_LINK, FOOTER_LEGAL_LINKS } from "@/lib/legal-pages";
 
 const links = [
   { label: "سياسة الخصوصية", href: "/privacy" },
   { label: "شروط الاستخدام", href: "/terms" },
-  { label: "الدعم", href: "mailto:support@peak-academy.net" }
+  ...FOOTER_LEGAL_LINKS.filter((page) => page.slug !== "privacy" && page.slug !== "terms").map((page) => ({
+    label: page.title,
+    href: page.href
+  })),
+  { label: FOOTER_CONTACT_LINK.label, href: FOOTER_CONTACT_LINK.href }
 ];
 
 export default function AuthFooter() {
