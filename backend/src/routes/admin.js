@@ -1700,8 +1700,12 @@ router.get("/verification-documents", auth, requirePermission("verification.revi
     const result = await VerificationService.listPending({ docType, page, limit });
     return success(res, result);
   } catch (err) {
-    if (process.env.NODE_ENV !== "production") console.error("GET /admin/verification-documents", err);
-    return error(res, "تعذر تحميل طلبات التحقق", 500);
+    console.error("GET /admin/verification-documents", err?.message || err, err?.code || "");
+    const hint =
+      err?.code === "42P01" || /verification_documents|verification_status/i.test(String(err?.message))
+        ? " — تأكد من تشغيل migrations التحقق على Supabase"
+        : "";
+    return error(res, `تعذر تحميل طلبات التحقق${hint}`, 500);
   }
 });
 
