@@ -172,7 +172,11 @@ export default function OnboardingClient({ deferredReturn = null, levelParam = n
       const message =
         err?.status === 403
           ? "لا تملك صلاحية إكمال الملف. سجّل الدخول بحساب آخر."
-          : err.message || "حدث خطأ غير متوقع";
+          : err?.status === 401 || err?.code === "AUTH_SESSION_MISSING"
+            ? "انتهت جلسة الدخول. سجّل الخروج ثم سجّل الدخول مرة أخرى لإكمال ملفك."
+            : err?.status === 429
+              ? "محاولات كثيرة. انتظر قليلاً ثم حاول مرة أخرى."
+              : err.message || "حدث خطأ غير متوقع";
       setError(message);
       toast.error(message);
     } finally {

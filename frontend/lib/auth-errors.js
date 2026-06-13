@@ -27,5 +27,14 @@ export function getAuthErrorMessage(error) {
   if (message.toLowerCase().includes("password should be at least")) {
     return AUTH_ERROR_MESSAGES.weak_password;
   }
+  if (
+    error.status === 429 ||
+    code === "over_email_send_rate_limit" ||
+    code === "over_request_rate_limit" ||
+    message.toLowerCase().includes("rate limit") ||
+    message.toLowerCase().includes("too many requests")
+  ) {
+    return AUTH_ERROR_MESSAGES.too_many_requests;
+  }
   return message;
 }

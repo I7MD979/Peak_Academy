@@ -38,6 +38,12 @@ export const useAuth = () => {
       password,
       options: { emailRedirectTo },
     });
+    if (data?.session) {
+      useAuthStore.getState().setAuth({
+        user: data.session.user ?? null,
+        session: data.session,
+      });
+    }
     return { data, error };
   };
 

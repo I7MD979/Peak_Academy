@@ -12,63 +12,57 @@ function withQuery(path, query = "") {
   return q.startsWith("?") ? `${path}${q}` : `${path}?${q}`;
 }
 
-async function getAuthToken() {
+async function resolveSessionAccessToken({ allowRefresh = true } = {}) {
   if (typeof window === "undefined") return null;
 
-  const cachedSession = useAuthStore.getState().session;
-  const cached = cachedSession?.access_token;
+  const supabase = createClient();
+  const {
+    data: { session: initialSession },
+  } = await supabase.auth.getSession();
 
-  // expires_at is a unix timestamp (seconds). Treat tokens expiring within
-  // the next 60s as stale — background/inactive tabs can miss Supabase's
-  // internal auto-refresh timer, leaving a stale token in the store that
-  // would otherwise be sent as-is and bounce back as 401.
-  const expiresAt = cachedSession?.expires_at;
-  const isFresh = cached && expiresAt && expiresAt * 1000 - Date.now() > 60_000;
+  let session = initialSession;
+  const expiresAt = session?.expires_at;
+  const isFresh =
+    session?.access_token && expiresAt && expiresAt * 1000 - Date.now() > 60_000;
 
-  if (isFresh) return cached;
+  if (isFresh) {
+    useAuthStore.getState().setAuth({
+      user: session.user ?? null,
+      session,
+    });
+    return session.access_token;
+  }
 
-  try {
-    const supabase = createClient();
-
-    if (cached) {
-      const { data: refreshed, error: refreshErr } = await supabase.auth.refreshSession();
-      if (refreshed?.session?.access_token) {
-        useAuthStore.getState().setAuth({
-          user: refreshed.session.user ?? null,
-          session: refreshed.session
-        });
-        return refreshed.session.access_token;
-      }
-      if (refreshErr) {
-        // Refresh token invalid/expired — fall through to getSession.
-      }
-    }
-
-    const {
-      data: { session }
-    } = await supabase.auth.getSession();
-
-    if (session?.access_token) {
-      useAuthStore.getState().setAuth({
-        user: session.user ?? null,
-        session
-      });
-      return session.access_token;
-    }
-
-    const { data: refreshed } = await supabase.auth.refreshSession();
-    if (refreshed.session?.access_token) {
+  if (allowRefresh && session?.refresh_token) {
+    const { data: refreshed, error: refreshErr } = await supabase.auth.refreshSession();
+    if (refreshed?.session?.access_token) {
       useAuthStore.getState().setAuth({
         user: refreshed.session.user ?? null,
-        session: refreshed.session
+        session: refreshed.session,
       });
       return refreshed.session.access_token;
     }
-  } catch {
-    return null;
+    if (refreshErr) {
+      await supabase.auth.signOut().catch(() => {});
+      useAuthStore.getState().clearAuth();
+    }
+  } else if (session?.access_token) {
+    useAuthStore.getState().setAuth({
+      user: session.user ?? null,
+      session,
+    });
+    return session.access_token;
   }
 
   return null;
+}
+
+async function getAuthToken() {
+  try {
+    return await resolveSessionAccessToken({ allowRefresh: true });
+  } catch {
+    return null;
+  }
 }
 
 export function newIdempotencyKey(prefix = "pay") {
@@ -108,22 +102,20 @@ async function performApiFetch(path, options = {}, tokenOverride = null, isRetry
       message = `${message} (${dailyInfo})`;
     }
     if (res.status === 401) {
-      if (!isRetry && !tokenOverride && typeof window !== "undefined") {
+      const isSetupProfile = path.includes("/auth/setup-profile");
+      if (!isRetry && !tokenOverride && typeof window !== "undefined" && !isSetupProfile) {
         try {
-          const supabase = createClient();
-          const { data: refreshed } = await supabase.auth.refreshSession();
-          if (refreshed?.session?.access_token) {
-            useAuthStore.getState().setAuth({
-              user: refreshed.session.user ?? null,
-              session: refreshed.session
-            });
-            return performApiFetch(path, options, null, true);
+          const token = await resolveSessionAccessToken({ allowRefresh: true });
+          if (token) {
+            return performApiFetch(path, options, token, true);
           }
         } catch {
-          /* fall through to logout below */
+          /* fall through */
         }
       }
-      useAuthStore.getState().clearAuth();
+      if (!isSetupProfile) {
+        useAuthStore.getState().clearAuth();
+      }
     }
     if (res.status === 429) {
       message =
@@ -168,10 +160,24 @@ function fetchMe(tokenOverride) {
 export const authApi = {
   me: (token) => fetchMe(token),
   setupProfile: async (body) => {
-    const result = await apiRequest("/auth/setup-profile", {
-      method: "POST",
-      body: JSON.stringify(body)
-    });
+    const token = await resolveSessionAccessToken({ allowRefresh: true });
+    if (!token) {
+      const err = new Error(
+        "انتهت جلسة الدخول. سجّل الدخول أو أكّد بريدك الإلكتروني ثم أكمل ملفك من صفحة الإعداد."
+      );
+      err.status = 401;
+      err.code = "AUTH_SESSION_MISSING";
+      throw err;
+    }
+
+    const result = await performApiFetch(
+      "/auth/setup-profile",
+      {
+        method: "POST",
+        body: JSON.stringify(body),
+      },
+      token
+    );
     clearApiCache();
     return result;
   },

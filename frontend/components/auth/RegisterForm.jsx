@@ -127,7 +127,7 @@ export default function RegisterForm({ redirectTo = null, levelParam = null, not
     const password = accountData.password;
 
     try {
-      const { error: signUpError } = await signUpWithEmail(email, password);
+      const { data: signUpData, error: signUpError } = await signUpWithEmail(email, password);
       if (signUpError) {
         setError(getAuthErrorMessage(signUpError));
         setStep(1);
@@ -135,9 +135,11 @@ export default function RegisterForm({ redirectTo = null, levelParam = null, not
       }
 
       const supabase = createClient();
-      const {
-        data: { session }
-      } = await supabase.auth.getSession();
+      const session =
+        signUpData?.session ??
+        (
+          await supabase.auth.getSession()
+        ).data.session;
 
       if (!session?.access_token) {
         setPendingEmailConfirm(true);
@@ -159,12 +161,22 @@ export default function RegisterForm({ redirectTo = null, levelParam = null, not
       const needsOnboarding =
         err?.status === 403 ||
         err?.status === 400 ||
-        String(err?.message || "").includes("ملفك الشخصي");
+        err?.status === 401 ||
+        err?.code === "AUTH_SESSION_MISSING" ||
+        String(err?.message || "").includes("ملفك الشخصي") ||
+        String(err?.message || "").includes("جلسة الدخول");
       if (needsOnboarding) {
         const onboardingPath = redirectTo
           ? `/onboarding?next=${encodeURIComponent(redirectTo)}`
           : "/onboarding";
         router.replace(onboardingPath);
+        return;
+      }
+      if (err?.status === 429) {
+        setError(
+          "محاولات تسجيل كثيرة. انتظر 10–15 دقيقة ثم حاول مرة أخرى، أو سجّل الدخول إذا كان حسابك موجوداً."
+        );
+        setStep(1);
         return;
       }
       setError(err.message || "تعذر إنشاء الحساب. حاول مرة أخرى.");

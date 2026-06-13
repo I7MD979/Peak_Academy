@@ -133,7 +133,7 @@ async function syncAuthUserMetadata(userId, { role, full_name, phone }) {
 }
 
 /** إنشاء / إكمال الملف الشخصي بعد التسجيل (onboarding) */
-router.post("/setup-profile", oauthLimiter, authSlowDown, authLimiter, uniformAuthResponse, auth, async (req, res) => {
+router.post("/setup-profile", authSlowDown, authLimiter, uniformAuthResponse, auth, async (req, res) => {
   try {
     const fullName = String(req.body.full_name || "").trim();
     let role;
