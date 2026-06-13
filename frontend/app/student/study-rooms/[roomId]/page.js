@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -99,10 +100,13 @@ function MessageBubble({ msg, myId, myRole, onResolve }) {
           ) : msg.type === "file" || msg.file_url ? (
             <div className="flex flex-col gap-2">
               {msg.file_type?.startsWith("image/") && (
-                <img
+                <Image
                   src={msg.file_url}
                   alt={msg.file_name || "صورة"}
-                  className="max-w-[220px] rounded-lg"
+                  width={220}
+                  height={165}
+                  unoptimized
+                  className="max-w-[220px] h-auto rounded-lg"
                 />
               )}
               <div className="flex items-center gap-2">

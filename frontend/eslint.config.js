@@ -1,6 +1,6 @@
 import coreWebVitals from "eslint-config-next/core-web-vitals";
 
-export default [
+const eslintConfig = [
   ...coreWebVitals,
   {
     rules: {
@@ -10,3 +10,5 @@ export default [
     }
   }
 ];
+
+export default eslintConfig;

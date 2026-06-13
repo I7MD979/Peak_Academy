@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useForm, Controller } from "react-hook-form";
+import { useForm, useWatch, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import Icon from "@/components/shared/Icon";
 import AuthPageLayout from "@/components/auth/AuthPageLayout";
@@ -41,7 +41,6 @@ export default function OnboardingClient({ deferredReturn = null, levelParam = n
   const {
     register,
     handleSubmit,
-    watch,
     control,
     reset,
     formState: { errors }
@@ -56,7 +55,7 @@ export default function OnboardingClient({ deferredReturn = null, levelParam = n
     }
   });
 
-  const selectedRole = watch("role");
+  const selectedRole = useWatch({ control, name: "role" });
 
   useEffect(() => {
     let cancelled = false;

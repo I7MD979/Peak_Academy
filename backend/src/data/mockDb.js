@@ -1,5 +1,3 @@
-const MOCK_HASH = "$2a$10$mock.hash.placeholder.for.dev.only";
-
 const users = [];
 
 const sessions = [

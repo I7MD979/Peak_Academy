@@ -46,17 +46,14 @@ async function upsertUsersRow(supabase, payload) {
   if (!error) return;
 
   if (isMissingColumnError(error)) {
-    // eslint-disable-next-line no-unused-vars
-    const {
-      is_verified,
-      avatar_url,
-      phone_hash,
-      national_id,
-      terms_accepted_at,
-      terms_version,
-      terms_accepted_ip,
-      ...rest
-    } = safePayload;
+    const rest = { ...safePayload };
+    delete rest.is_verified;
+    delete rest.avatar_url;
+    delete rest.phone_hash;
+    delete rest.national_id;
+    delete rest.terms_accepted_at;
+    delete rest.terms_version;
+    delete rest.terms_accepted_ip;
     ({ error } = await run(rest));
     if (!error) return;
   }

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { useForm, Controller } from "react-hook-form";
+import { useForm, useWatch, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import GoogleIcon from "@/components/auth/GoogleIcon";
 import AuthField, { authInputClass } from "@/components/auth/AuthField";
@@ -62,7 +62,7 @@ export default function RegisterForm({ redirectTo = null, levelParam = null, not
     defaultValues: accountData
   });
 
-  const passwordValue = step1Form.watch("password");
+  const passwordValue = useWatch({ control: step1Form.control, name: "password" });
 
   const step2Form = useForm({
     resolver: zodResolver(registerStep2Schema),
@@ -74,7 +74,7 @@ export default function RegisterForm({ redirectTo = null, levelParam = null, not
     }
   });
 
-  const selectedRole = step2Form.watch("role");
+  const selectedRole = useWatch({ control: step2Form.control, name: "role" });
 
   const resolveNextPath = async (sessionToken, createdUser, role) => {
     let nextPath = redirectTo;
