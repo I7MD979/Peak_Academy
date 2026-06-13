@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import Icon from "@/components/shared/Icon";
 import { SectionLoader } from "@/components/shared/LoadingSkeleton";
 import { useNotifications } from "@/hooks/useNotifications";
+import { getNotificationTypeMeta } from "@/lib/notification-types";
 import { cn } from "@/lib/utils";
 
 function formatWhen(iso) {
@@ -26,10 +28,10 @@ function notifyThemeClasses(theme) {
       btn: "border-white/15 text-white/80 hover:bg-white/10 hover:text-white",
       btnOpen: "ring-2 ring-white/20",
       badge: "ring-primary",
-      panel: "border-border bg-card shadow-xl ring-1 ring-black/5",
-      panelHeader: "border-border bg-bg/60",
-      title: "text-text",
-      muted: "text-text-muted",
+      panel: "border-outline-variant/40 bg-surface-container shadow-xl ring-1 ring-black/5",
+      panelHeader: "border-outline-variant/40 bg-surface-container-low/60",
+      title: "text-on-surface",
+      muted: "text-on-surface-variant",
       unread: "bg-accent/5"
     };
   }
@@ -46,18 +48,19 @@ function notifyThemeClasses(theme) {
     };
   }
   return {
-    btn: "border-border bg-card text-text-muted hover:border-accent/30 hover:bg-accent/5 hover:text-accent",
+    btn: "border-outline-variant/40 bg-surface-container text-on-surface-variant hover:border-accent/30 hover:bg-accent/5 hover:text-accent",
     btnOpen: "border-accent/30 ring-2 ring-accent/10",
     badge: "ring-card",
-    panel: "border-border bg-card shadow-xl ring-1 ring-black/5",
-    panelHeader: "border-border bg-bg/60",
-    title: "text-text",
-    muted: "text-text-muted",
+    panel: "border-outline-variant/40 bg-surface-container shadow-xl ring-1 ring-black/5",
+    panelHeader: "border-outline-variant/40 bg-surface-container-low/60",
+    title: "text-on-surface",
+    muted: "text-on-surface-variant",
     unread: "bg-accent/5"
   };
 }
 
 export default function NotificationBell({ theme = "light" }) {
+  const router = useRouter();
   const { items, unreadCount, loading, error, markRead, markAllRead } = useNotifications();
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -133,13 +136,19 @@ export default function NotificationBell({ theme = "light" }) {
             ) : items.length === 0 ? (
               <p className={cn("p-6 text-center text-sm", styles.muted)}>لا توجد إشعارات بعد</p>
             ) : (
-              <ul className={cn("divide-y", isSurface ? "divide-outline-variant/40" : "divide-border")}>
-                {items.map((item) => (
+              <ul className={cn("divide-y divide-outline-variant/40")}>
+                {items.map((item) => {
+                  const typeMeta = getNotificationTypeMeta(item.type);
+                  return (
                   <li key={item.id}>
                     <button
                       type="button"
                       onClick={() => {
                         if (!item.is_read) markRead(item.id);
+                        if (item.action_url) {
+                          setOpen(false);
+                          router.push(item.action_url);
+                        }
                       }}
                       className={cn(
                         "w-full px-4 py-3 text-start transition-colors hover:bg-primary-container/5",
@@ -147,13 +156,27 @@ export default function NotificationBell({ theme = "light" }) {
                       )}
                     >
                       <div className="flex items-start gap-2">
-                        {!item.is_read ? (
-                          <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary-container" aria-hidden />
-                        ) : (
-                          <span className="mt-1.5 h-2 w-2 shrink-0" aria-hidden />
-                        )}
+                        <span
+                          className={cn(
+                            "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
+                            isSurface ? "bg-primary-container/15 text-md-primary" : "bg-accent/10 text-accent"
+                          )}
+                          aria-hidden
+                        >
+                          <Icon name={typeMeta.icon} size={16} />
+                        </span>
                         <div className="min-w-0 flex-1">
-                          <p className={cn("text-sm font-bold", styles.title)}>{item.title}</p>
+                          <div className="flex items-center gap-2">
+                            <p className={cn("text-sm font-bold", styles.title)}>{item.title}</p>
+                            {!item.is_read ? (
+                              <span className="h-2 w-2 shrink-0 rounded-full bg-primary-container" aria-hidden />
+                            ) : null}
+                          </div>
+                          {typeMeta.label && item.type !== "general" ? (
+                            <p className={cn("mt-0.5 text-[10px] font-bold uppercase tracking-wide opacity-70", styles.muted)}>
+                              {typeMeta.label}
+                            </p>
+                          ) : null}
                           {item.body ? (
                             <p className={cn("mt-0.5 text-xs leading-relaxed", styles.muted)}>{item.body}</p>
                           ) : null}
@@ -162,7 +185,8 @@ export default function NotificationBell({ theme = "light" }) {
                       </div>
                     </button>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             )}
           </div>

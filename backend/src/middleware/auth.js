@@ -75,7 +75,8 @@ function buildReqUser(authUser, profile) {
     full_name: fullName.length >= 2 ? fullName : "مستخدم بيك",
     phone: decryptIfNeeded(profile?.phone) || (meta.phone ? String(meta.phone).trim() : null),
     avatar_url: profile?.avatar_url || meta.avatar_url || null,
-    is_active: profile?.is_active ?? true
+    is_active: profile?.is_active ?? true,
+    verification_status: profile?.verification_status || "unverified"
   };
 }
 
@@ -98,7 +99,7 @@ export async function resolveAuthUserFromToken(token) {
 
     let { data: profile, error: profileError } = await supabase
       .from("users")
-      .select("id, full_name, email, role, avatar_url, phone, is_active")
+      .select("id, full_name, email, role, avatar_url, phone, is_active, is_verified, verification_status")
       .eq("id", authUser.id)
       .maybeSingle();
 
@@ -131,7 +132,7 @@ export async function resolveAuthUserFromToken(token) {
 
             const retry = await supabase
               .from("users")
-              .select("id, full_name, email, role, avatar_url, phone, is_active")
+              .select("id, full_name, email, role, avatar_url, phone, is_active, is_verified, verification_status")
               .eq("id", authUser.id)
               .maybeSingle();
             profile = retry.data;

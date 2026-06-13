@@ -15,7 +15,7 @@ export default function MenuButton({ onClick, className, label = "فتح الق�
         "h-10 w-10 rounded-xl p-0",
         isSurface
           ? "border-outline-variant/60 bg-surface-container-high text-on-surface hover:border-primary-container/40 hover:text-md-primary"
-          : "border-border bg-card text-primary",
+          : "border-outline-variant/40 bg-surface-container text-on-surface",
         className
       )}
       onClick={onClick}

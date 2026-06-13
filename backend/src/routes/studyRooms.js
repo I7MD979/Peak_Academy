@@ -22,6 +22,7 @@ import {
   assignTA,
   isActiveMember
 } from "../services/studyRoomChat.service.js";
+import { requireTeacherVerified } from "../middleware/requireTeacherVerified.js";
 import {
   startVoiceSession,
   joinVoiceSession,
@@ -219,7 +220,6 @@ router.post("/:roomId/leave", auth, async (req, res) => {
 
 router.get("/:roomId/messages", auth, async (req, res) => {
   const { roomId } = req.params;
-  const channel = ["general", "qa"].includes(req.query.channel) ? req.query.channel : "general";
   const limit = Math.min(parseInt(req.query.limit) || 50, 100);
   const before = req.query.before || null;
 
@@ -227,21 +227,24 @@ router.get("/:roomId/messages", auth, async (req, res) => {
     const member = await isActiveMember(roomId, req.user.id);
     if (!member) return error(res, "لست عضواً في هذه الغرفة", 403);
 
-    const messages = await getRoomMessages(roomId, channel, limit, before);
-    return success(res, { messages, channel });
+    const messages = await getRoomMessages(roomId, limit, before);
+    return success(res, { messages });
   } catch (_err) {
     return error(res, "تعذر تحميل الرسائل", 500);
   }
 });
 
 const sendMessageSchema = z.object({
-  channel:   z.enum(["general", "qa"]).default("general"),
-  type:      z.enum(["text", "image", "voice_note", "question", "official_reply"]).default("text"),
-  content:   z.string().min(1).max(4000).optional(),
-  voice_url: z.string().url().optional(),
-  image_url: z.string().url().optional(),
-  reply_to:  z.string().uuid().optional()
-}).refine(d => d.content || d.voice_url || d.image_url, {
+  type:       z.enum(["text", "image", "voice_note", "question", "official_reply", "file"]).default("text"),
+  content:    z.string().min(1).max(4000).optional(),
+  voice_url:  z.string().url().optional(),
+  image_url:  z.string().url().optional(),
+  file_url:   z.string().url().optional(),
+  file_name:  z.string().max(255).optional(),
+  file_size:  z.number().int().positive().max(10485760).optional(),
+  file_type:  z.string().max(100).optional(),
+  reply_to:   z.string().uuid().optional()
+}).refine(d => d.content || d.voice_url || d.image_url || d.file_url, {
   message: "الرسالة يجب أن تحتوي على نص أو ملف"
 });
 
@@ -257,11 +260,14 @@ router.post("/:roomId/messages", auth, async (req, res) => {
     const msg = await sendMessage({
       roomId,
       senderId:  req.user.id,
-      channel:   parsed.data.channel,
       type:      parsed.data.type,
       content:   parsed.data.content,
       voiceUrl:  parsed.data.voice_url,
       imageUrl:  parsed.data.image_url,
+      fileUrl:   parsed.data.file_url,
+      fileName:  parsed.data.file_name,
+      fileSize:  parsed.data.file_size,
+      fileType:  parsed.data.file_type,
       replyTo:   parsed.data.reply_to
     });
     return success(res, { message: msg }, "تم إرسال الرسالة");
@@ -295,7 +301,7 @@ router.post("/:roomId/assign-ta", auth, async (req, res) => {
 
 // ── Voice Routes ──────────────────────────────────────────────────────────────
 
-router.post("/:roomId/voice/start", auth, requireRoomAccess, async (req, res) => {
+router.post("/:roomId/voice/start", auth, requireRoomAccess, requireTeacherVerified, async (req, res) => {
   const { roomId } = req.params;
   try {
     const session = await startVoiceSession(roomId, req.user.id);

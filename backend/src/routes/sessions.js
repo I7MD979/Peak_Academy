@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { Router } from "express";
 import { z } from "zod";
-import { auth } from "../middleware/auth.js";
+import { requireTeacherVerified } from "../middleware/requireTeacherVerified.js";
 import { checkRole } from "../middleware/checkRole.js";
 import { supabase } from "../lib/supabase.js";
 import {
@@ -495,7 +495,7 @@ router.get("/:id", auth, validateSessionId, async (req, res) => {
   }
 });
 
-router.post("/", auth, checkRole("teacher"), allowSchema("sessionCreate"), async (req, res) => {
+router.post("/", auth, checkRole("teacher"), requireTeacherVerified, allowSchema("sessionCreate"), async (req, res) => {
   try {
     const parsed = createSessionSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -912,7 +912,7 @@ router.post("/:id/cancel-enrollment", auth, checkRole("student"), validateSessio
   }
 });
 
-router.post("/:id/start", auth, checkRole("teacher"), validateSessionId, async (req, res) => {
+router.post("/:id/start", auth, checkRole("teacher"), requireTeacherVerified, validateSessionId, async (req, res) => {
   try {
     if (!(await assertTeacherOwnsSession(req.params.id, req.user.id, res))) return;
 

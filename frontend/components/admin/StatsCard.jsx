@@ -10,10 +10,10 @@ const toneClasses = {
 
 const VARIANT_STYLES = {
   light: {
-    card: "rounded-2xl border border-border bg-card shadow-sm",
-    title: "text-text-muted",
-    value: "text-text",
-    hint: "text-text-muted"
+    card: "rounded-2xl border border-outline-variant/40 bg-surface-container shadow-sm",
+    title: "text-on-surface-variant",
+    value: "text-on-surface",
+    hint: "text-on-surface-variant"
   },
   dark: {
     card: "rounded-xl border border-outline-variant bg-surface-container p-5 transition-colors hover:border-md-primary/30",

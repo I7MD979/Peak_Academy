@@ -1,5 +1,11 @@
 "use client";
 
+/**
+ * LEGACY Google OAuth callback page — not linked from LoginForm/RegisterForm.
+ * Active Google sign-in uses Supabase OAuth → `/auth/callback?code=`.
+ * This page remains for old redirect URLs that pass `?t=` one-time tokens.
+ */
+
 import { PageLoader } from "@/components/shared/LoadingSkeleton";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";

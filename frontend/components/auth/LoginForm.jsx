@@ -42,7 +42,7 @@ export default function LoginForm({ redirectTo: redirectToProp = null, oauthErro
     setGoogleLoading(true);
     setError("");
     try {
-      const { error: oauthError } = await signInWithGoogle({ returnTo: redirectToProp });
+      const { error: oauthError } = await signInWithGoogle({ returnTo: redirectToProp, intent: "login" });
       if (oauthError) {
         setError(getAuthErrorMessage(oauthError) || "تعذر تسجيل الدخول عبر Google");
         return;

@@ -1,6 +1,10 @@
 /**
  * Google OAuth Routes — Redis-backed state and single-use tokens
  * Shared across Railway instances via Upstash Redis
+ *
+ * LEGACY: The frontend no longer starts Google sign-in through these routes.
+ * Current flow uses Supabase `signInWithOAuth` → `/auth/callback?code=`.
+ * Kept for backward compatibility with old bookmarks / `/auth/google-callback`.
  */
 
 import { Router } from "express";

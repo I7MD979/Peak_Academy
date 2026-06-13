@@ -4,6 +4,26 @@ import { invalidate, CACHE } from "../lib/cache.js";
 
 const VALID_ROLES = new Set(["student", "teacher", "parent", "admin", "supervisor"]);
 
+function extractStorageObjectPath(publicUrl, bucket) {
+  if (!publicUrl || typeof publicUrl !== "string") return null;
+  const marker = `/storage/v1/object/public/${bucket}/`;
+  const idx = publicUrl.indexOf(marker);
+  if (idx === -1) return null;
+  return decodeURIComponent(publicUrl.slice(idx + marker.length));
+}
+
+async function cleanupUserAvatar(avatarUrl) {
+  const path = extractStorageObjectPath(avatarUrl, "avatars");
+  if (!path) return;
+
+  try {
+    const { error } = await supabase.storage.from("avatars").remove([path]);
+    if (error) console.warn("[deleteUser] avatar cleanup failed:", error.message);
+  } catch (err) {
+    console.warn("[deleteUser] avatar cleanup error:", err?.message || err);
+  }
+}
+
 /** Guards that apply before any admin mutation. */
 function assertMutableByAdmin(target, actorId) {
   if (!target) return { ok: false, status: 404, message: "المستخدم غير موجود" };
@@ -101,13 +121,23 @@ export const UserService = {
     return { ok: true };
   },
 
-  /** Admin: soft-delete user (deactivate + set deleted_at). */
+  /** Admin: permanently delete user from Supabase Auth (public.users cascades). */
   async deleteUser(userId, actorId) {
     const target = await UserRepository.findById(userId);
     const guard = assertMutableByAdmin(target, actorId);
     if (!guard.ok) return guard;
 
-    await UserRepository.softDelete(userId);
+    await cleanupUserAvatar(target.avatar_url);
+
+    const { error } = await supabase.auth.admin.deleteUser(userId);
+    if (error) {
+      if (error.status === 404 || /not.*found/i.test(error.message || "")) {
+        await UserRepository.hardDelete(userId);
+      } else {
+        throw error;
+      }
+    }
+
     await invalidate(CACHE.adminDashboard());
     return { ok: true };
   },

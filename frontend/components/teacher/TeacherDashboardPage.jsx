@@ -10,6 +10,7 @@ import TeacherDashboardUpcomingTable from "@/components/teacher/TeacherDashboard
 import TeacherDashboardWelcome from "@/components/teacher/TeacherDashboardWelcome";
 import { SectionLoader } from "@/components/shared/LoadingSkeleton";
 import { resolveTeacherFirstName } from "@/lib/teacher-dashboard";
+import { VerificationStatusBanner } from "@/components/shared/VerificationStatusBanner";
 import { teacherErrorBox } from "@/lib/teacher-styles";
 
 export default function TeacherDashboardPage({
@@ -23,7 +24,8 @@ export default function TeacherDashboardPage({
   onRefresh,
   actionLoadingId = "",
   onStartSession,
-  onEndSession
+  onEndSession,
+  verificationRejectReason = ""
 }) {
   const firstName = resolveTeacherFirstName(profile);
   const liveCount = stats?.live_sessions ?? 0;
@@ -38,6 +40,12 @@ export default function TeacherDashboardPage({
 
   return (
     <div className="space-y-8">
+      <VerificationStatusBanner
+        role="teacher"
+        verificationStatus={profile?.verification_status}
+        rejectReason={verificationRejectReason}
+      />
+
       <AdminPageHeader
         eyebrow="لوحة المعلم"
         title={`أهلاً، ${firstName}!`}

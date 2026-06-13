@@ -113,7 +113,7 @@ export default function AvatarUpload({ name, avatarUrl, onUploaded, disabled = f
           type="button"
           disabled={disabled || uploading}
           onClick={() => inputRef.current?.click()}
-          className="absolute bottom-0 left-0 rounded-full border border-border bg-card px-2 py-1 text-xs font-bold text-text shadow-sm hover:bg-muted disabled:opacity-50"
+          className="absolute bottom-0 left-0 rounded-full border border-outline-variant/40 bg-surface-container px-2 py-1 text-xs font-bold text-on-surface shadow-sm hover:bg-muted disabled:opacity-50"
         >
           {uploading ? "جارٍ..." : "تعديل"}
         </button>
@@ -125,7 +125,7 @@ export default function AvatarUpload({ name, avatarUrl, onUploaded, disabled = f
           onChange={onPickFile}
         />
       </div>
-      <p className="text-center text-xs text-text-muted">JPEG أو PNG أو WebP — حتى 2 ميجابايت</p>
+      <p className="text-center text-xs text-on-surface-variant">JPEG أو PNG أو WebP — حتى 2 ميجابايت</p>
     </div>
   );
 }

@@ -1,7 +1,6 @@
 import { headers } from "next/headers";
 import { Cairo } from "next/font/google";
 import "./globals.css";
-import "@livekit/components-styles";
 import { Toaster } from "sonner";
 import Providers from "./providers";
 

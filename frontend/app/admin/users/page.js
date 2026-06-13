@@ -186,7 +186,7 @@ export default function AdminUsersPage() {
       setUsers((prev) => prev.filter((u) => u.id !== user.id));
       setTotalUsers((prev) => Math.max(0, prev - 1));
       setSelectedUser(null);
-      toast.success("تم حذف الحساب");
+      toast.success("تم حذف الحساب نهائيًا");
       await loadStats();
     } catch (err) {
       toast.error(err.message || "فشل حذف الحساب");
@@ -286,7 +286,7 @@ export default function AdminUsersPage() {
                   : null,
             modifiable
               ? {
-                  label: "حذف الحساب",
+                  label: "حذف نهائي",
                   icon: "trash",
                   tone: "danger",
                   disabled: busy,
@@ -370,7 +370,7 @@ export default function AdminUsersPage() {
           isVerify
             ? "توثيق المدرس"
             : isDelete
-              ? "حذف الحساب"
+              ? "حذف الحساب نهائيًا"
               : isSuspend
                 ? "تعليق الحساب"
                 : "تفعيل الحساب"
@@ -379,7 +379,7 @@ export default function AdminUsersPage() {
           isVerify
             ? `هل تريد توثيق حساب المدرس ${confirmUser?.full_name || ""}؟ سيظهر كمدرس معتمد على المنصة.`
             : isDelete
-              ? `هل تريد حذف حساب ${confirmUser?.full_name || "هذا المستخدم"}؟ هذا الإجراء يوقف الحساب ولا يمكن التراجع عنه بسهولة.`
+              ? `سيتم حذف حساب ${confirmUser?.full_name || "هذا المستخدم"} نهائيًا مع بياناته المرتبطة. لا يمكن التراجع عن هذا الإجراء.`
               : isSuspend
                 ? `هل تريد تعليق حساب ${confirmUser?.full_name || "هذا المستخدم"}؟ لن يتمكن من تسجيل الدخول.`
                 : `هل تريد تفعيل حساب ${confirmUser?.full_name || "هذا المستخدم"}؟`
@@ -388,7 +388,7 @@ export default function AdminUsersPage() {
           isVerify
             ? "توثيق المدرس"
             : isDelete
-              ? "حذف الحساب"
+              ? "حذف نهائي"
               : isSuspend
                 ? "تعليق الحساب"
                 : "تفعيل الحساب"

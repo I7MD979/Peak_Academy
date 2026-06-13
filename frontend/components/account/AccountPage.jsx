@@ -7,16 +7,16 @@ import { accountApi } from "@/lib/api";
 import { formatDateAr, formatCurrencyEgp } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-const SECTION_CARD = "rounded-2xl border border-border bg-card p-5 shadow-sm space-y-4";
-const INPUT_CLS = "h-11 w-full rounded-xl border border-border bg-bg px-4 text-sm text-text placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 transition-colors";
-const LABEL_CLS = "text-xs font-bold text-text-muted mb-1.5 block";
+const SECTION_CARD = "rounded-2xl border border-outline-variant/40 bg-surface-container p-5 shadow-sm space-y-4";
+const INPUT_CLS = "h-11 w-full rounded-xl border border-outline-variant/40 bg-surface-container-low px-4 text-sm text-on-surface placeholder:text-on-surface-variant focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 transition-colors";
+const LABEL_CLS = "text-xs font-bold text-on-surface-variant mb-1.5 block";
 const BTN_PRIMARY = "inline-flex items-center justify-center rounded-xl bg-accent px-5 py-2.5 text-sm font-bold text-white shadow-md shadow-accent/20 transition hover:brightness-110 active:scale-95 disabled:opacity-50";
-const BTN_SECONDARY = "inline-flex items-center justify-center rounded-xl border border-border bg-card px-5 py-2.5 text-sm font-bold text-text transition hover:bg-bg disabled:opacity-50";
+const BTN_SECONDARY = "inline-flex items-center justify-center rounded-xl border border-outline-variant/40 bg-surface-container px-5 py-2.5 text-sm font-bold text-on-surface transition hover:bg-surface-container-high disabled:opacity-50";
 const BTN_DANGER = "inline-flex items-center justify-center rounded-xl bg-danger px-5 py-2.5 text-sm font-bold text-white shadow-md shadow-danger/20 transition hover:brightness-110 active:scale-95 disabled:opacity-50";
 
 const SUB_STATUS = {
   active: { label: "نشط", cls: "bg-success/15 text-success" },
-  expired: { label: "منتهي", cls: "bg-bg text-text-muted" },
+  expired: { label: "منتهي", cls: "bg-surface-container-low text-on-surface-variant" },
   frozen: { label: "مجمّد", cls: "bg-accent-blue/15 text-accent-blue" },
   cancelled: { label: "ملغي", cls: "bg-danger/15 text-danger" }
 };
@@ -47,7 +47,7 @@ function ProfileSection({ user }) {
 
   return (
     <section className={SECTION_CARD}>
-      <h2 className="text-base font-bold text-text">الملف الشخصي</h2>
+      <h2 className="text-base font-bold text-on-surface">الملف الشخصي</h2>
       <form onSubmit={handleSave} className="space-y-4" noValidate>
         <div>
           <label className={LABEL_CLS} htmlFor="acc-name">الاسم الكامل</label>
@@ -56,11 +56,11 @@ function ProfileSection({ user }) {
         <div>
           <label className={LABEL_CLS} htmlFor="acc-email">البريد الإلكتروني</label>
           <input id="acc-email" type="email" value={user?.email || ""} className={cn(INPUT_CLS, "opacity-60")} readOnly />
-          <p className="mt-1 text-xs text-text-muted">لا يمكن تغيير البريد الإلكتروني من هنا.</p>
+          <p className="mt-1 text-xs text-on-surface-variant">لا يمكن تغيير البريد الإلكتروني من هنا.</p>
         </div>
         <div>
           <label className={LABEL_CLS} htmlFor="acc-phone">
-            رقم الهاتف <span className="font-normal text-text-muted/60">(اختياري)</span>
+            رقم الهاتف <span className="font-normal text-on-surface-variant/60">(اختياري)</span>
           </label>
           <input id="acc-phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className={INPUT_CLS} placeholder="01xxxxxxxxx" dir="ltr" maxLength={20} />
         </div>
@@ -86,23 +86,23 @@ function ActivitySection({ userId }) {
 
   return (
     <section className={SECTION_CARD}>
-      <h2 className="text-base font-bold text-text">نشاط الحساب</h2>
+      <h2 className="text-base font-bold text-on-surface">نشاط الحساب</h2>
       {loading ? (
-        <p className="text-sm text-text-muted">جارٍ التحميل...</p>
+        <p className="text-sm text-on-surface-variant">جارٍ التحميل...</p>
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <div className="rounded-xl bg-bg p-3 text-center">
+          <div className="rounded-xl bg-surface-container-low p-3 text-center">
             <p className="text-2xl font-black text-accent">{data?.total_enrollments || 0}</p>
-            <p className="mt-0.5 text-xs text-text-muted">إجمالي التسجيلات</p>
+            <p className="mt-0.5 text-xs text-on-surface-variant">إجمالي التسجيلات</p>
           </div>
           {data?.active_subscription ? (
             <div className="col-span-2 rounded-xl bg-success/5 border border-success/20 p-3">
               <p className="text-xs font-bold text-success">اشتراك نشط</p>
-              <p className="mt-0.5 text-sm font-bold text-text">
+              <p className="mt-0.5 text-sm font-bold text-on-surface">
                 {data.active_subscription.sessions_remaining} حصة متبقية
               </p>
               {data.active_subscription.current_period_end ? (
-                <p className="text-xs text-text-muted">
+                <p className="text-xs text-on-surface-variant">
                   ينتهي {formatDateAr(data.active_subscription.current_period_end)}
                 </p>
               ) : null}
@@ -126,25 +126,25 @@ function SubscriptionsSection() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <section className={SECTION_CARD}><p className="text-sm text-text-muted">جارٍ تحميل الاشتراكات...</p></section>;
+  if (loading) return <section className={SECTION_CARD}><p className="text-sm text-on-surface-variant">جارٍ تحميل الاشتراكات...</p></section>;
   if (!subs?.length) return null;
 
   return (
     <section className={SECTION_CARD}>
-      <h2 className="text-base font-bold text-text">اشتراكاتي</h2>
-      <div className="divide-y divide-border rounded-xl border border-border">
+      <h2 className="text-base font-bold text-on-surface">اشتراكاتي</h2>
+      <div className="divide-y divide-border rounded-xl border border-outline-variant/40">
         {subs.map((sub) => {
-          const s = SUB_STATUS[sub.status] || { label: sub.status, cls: "bg-bg text-text-muted" };
+          const s = SUB_STATUS[sub.status] || { label: sub.status, cls: "bg-surface-container-low text-on-surface-variant" };
           return (
             <div key={sub.id} className="flex items-center justify-between gap-3 px-4 py-3">
               <div>
-                <p className="font-bold text-text">{sub.subscription_plans?.name || "خطة"}</p>
-                <p className="text-xs text-text-muted">
+                <p className="font-bold text-on-surface">{sub.subscription_plans?.name || "خطة"}</p>
+                <p className="text-xs text-on-surface-variant">
                   {sub.sessions_remaining} حصة متبقية
                   {sub.subscription_plans?.price ? ` · ${formatCurrencyEgp(sub.subscription_plans.price)}` : null}
                 </p>
                 {sub.current_period_end ? (
-                  <p className="text-xs text-text-muted">ينتهي {formatDateAr(sub.current_period_end)}</p>
+                  <p className="text-xs text-on-surface-variant">ينتهي {formatDateAr(sub.current_period_end)}</p>
                 ) : null}
               </div>
               <span className={cn("rounded-full px-2.5 py-1 text-xs font-bold", s.cls)}>{s.label}</span>
@@ -182,7 +182,7 @@ function DangerZone({ onDeleteAccount }) {
   return (
     <section className="rounded-2xl border border-danger/30 bg-danger/5 p-5 space-y-3">
       <h2 className="text-base font-bold text-danger">منطقة الخطر</h2>
-      <p className="text-sm text-text-muted">
+      <p className="text-sm text-on-surface-variant">
         حذف الحساب يوقف تسجيل دخولك ويوقف جميع الاشتراكات. لا يمكن التراجع بسهولة.
       </p>
       {!expanded ? (
@@ -190,8 +190,8 @@ function DangerZone({ onDeleteAccount }) {
           حذف حسابي
         </button>
       ) : (
-        <div className="space-y-3 rounded-xl border border-danger/30 bg-card p-4">
-          <p className="text-sm font-bold text-text">اكتب <span className="text-danger font-black">حذف حسابي</span> للتأكيد:</p>
+        <div className="space-y-3 rounded-xl border border-danger/30 bg-surface-container p-4">
+          <p className="text-sm font-bold text-on-surface">اكتب <span className="text-danger font-black">حذف حسابي</span> للتأكيد:</p>
           <input
             type="text"
             value={confirm}
@@ -236,7 +236,7 @@ export default function AccountPage() {
   if (loadingDetail) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
-        <p className="text-sm text-text-muted">جارٍ تحميل بيانات الحساب...</p>
+        <p className="text-sm text-on-surface-variant">جارٍ تحميل بيانات الحساب...</p>
       </div>
     );
   }
@@ -246,8 +246,8 @@ export default function AccountPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-5 px-4 py-8">
       <div>
-        <h1 className="text-2xl font-black text-text">إعدادات الحساب</h1>
-        <p className="mt-1 text-sm text-text-muted">
+        <h1 className="text-2xl font-black text-on-surface">إعدادات الحساب</h1>
+        <p className="mt-1 text-sm text-on-surface-variant">
           تاريخ التسجيل: {profileUser?.created_at ? formatDateAr(profileUser.created_at) : "—"}
         </p>
       </div>

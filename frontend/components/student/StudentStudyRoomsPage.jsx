@@ -33,7 +33,7 @@ function ActiveRoomPanel({ room, leaving, onLeave }) {
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-75" />
               <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-success" />
             </span>
-            <span className="text-xs font-bold text-success">أنت داخل غرفة الآن</span>
+            <span className="text-xs font-bold text-success">أنت داخل سؤال وجواب الآن</span>
           </div>
           <h2 className="text-xl font-black text-auth-on-surface">{room.subject_label}</h2>
           <p className={cn("mt-1 text-sm", studentMuted)}>
@@ -51,7 +51,7 @@ function ActiveRoomPanel({ room, leaving, onLeave }) {
             className={cn(studentBtnPrimary, "gap-2")}
           >
             <Icon name="message-circle" size={16} />
-            دخول الغرفة
+            دخول سؤال وجواب
           </button>
           <button
             type="button"
@@ -59,7 +59,7 @@ function ActiveRoomPanel({ room, leaving, onLeave }) {
             disabled={leaving}
             className={cn(studentBtnSecondary, "border-danger/40 text-danger hover:bg-danger/10")}
           >
-            {leaving ? "جاري المغادرة…" : "مغادرة الغرفة"}
+            {leaving ? "جاري المغادرة…" : "مغادرة"}
           </button>
         </div>
       </div>
@@ -113,7 +113,7 @@ export default function StudentStudyRoomsPage({
   if (loading && !gradeLabel && !error) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center p-8">
-        <SectionLoader message="جاري تحميل غرف المذاكرة..." />
+        <SectionLoader message="جاري تحميل سؤال وجواب..." />
       </div>
     );
   }
@@ -121,12 +121,12 @@ export default function StudentStudyRoomsPage({
   return (
     <div className="space-y-8">
       <AdminPageHeader
-        eyebrow="غرف المذاكرة"
-        title="ذاكر مع زملائك"
+        eyebrow="سؤال وجواب"
+        title="اسأل وشارك مع زملائك"
         subtitle={
           gradeLabel
-            ? `غرف مخصصة لـ ${gradeLabel} — انضم لغرفة أو ابدأ جلسة مذاكرة جماعية`
-            : "أكمل صفك الدراسي للانضمام لغرف المذاكرة"
+            ? `غرف مخصصة لـ ${gradeLabel} — انضم لغرفة أو اطرح سؤالك`
+            : "أكمل صفك الدراسي للانضمام لسؤال وجواب"
         }
         actions={[
           {
@@ -149,7 +149,7 @@ export default function StudentStudyRoomsPage({
         <section className={cn(studentCardSolid, "flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between")}>
           <div>
             <p className="font-black text-auth-on-surface">أكمل ملفك الدراسي</p>
-            <p className={cn("mt-1 text-sm", studentMuted)}>حدّد صفك الدراسي لتتمكن من الانضمام لغرف المذاكرة.</p>
+            <p className={cn("mt-1 text-sm", studentMuted)}>حدّد صفك الدراسي لتتمكن من الانضمام لسؤال وجواب.</p>
           </div>
           <Link href="/student/profile" className={studentBtnPrimary}>
             إكمال الملف
@@ -187,7 +187,7 @@ export default function StudentStudyRoomsPage({
                 <StatsCard
                   variant="dark"
                   title="حالتك"
-                  value={stats.in_room ? "داخل غرفة" : "غير منضم"}
+                  value={stats.in_room ? "منضم الآن" : "غير منضم"}
                   iconName={stats.in_room ? "live" : "user"}
                   tone={stats.in_room ? "success" : "warning"}
                 />

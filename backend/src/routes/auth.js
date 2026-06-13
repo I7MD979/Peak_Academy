@@ -44,6 +44,7 @@ function profileFromReqUser(reqUser) {
     role,
     is_active: reqUser.is_active !== false,
     is_verified: Boolean(reqUser.is_verified),
+    verification_status: reqUser.verification_status || "unverified",
     student_profile: null,
     teacher_profile: null,
     profile_complete: role === "admin" || role === "parent"
@@ -86,6 +87,38 @@ router.get("/me", auth, async (req, res) => {
   } catch (err) {
     console.error("GET /auth/me", err?.message || err);
     return error(res, "تعذر تحميل بيانات الحساب", 500);
+  }
+});
+
+/**
+ * يُستدعى من /auth/callback عندما يضغط شخص "تسجيل دخول بـ Google" ولا يملك
+ * حسابًا أصلاً. Supabase ينشئ صف auth.users تلقائيًا أثناء OAuth — هذا المسار
+ * يتراجع عن ذلك بحذف الحساب فورًا بشرط ألا يكون له أي صف في public.users.
+ */
+router.post("/reject-new-account", oauthLimiter, auth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const { data: existingProfile } = await supabase
+      .from("users")
+      .select("id")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (existingProfile) {
+      return error(res, "هذا الحساب موجود بالفعل", 409);
+    }
+
+    const { error: deleteErr } = await supabase.auth.admin.deleteUser(userId);
+    if (deleteErr) {
+      console.error("[reject-new-account] deleteUser error:", deleteErr.message);
+      return error(res, "تعذر إلغاء الحساب", 500);
+    }
+
+    return success(res, { deleted: true }, "لا يوجد حساب بهذا البريد الإلكتروني");
+  } catch (err) {
+    console.error("POST /auth/reject-new-account", err?.message || err);
+    return error(res, "حدث خطأ غير متوقع", 500);
   }
 });
 
@@ -201,7 +234,13 @@ router.post("/setup-profile", oauthLimiter, authSlowDown, authLimiter, uniformAu
           full_name: fullName,
           phone: phone || null,
           is_active: true,
-          is_verified: true
+          is_verified: role === "parent" || role === "admin",
+          verification_status:
+            role === "student"
+              ? "unverified"
+              : role === "teacher"
+              ? "pending_review"
+              : "verified"
         })
       )
       .eq("id", req.user.id);

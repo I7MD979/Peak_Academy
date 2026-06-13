@@ -150,6 +150,8 @@ export default function OnboardingClient({ deferredReturn = null, levelParam = n
 
       if (deferredReturn) {
         nextPath = deferredReturn;
+      } else if (values.role === "teacher") {
+        nextPath = "/onboarding/teacher-verification";
       }
 
       toast.success(res?.message || "تم إنشاء ملفك الشخصي بنجاح! مرحبًا بك في Peak Academy");

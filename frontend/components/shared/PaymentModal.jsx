@@ -117,17 +117,17 @@ export default function PaymentModal({ session, checkoutOptions = {}, onClose, o
           : `ادفع الآن — ${formatCurrencyEgp(displayFinal)}`;
 
   return (
-    <div className="space-y-4 rounded-2xl border border-border bg-card p-5 shadow-xl">
+    <div className="space-y-4 rounded-2xl border border-outline-variant/40 bg-surface-container p-5 shadow-xl">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h3 className="text-lg font-black text-text">تأكيد الحجز والدفع</h3>
-          <p className="mt-1 text-sm text-text-muted">{session?.title || "جلسة تعليمية"}</p>
+          <h3 className="text-lg font-black text-on-surface">تأكيد الحجز والدفع</h3>
+          <p className="mt-1 text-sm text-on-surface-variant">{session?.title || "جلسة تعليمية"}</p>
         </div>
         {onClose ? (
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1 text-text-muted hover:bg-bg"
+            className="rounded-lg p-1 text-on-surface-variant hover:bg-surface-container-high"
             aria-label="إغلاق"
           >
             <Icon name="close" size={20} />
@@ -142,7 +142,7 @@ export default function PaymentModal({ session, checkoutOptions = {}, onClose, o
       ) : null}
 
       <div className="space-y-2">
-        <p className="text-xs font-bold text-text-muted">طريقة الدفع</p>
+        <p className="text-xs font-bold text-on-surface-variant">طريقة الدفع</p>
         <div className="flex flex-wrap gap-2">
           {availableTypes.map((t) => (
             <button
@@ -152,7 +152,7 @@ export default function PaymentModal({ session, checkoutOptions = {}, onClose, o
               className={`rounded-xl border px-3 py-2 text-sm font-bold transition ${
                 paymentType === t.id
                   ? "border-accent bg-accent/10 text-accent"
-                  : "border-border text-text-muted"
+                  : "border-outline-variant/40 text-on-surface-variant"
               }`}
             >
               {t.label}
@@ -163,7 +163,7 @@ export default function PaymentModal({ session, checkoutOptions = {}, onClose, o
 
       {paymentType === "pay_per_session" && displayFinal > 0 ? (
         <div className="space-y-2">
-          <p className="text-xs font-bold text-text-muted">بوابة الدفع</p>
+          <p className="text-xs font-bold text-on-surface-variant">بوابة الدفع</p>
           <PaymentMethodSelector selected={gatewayProvider} onChange={setGatewayProvider} />
         </div>
       ) : null}
@@ -171,24 +171,24 @@ export default function PaymentModal({ session, checkoutOptions = {}, onClose, o
       {paymentType === "pay_per_session" ? (
         <>
           <div>
-            <label className="text-xs font-bold text-text-muted">كود الخصم</label>
+            <label className="text-xs font-bold text-on-surface-variant">كود الخصم</label>
             <input
               type="text"
               value={promoCode}
               onChange={(e) => setPromoCode(e.target.value)}
               placeholder="أدخل الكود"
-              className="mt-1 w-full rounded-xl border border-border bg-bg px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-xl border border-outline-variant/40 bg-surface-container-low px-3 py-2 text-sm"
             />
             {promoLoading ? (
-              <p className="mt-1 text-xs text-text-muted">جارٍ التحقق...</p>
+              <p className="mt-1 text-xs text-on-surface-variant">جارٍ التحقق...</p>
             ) : null}
             {promoPreview && !promoPreview.valid ? (
               <p className="mt-1 text-xs font-semibold text-danger">{promoPreview.reason}</p>
             ) : null}
           </div>
 
-          <div className="rounded-xl bg-bg p-4 text-sm">
-            <div className="flex justify-between text-text-muted">
+          <div className="rounded-xl bg-surface-container-low p-4 text-sm">
+            <div className="flex justify-between text-on-surface-variant">
               <span>السعر الأصلي</span>
               <span>{formatCurrencyEgp(displayOriginal)}</span>
             </div>
@@ -198,19 +198,19 @@ export default function PaymentModal({ session, checkoutOptions = {}, onClose, o
                 <span>− {formatCurrencyEgp(displayDiscount)}</span>
               </div>
             ) : null}
-            <div className="mt-2 flex justify-between border-t border-border pt-2 font-black text-accent">
+            <div className="mt-2 flex justify-between border-t border-outline-variant/40 pt-2 font-black text-accent">
               <span>السعر النهائي</span>
               <span>{formatCurrencyEgp(displayFinal)}</span>
             </div>
           </div>
         </>
       ) : paymentType === "subscription" ? (
-        <p className="text-sm text-text-muted">
+        <p className="text-sm text-on-surface-variant">
           سيتم خصم حصة واحدة من اشتراكك (
           {checkoutOptions.active_subscription?.sessions_remaining} متبقية)
         </p>
       ) : (
-        <p className="text-sm text-text-muted">الحصة الأولى مع هذا المدرس في هذه المادة — مجاناً</p>
+        <p className="text-sm text-on-surface-variant">الحصة الأولى مع هذا المدرس في هذه المادة — مجاناً</p>
       )}
 
       {error ? <p className="text-sm font-semibold text-danger">{error}</p> : null}

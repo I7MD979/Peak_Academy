@@ -15,6 +15,8 @@ import { cleanupOrphanedLiveKitRooms, isLiveKitConfigured } from "../services/li
 import { querySessionsList } from "../utils/session-select.js";
 import { isValidGrade, VALID_SCHOOL_LEVELS } from "../lib/grades.js";
 import { UserService } from "../services/user.service.js";
+import { VerificationService } from "../services/verificationService.js";
+import { ADMIN_GRANULAR_PERMISSIONS } from "../middleware/permissions.js";
 
 const router = Router();
 
@@ -1653,16 +1655,8 @@ router.get("/staff/:id/permissions", auth, checkRole("admin"), async (req, res) 
 });
 
 // ── Set staff member's permissions (admin only) ───────────────────────────────
-const VALID_ASSIGNABLE = new Set([
-  "dashboard",
-  "users.read", "users.edit", "users.delete", "users.subscriptions",
-  "sessions.read",
-  "withdrawals.read", "withdrawals.write",
-  "reports",
-  "plans.read", "plans.create", "plans.edit", "plans.delete",
-  "promotions.read", "promotions.create", "promotions.edit", "promotions.delete",
-  "landing"
-]);
+// verification.review is assignable but never granted to new supervisors by default.
+const VALID_ASSIGNABLE = new Set(ADMIN_GRANULAR_PERMISSIONS);
 
 router.put("/staff/:id/permissions", auth, checkRole("admin"), async (req, res) => {
   try {
@@ -1693,6 +1687,49 @@ router.put("/staff/:id/permissions", auth, checkRole("admin"), async (req, res) 
     return success(res, { permissions: clean }, "تم تحديث الصلاحيات");
   } catch (_err) {
     return error(res, "تعذر تحديث الصلاحيات", 500);
+  }
+});
+
+// ── Identity verification review ──────────────────────────────────────────────
+
+router.get("/verification-documents", auth, requirePermission("verification.review"), async (req, res) => {
+  try {
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(Number(req.query.limit) || 20, 100);
+    const docType = String(req.query.doc_type || "").trim() || undefined;
+    const result = await VerificationService.listPending({ docType, page, limit });
+    return success(res, result);
+  } catch (err) {
+    if (process.env.NODE_ENV !== "production") console.error("GET /admin/verification-documents", err);
+    return error(res, "تعذر تحميل طلبات التحقق", 500);
+  }
+});
+
+router.get("/verification-documents/:id/signed-url", auth, requirePermission("verification.review"), async (req, res) => {
+  try {
+    const url = await VerificationService.getSignedUrl(req.params.id, req.user.id);
+    return success(res, { url });
+  } catch (err) {
+    return error(res, err.message || "تعذر إنشاء رابط المستند", 500);
+  }
+});
+
+router.post("/verification-documents/:id/approve", auth, requirePermission("verification.review"), async (req, res) => {
+  try {
+    await VerificationService.approve(req.params.id, req.user.id);
+    return success(res, null, "تم اعتماد المستند");
+  } catch (err) {
+    return error(res, err.message || "تعذر اعتماد المستند", 500);
+  }
+});
+
+router.post("/verification-documents/:id/reject", auth, requirePermission("verification.review"), async (req, res) => {
+  try {
+    const reason = String(req.body?.reason || "").trim().slice(0, 500);
+    await VerificationService.reject(req.params.id, req.user.id, reason);
+    return success(res, null, "تم رفض المستند");
+  } catch (err) {
+    return error(res, err.message || "تعذر رفض المستند", 500);
   }
 });
 

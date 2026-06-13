@@ -57,7 +57,14 @@ const PERMISSIONS_MATRIX = {
   "GET /api/student/sessions/:id": ["student"],
 
   "GET /api/teacher/profile": ["teacher", "admin"],
-  "PUT /api/teacher/profile": ["teacher"]
+  "PUT /api/teacher/profile": ["teacher"],
+
+  // Verification review — granular gate via requirePermission("verification.review");
+  // Supervisors pass this BFLA check but still need the explicit permission assigned.
+  "GET /api/admin/verification-documents": ["admin", "supervisor"],
+  "GET /api/admin/verification-documents/:id/signed-url": ["admin", "supervisor"],
+  "POST /api/admin/verification-documents/:id/approve": ["admin", "supervisor"],
+  "POST /api/admin/verification-documents/:id/reject": ["admin", "supervisor"]
 };
 
 function matchesPattern(pattern, key) {
@@ -114,5 +121,37 @@ export function getRolePermissions(role) {
     .filter(([, roles]) => roles.includes(role) || roles.includes("*"))
     .map(([endpoint]) => endpoint);
 }
+
+/**
+ * Granular admin-panel permissions (stored per-supervisor in admin_permissions).
+ * Admins implicitly hold all permissions via requirePermission middleware.
+ */
+export const ADMIN_GRANULAR_PERMISSIONS = [
+  "dashboard",
+  "users.read",
+  "users.edit",
+  "users.delete",
+  "users.subscriptions",
+  "sessions.read",
+  "withdrawals.read",
+  "withdrawals.write",
+  "reports",
+  "plans.read",
+  "plans.create",
+  "plans.edit",
+  "plans.delete",
+  "promotions.read",
+  "promotions.create",
+  "promotions.edit",
+  "promotions.delete",
+  "landing",
+  "verification.review"
+];
+
+/**
+ * Permissions never granted to new supervisors by default — assign manually by admin only.
+ * admin_permissions defaults to '{}' for new supervisor accounts (see 20260626_staff_permissions.sql).
+ */
+export const SUPERVISOR_RESTRICTED_PERMISSIONS = new Set(["verification.review"]);
 
 export { PERMISSIONS_MATRIX };

@@ -93,7 +93,7 @@ function StudentSessionsContent() {
       } catch (err) {
         logApiError("student/sessions", err);
         if (!silent) setSessions([]);
-        setError(err.message || "تعذر تحميل الجلسات");
+        setError(err.message || "تعذر تحميل المحاضرات");
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -174,7 +174,7 @@ export default function StudentSessionsRoutePage() {
     <Suspense
       fallback={
         <div className="flex min-h-[40vh] items-center justify-center p-8">
-          <SectionLoader message="جاري تحميل الجلسات..." />
+          <SectionLoader message="جاري تحميل المحاضرات..." />
         </div>
       }
     >

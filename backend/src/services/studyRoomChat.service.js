@@ -30,11 +30,11 @@ export async function isActiveMember(roomId, userId) {
 }
 
 /**
- * Fetch recent messages for a channel.
+ * Fetch recent messages for a room (unified feed — all channels).
  * Returns oldest-first so the UI can render top-to-bottom.
  * Pass `before` (ISO string) for cursor-based pagination.
  */
-export async function getRoomMessages(roomId, channel = "general", limit = 50, before = null) {
+export async function getRoomMessages(roomId, limit = 50, before = null) {
   let query = supabase
     .from("study_room_messages")
     .select(`
@@ -43,7 +43,6 @@ export async function getRoomMessages(roomId, channel = "general", limit = 50, b
       reply_message:reply_to(id, content, sender:users!sender_id(full_name))
     `)
     .eq("room_id", roomId)
-    .eq("channel", channel)
     .order("created_at", { ascending: false })
     .limit(limit);
 
@@ -57,11 +56,12 @@ export async function getRoomMessages(roomId, channel = "general", limit = 50, b
 /**
  * Send a message.
  * Enforces:
- *  - voice_note / official_reply: owner or ta only
- *  - question type: must be in qa channel
+ *  - voice_note / official_reply: owner, ta, or moderator only
+ *  - file / text / question / image: all active members
  */
 export async function sendMessage({
-  roomId, senderId, channel, type, content, voiceUrl, imageUrl, replyTo
+  roomId, senderId, type, content, voiceUrl, imageUrl,
+  fileUrl, fileName, fileSize, fileType, replyTo
 }) {
   if (type === "voice_note" || type === "official_reply") {
     const role = await getMemberRole(roomId, senderId);
@@ -73,20 +73,20 @@ export async function sendMessage({
     }
   }
 
-  if (type === "question" && channel !== "qa") {
-    throw Object.assign(new Error("الأسئلة فقط في قناة Q&A"), { status: 400 });
-  }
-
   const { data, error } = await supabase
     .from("study_room_messages")
     .insert({
       room_id:   roomId,
       sender_id: senderId,
-      channel,
+      channel:   "main",
       type,
       content:   content   || null,
       voice_url: voiceUrl  || null,
       image_url: imageUrl  || null,
+      file_url:  fileUrl   || null,
+      file_name: fileName  || null,
+      file_size: fileSize  ?? null,
+      file_type: fileType  || null,
       reply_to:  replyTo   || null
     })
     .select(`*, sender:users!sender_id(id, full_name, avatar_url)`)

@@ -25,10 +25,10 @@ function ChartTooltip({ active, payload, label, variant }) {
         "rounded-xl border px-3 py-2 text-sm shadow-lg",
         isDark
           ? "border-outline-variant bg-surface-container-high text-on-surface"
-          : "border-border bg-card text-text"
+          : "border-outline-variant/40 bg-surface-container text-on-surface"
       )}
     >
-      <p className={cn("mb-1 font-bold", isDark ? "text-on-surface" : "text-text")}>{label}</p>
+      <p className={cn("mb-1 font-bold", isDark ? "text-on-surface" : "text-on-surface")}>{label}</p>
       {payload.map((entry) => (
         <p key={entry.dataKey} style={{ color: entry.color }}>
           {entry.name}: {formatCurrencyEgp(entry.value)}
@@ -48,7 +48,7 @@ export default function RevenueChart({ data = [], loading, variant = "dark" }) {
       <div
         className={cn(
           "flex h-[320px] items-center justify-center rounded-xl border border-dashed",
-          isDark ? "border-outline-variant bg-surface-container-low/50" : "border-border bg-bg/50"
+          isDark ? "border-outline-variant bg-surface-container-low/50" : "border-outline-variant/40 bg-surface-container-low/50"
         )}
       >
         <SectionLoader message="جاري تحميل الرسم البياني..." />
@@ -61,10 +61,10 @@ export default function RevenueChart({ data = [], loading, variant = "dark" }) {
       <div
         className={cn(
           "flex h-[320px] items-center justify-center rounded-xl border border-dashed",
-          isDark ? "border-outline-variant bg-surface-container-low/30" : "border-border bg-muted/30"
+          isDark ? "border-outline-variant bg-surface-container-low/30" : "border-outline-variant/40 bg-muted/30"
         )}
       >
-        <p className={cn("text-sm", isDark ? "text-on-surface-variant" : "text-text-muted")}>
+        <p className={cn("text-sm", isDark ? "text-on-surface-variant" : "text-on-surface-variant")}>
           لا توجد بيانات للفترة المحددة
         </p>
       </div>
@@ -84,7 +84,7 @@ export default function RevenueChart({ data = [], loading, variant = "dark" }) {
           <Tooltip content={<ChartTooltip variant={variant} />} />
           <Legend
             formatter={(value) => (
-              <span className={cn("text-xs", isDark ? "text-on-surface-variant" : "text-text-muted")}>
+              <span className={cn("text-xs", isDark ? "text-on-surface-variant" : "text-on-surface-variant")}>
                 {value}
               </span>
             )}

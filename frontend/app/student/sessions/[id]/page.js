@@ -27,7 +27,7 @@ export default function StudentSessionDetailsRoute({ params }) {
     } catch (err) {
       setRaw(null);
       setSession(null);
-      setError(err.message || "تعذر تحميل الجلسة");
+      setError(err.message || "تعذر تحميل المحاضرة");
     } finally {
       setLoading(false);
     }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { studyRoomsApi } from "@/lib/api";
@@ -18,7 +18,10 @@ import { studyRoomVoicePath, studyRoomsListPath } from "@/lib/study-room-routes"
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const CHANNEL_LABELS = { general: "الدردشة العامة", qa: "الأسئلة والأجوبة" };
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
+const ALLOWED_FILE_EXTENSIONS = new Set([
+  "pdf", "doc", "docx", "xls", "xlsx", "jpg", "jpeg", "png", "webp"
+]);
 
 function roleLabel(role) {
   switch (role) {
@@ -27,6 +30,19 @@ function roleLabel(role) {
     case "moderator": return "مشرف";
     default:          return "طالب";
   }
+}
+
+function fileIcon(fileType = "") {
+  if (fileType.startsWith("image/")) return "🖼️";
+  if (fileType.includes("pdf")) return "📄";
+  if (fileType.includes("word") || fileType.includes("msword")) return "📝";
+  if (fileType.includes("excel") || fileType.includes("spreadsheet")) return "📊";
+  return "📎";
+}
+
+function formatFileSize(bytes) {
+  if (!bytes) return "";
+  return `${(bytes / 1024).toFixed(0)} KB`;
 }
 
 // ── Message bubble ────────────────────────────────────────────────────────────
@@ -79,6 +95,34 @@ function MessageBubble({ msg, myId, myRole, onResolve }) {
           {msg.type === "voice_note" ? (
             <div className="flex items-center gap-2">
               <span className="text-[11px] font-bold opacity-70">🎙️ رسالة صوتية</span>
+            </div>
+          ) : msg.type === "file" || msg.file_url ? (
+            <div className="flex flex-col gap-2">
+              {msg.file_type?.startsWith("image/") && (
+                <img
+                  src={msg.file_url}
+                  alt={msg.file_name || "صورة"}
+                  className="max-w-[220px] rounded-lg"
+                />
+              )}
+              <div className="flex items-center gap-2">
+                <span className="text-lg">{fileIcon(msg.file_type)}</span>
+                <div className="min-w-0">
+                  <p className="truncate font-bold">{msg.file_name || msg.content || "ملف"}</p>
+                  {msg.file_size ? (
+                    <p className="text-[10px] opacity-70">{formatFileSize(msg.file_size)}</p>
+                  ) : null}
+                </div>
+              </div>
+              <a
+                href={msg.file_url}
+                download
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex w-fit rounded-lg bg-white/10 px-3 py-1 text-[11px] font-bold hover:bg-white/20"
+              >
+                تحميل
+              </a>
             </div>
           ) : (
             msg.content
@@ -200,10 +244,8 @@ export default function StudyRoomPage() {
   const { roomId } = useParams();
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const roomsListPath = studyRoomsListPath(pathname);
 
-  const [channel, setChannel] = useState("general");
   const [myRole, setMyRole]       = useState("student");
   const [myId, setMyId]           = useState(null);
   const [roomInfo, setRoomInfo]   = useState(null);
@@ -219,8 +261,10 @@ export default function StudyRoomPage() {
   // Voice note recording
   const [recording, setRecording]   = useState(false);
   const [uploading, setUploading]   = useState(false);
+  const [uploadingFile, setUploadingFile] = useState(false);
   const mediaRecorderRef            = useRef(null);
   const audioChunksRef              = useRef([]);
+  const fileInputRef                = useRef(null);
 
   const [input, setInput]     = useState("");
   const [msgType, setMsgType] = useState("text");
@@ -229,14 +273,7 @@ export default function StudyRoomPage() {
   const messagesEndRef         = useRef(null);
 
   const { messages, loading, sending, error, hasMore, sendMessage, resolveQuestion, loadMore } =
-    useRoomChat(roomId, channel);
-
-  useEffect(() => {
-    const requestedChannel = searchParams.get("channel");
-    if (requestedChannel === "qa" || requestedChannel === "general") {
-      setChannel(requestedChannel);
-    }
-  }, [searchParams]);
+    useRoomChat(roomId);
 
   // ── Load room info + my role + subscriptions ──────────────────────────────
   useEffect(() => {
@@ -344,6 +381,54 @@ export default function StudyRoomPage() {
       setRecording(true);
     } catch {
       toast.error("تعذر الوصول للميكروفون");
+    }
+  };
+
+  const handleFileSelect = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error("حجم الملف أكبر من 10 ميجا");
+      return;
+    }
+
+    const ext = file.name.split(".").pop()?.toLowerCase() || "";
+    if (!ALLOWED_FILE_EXTENSIONS.has(ext)) {
+      toast.error("نوع الملف غير مدعوم");
+      return;
+    }
+
+    setUploadingFile(true);
+    try {
+      const { createClient } = await import("@/lib/supabase/client");
+      const supabase = createClient();
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const filePath = `${roomId}/${Date.now()}-${safeName}`;
+      const { error: uploadErr } = await supabase.storage
+        .from("study-room-files")
+        .upload(filePath, file, { contentType: file.type });
+
+      if (uploadErr) throw uploadErr;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("study-room-files")
+        .getPublicUrl(filePath);
+
+      await sendMessage({
+        type: "file",
+        file_url: publicUrl,
+        file_name: file.name,
+        file_size: file.size,
+        file_type: file.type,
+        content: file.name
+      });
+      toast.success("تم رفع الملف");
+    } catch (err) {
+      toast.error(err.message || "تعذر رفع الملف");
+    } finally {
+      setUploadingFile(false);
     }
   };
 
@@ -502,7 +587,7 @@ export default function StudyRoomPage() {
           </button>
           <div>
             <h1 className="text-sm font-black text-auth-on-surface">
-              {roomInfo ? `${roomInfo.subject} · ${roomInfo.grade}` : "غرفة المذاكرة"}
+              {roomInfo ? `${roomInfo.subject} · ${roomInfo.grade}` : "سؤال وجواب"}
             </h1>
             <p className="text-[11px] text-auth-on-surface-variant">{roleLabel(myRole)}</p>
           </div>
@@ -549,25 +634,6 @@ export default function StudyRoomPage() {
         <RaiseHandQueue queue={raiseHandQueue} onGrant={handleGrantSpeak} />
       )}
 
-      {/* Channel tabs */}
-      <div className="flex gap-1 border-b border-auth-outline-variant/20 px-4 md:px-6 mt-3">
-        {Object.entries(CHANNEL_LABELS).map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setChannel(key)}
-            className={cn(
-              "px-4 py-2 text-sm font-bold transition-colors border-b-2 -mb-px",
-              channel === key
-                ? "border-auth-primary text-auth-primary"
-                : "border-transparent text-auth-on-surface-variant hover:text-auth-on-surface"
-            )}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4 md:px-6 flex flex-col gap-3">
         {hasMore && (
@@ -585,9 +651,7 @@ export default function StudyRoomPage() {
           </div>
         ) : messages.length === 0 ? (
           <div className="flex flex-1 items-center justify-center">
-            <span className="text-sm text-auth-on-surface-variant">
-              {channel === "qa" ? "لا توجد أسئلة بعد" : "ابدأ المحادثة!"}
-            </span>
+            <span className="text-sm text-auth-on-surface-variant">ابدأ المحادثة!</span>
           </div>
         ) : (
           messages.map((msg) => (
@@ -617,42 +681,49 @@ export default function StudyRoomPage() {
 
       {/* Input bar */}
       <div className="border-t border-auth-outline-variant/20 bg-auth-surface px-4 py-3 md:px-6">
-        {/* Message type selector (owner/ta only) */}
-        {(myRole === "owner" || myRole === "ta") && (
-          <div className="mb-2 flex gap-2 flex-wrap">
-            {["text", "official_reply"].map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setMsgType(t)}
-                className={cn(
-                  "rounded-full px-3 py-1 text-[11px] font-bold transition-colors",
-                  msgType === t
-                    ? "bg-auth-primary text-white"
-                    : "bg-auth-surface-variant/30 text-auth-on-surface-variant hover:bg-auth-surface-variant/50"
-                )}
-              >
-                {t === "text" ? "نص عادي" : "رد رسمي"}
-              </button>
-            ))}
-            {channel === "qa" && (
-              <button
-                type="button"
-                onClick={() => setMsgType("question")}
-                className={cn(
-                  "rounded-full px-3 py-1 text-[11px] font-bold transition-colors",
-                  msgType === "question"
-                    ? "bg-auth-primary text-white"
-                    : "bg-auth-surface-variant/30 text-auth-on-surface-variant hover:bg-auth-surface-variant/50"
-                )}
-              >
-                سؤال
-              </button>
-            )}
-          </div>
-        )}
+        {/* Message type selector */}
+        <div className="mb-2 flex gap-2 flex-wrap">
+          {[
+            { key: "text", label: "نص عادي" },
+            { key: "question", label: "سؤال" },
+            ...(myRole === "owner" || myRole === "ta" || myRole === "moderator"
+              ? [{ key: "official_reply", label: "رد رسمي" }]
+              : [])
+          ].map(({ key, label }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setMsgType(key)}
+              className={cn(
+                "rounded-full px-3 py-1 text-[11px] font-bold transition-colors",
+                msgType === key
+                  ? "bg-auth-primary text-white"
+                  : "bg-auth-surface-variant/30 text-auth-on-surface-variant hover:bg-auth-surface-variant/50"
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
 
         <form onSubmit={handleSend} className="flex items-center gap-2">
+          <input
+            type="file"
+            accept=".pdf,.doc,.docx,.xls,.xlsx,image/*"
+            hidden
+            ref={fileInputRef}
+            onChange={handleFileSelect}
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploadingFile || recording || sending}
+            title="رفع ملف"
+            className="flex-shrink-0 rounded-xl border border-auth-outline-variant/30 p-2.5 text-auth-on-surface-variant transition-colors hover:bg-auth-surface-variant/30 disabled:opacity-40"
+          >
+            📎
+          </button>
+
           {/* Voice note button — owner/ta only */}
           {(myRole === "owner" || myRole === "ta") && (
             <button
@@ -676,13 +747,13 @@ export default function StudyRoomPage() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder={
-              channel === "qa"
-                ? "اكتب سؤالك…"
-                : msgType === "official_reply"
+              msgType === "official_reply"
                 ? "اكتب رداً رسمياً…"
-                : "اكتب رسالة…"
+                : msgType === "question"
+                ? "اكتب سؤالك…"
+                : "اكتب رسالة أو سؤال…"
             }
-            disabled={sending || recording}
+            disabled={sending || recording || uploadingFile}
             className="flex-1 rounded-xl border border-auth-outline-variant/30 bg-auth-surface-variant/20 px-4 py-2.5 text-sm text-auth-on-surface placeholder:text-auth-on-surface-variant focus:border-auth-primary/60 focus:outline-none transition-colors disabled:opacity-50"
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
@@ -690,7 +761,7 @@ export default function StudyRoomPage() {
           />
           <button
             type="submit"
-            disabled={sending || !input.trim() || recording}
+            disabled={sending || !input.trim() || recording || uploadingFile}
             className={cn(studentBtnPrimary, "py-2.5 px-4 disabled:opacity-40")}
           >
             {sending ? (
@@ -702,9 +773,13 @@ export default function StudyRoomPage() {
         </form>
 
         {/* Recording status */}
-        {(recording || uploading) && (
+        {(recording || uploading || uploadingFile) && (
           <p className="mt-1.5 text-center text-[11px] font-bold text-danger animate-pulse">
-            {uploading ? "جاري رفع الصوت…" : "● جاري التسجيل — اضغط مرة أخرى للإرسال"}
+            {uploadingFile
+              ? "جاري رفع الملف…"
+              : uploading
+              ? "جاري رفع الصوت…"
+              : "● جاري التسجيل — اضغط مرة أخرى للإرسال"}
           </p>
         )}
       </div>

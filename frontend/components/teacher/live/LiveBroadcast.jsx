@@ -1,13 +1,21 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import dynamic from "next/dynamic";
 import { toast } from "sonner";
 import ConnectionBanner from "./ConnectionBanner";
 import LiveSessionHeader from "./LiveSessionHeader";
-import LiveKitVideoRoom from "./LiveKitVideoRoom";
 import TeacherToolsPanel from "./TeacherToolsPanel";
 import AttendancePanel from "./AttendancePanel";
 import EndSessionDialog from "./EndSessionDialog";
+import { SectionLoader } from "@/components/shared/LoadingSkeleton";
+
+// LiveKit pulls in a large WebRTC client bundle — only load it on pages that
+// actually start a video session, and only on the client (it needs the browser).
+const LiveKitVideoRoom = dynamic(() => import("./LiveKitVideoRoom"), {
+  ssr: false,
+  loading: () => <SectionLoader message="جاري تحميل غرفة البث..." />
+});
 
 export default function LiveBroadcast({
   session,

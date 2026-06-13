@@ -69,7 +69,7 @@ export default function TeacherStudyRoomsPage() {
       const json = await studyRoomsApi.join(roomId);
       if (!json.success) throw new Error(json.error);
 
-      router.push(`/teacher/study-rooms/${roomId}?channel=qa`);
+      router.push(`/teacher/study-rooms/${roomId}`);
     } catch (err) {
       setError(err.message || "تعذر الدخول للغرفة");
     } finally {

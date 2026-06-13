@@ -266,6 +266,13 @@ export const UserRepository = {
     });
   },
 
+  /** Hard-delete public.users row (fallback when auth user already removed). */
+  async hardDelete(id) {
+    if (!UUID_RE.test(id)) throw new Error("invalid_id");
+    const { error } = await supabase.from("users").delete().eq("id", id);
+    if (error) throw error;
+  },
+
   /** Count users grouped by role and active status for stats cards. */
   async countByRole() {
     const [total, students, teachers, parents, admins, suspended] = await Promise.all([

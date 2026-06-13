@@ -43,7 +43,7 @@ export default function StudentSessionsFilters({
   return (
     <section className={cn(studentCardSolid, "space-y-4 p-4 md:p-5")}>
       <div>
-        <h2 className="text-lg font-black text-auth-on-surface">تصفية الجلسات</h2>
+        <h2 className="text-lg font-black text-auth-on-surface">تصفية المحاضرات</h2>
         <p className={cn("mt-1 text-sm", studentMuted)}>ابحث وحدّد المرحلة والمادة والسعر المناسبين لك</p>
       </div>
 
@@ -64,9 +64,9 @@ export default function StudentSessionsFilters({
             type="search"
             value={search}
             onChange={(event) => onSearchChange?.(event.target.value)}
-            placeholder="ابحث بعنوان الجلسة..."
+            placeholder="ابحث بعنوان المحاضرة..."
             className={cn(studentInput, "h-11 ps-10")}
-            aria-label="بحث في الجلسات"
+            aria-label="بحث في المحاضرات"
           />
         </div>
         <button type="submit" className={cn(studentBtnSecondary, "h-11 shrink-0 px-6")}>
@@ -107,7 +107,7 @@ export default function StudentSessionsFilters({
             id="only_my_grade"
             checked={onlyMyGrade}
             onChange={(event) => onOnlyMyGradeChange?.(event.target.checked)}
-            label={gradeLabel ? `جلسات صفّي (${gradeLabel})` : "جلسات صفّي فقط"}
+            label={gradeLabel ? `محاضرات صفّي (${gradeLabel})` : "محاضرات صفّي فقط"}
             disabled={loading || !gradeLabel}
           />
         ) : (

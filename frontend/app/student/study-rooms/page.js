@@ -74,7 +74,7 @@ function StudentStudyRoomsContent() {
           return;
         }
         logApiError("student/study-rooms", err);
-        const message = err.message || "تعذر تحميل غرف المذاكرة";
+        const message = err.message || "تعذر تحميل سؤال وجواب";
         if (message.includes("ملفك الدراسي") || message.includes("الصف")) {
           setProfileIncomplete(true);
           setError("");
@@ -183,7 +183,7 @@ export default function StudentStudyRoomsPage() {
     <Suspense
       fallback={
         <div className="flex min-h-[40vh] items-center justify-center p-8">
-          <SectionLoader message="جاري تحميل غرف المذاكرة..." />
+          <SectionLoader message="جاري تحميل سؤال وجواب..." />
         </div>
       }
     >

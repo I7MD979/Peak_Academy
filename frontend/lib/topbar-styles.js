@@ -100,5 +100,5 @@ export const ROLE_QUICK_ACTIONS = {
 export const ROLE_SEARCH_PLACEHOLDER = {
   admin: "بحث في المنصة...",
   teacher: "بحث عن جلسة أو طالب...",
-  student: "بحث في الجلسات..."
+  student: "بحث في المحاضرات..."
 };

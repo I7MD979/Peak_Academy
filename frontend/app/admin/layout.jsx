@@ -1,25 +1,23 @@
-"use client";
+import { headers } from "next/headers";
+import AdminLayoutClient from "./layout.client.jsx";
 
-import { useState } from "react";
-import AdminSidebar from "@/components/admin/AdminSidebar";
-import AdminTopBar from "@/components/shared/AdminTopBar";
-import AppLayoutFrame from "@/components/layout/AppLayoutFrame";
-import RoleGate from "@/components/layout/RoleGate";
+export const dynamic = "force-dynamic";
 
-export default function AdminLayout({ children }) {
-  const [mobileOpen, setMobileOpen] = useState(false);
+/**
+ * Server wrapper: reads the user profile that middleware (proxy.js) already
+ * verified for this request and passes it to the client layout. This avoids a
+ * second client-side /auth/me call + full-page loader on every navigation.
+ */
+export default async function AdminLayout({ children }) {
+  const raw = (await headers()).get("x-user-profile");
+  let initialProfile = null;
+  if (raw) {
+    try {
+      initialProfile = JSON.parse(raw);
+    } catch {
+      initialProfile = null;
+    }
+  }
 
-  return (
-    <RoleGate roles={["admin", "supervisor"]}>
-      <AppLayoutFrame
-        shellClassName="admin-shell"
-        sidebar={
-          <AdminSidebar mobileOpen={mobileOpen} onCloseMobile={() => setMobileOpen(false)} />
-        }
-        topbar={<AdminTopBar onOpenMobile={() => setMobileOpen(true)} />}
-      >
-        {children}
-      </AppLayoutFrame>
-    </RoleGate>
-  );
+  return <AdminLayoutClient initialProfile={initialProfile}>{children}</AdminLayoutClient>;
 }

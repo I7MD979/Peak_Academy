@@ -7,15 +7,20 @@ import { isProfileComplete, ROLE_HOME } from "@/lib/role-routes";
 import { PageLoader } from "@/components/shared/LoadingSkeleton";
 import { useAuthStore } from "@/store/authStore";
 
-export default function RoleGate({ roles, children }) {
+export default function RoleGate({ roles, children, initialProfile = null }) {
   const router = useRouter();
   const session = useAuthStore((s) => s.session);
   const loadingSession = useAuthStore((s) => s.loading);
-  const [profile, setProfile] = useState(null);
-  const [checking, setChecking] = useState(true);
+  const [profile, setProfile] = useState(initialProfile);
+  const [checking, setChecking] = useState(!initialProfile);
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    // Middleware (proxy.js) already verified role + profile completeness for
+    // this request and handed us the profile via a server header — trust it
+    // and skip the redundant client-side /auth/me round trip + full loader.
+    if (initialProfile) return;
+
     let active = true;
 
     async function verifyRole() {
@@ -68,7 +73,11 @@ export default function RoleGate({ roles, children }) {
     return () => {
       active = false;
     };
-  }, [loadingSession, roles, router, session?.access_token]);
+  }, [initialProfile, loadingSession, roles, router, session?.access_token]);
+
+  if (initialProfile) {
+    return children;
+  }
 
   if (loadingSession || checking || !profile) {
     return <PageLoader />;

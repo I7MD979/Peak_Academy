@@ -4,6 +4,7 @@ import { PERMISSIONS } from "@/lib/admin-permissions";
 export const ADMIN_NAV_MAIN = [
   { href: "/admin/dashboard",     label: "لوحة التحكم",       icon: "dashboard",   permission: PERMISSIONS.DASHBOARD },
   { href: "/admin/users",         label: "المستخدمون",         icon: "users",       permission: PERMISSIONS.USERS_READ },
+  { href: "/admin/verification",  label: "التحقق من الهوية",   icon: "shield",      permission: PERMISSIONS.VERIFICATION_REVIEW },
   { href: "/admin/sessions",      label: "الجلسات",            icon: "video",       permission: PERMISSIONS.SESSIONS_READ },
   { href: "/admin/withdrawals",   label: "طلبات السحب",        icon: "creditCard",  permission: PERMISSIONS.WITHDRAWALS_READ },
   { href: "/admin/reports",       label: "التقارير",           icon: "barChart",    permission: PERMISSIONS.REPORTS },

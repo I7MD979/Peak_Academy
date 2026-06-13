@@ -70,7 +70,7 @@ export default function StudentProfilePage({
         subtitle={
           profile?.grade_label
             ? `${profile.full_name || "طالب"} · ${profile.grade_label}`
-            : "حدّث بياناتك لتخصيص الجلسات وغرف المذاكرة"
+            : "حدّث بياناتك لتخصيص المحاضرات وسؤال وجواب"
         }
         actions={[
           {
@@ -105,7 +105,7 @@ export default function StudentProfilePage({
             <section className="rounded-2xl border border-warning/40 bg-warning/10 p-4">
               <p className="text-sm font-bold text-warning">أكمل ملفك الدراسي</p>
               <p className={cn("mt-1 text-sm", studentMuted)}>
-                حدّد صفك الدراسي لعرض الجلسات المناسبة وغرف المذاكرة.
+                حدّد صفك الدراسي لعرض المحاضرات المناسبة وسؤال وجواب.
               </p>
             </section>
           ) : null}
@@ -114,7 +114,7 @@ export default function StudentProfilePage({
             <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               <StatsCard
                 variant="dark"
-                title="ستريك المذاكرة"
+                title="سلسلة سؤال وجواب"
                 value={`${(stats.streak_days ?? 0).toLocaleString("ar-EG")} يوم`}
                 iconName="trending"
                 tone="accent"
@@ -122,7 +122,7 @@ export default function StudentProfilePage({
               />
               <StatsCard
                 variant="dark"
-                title="جلسات قادمة"
+                title="محاضرات قادمة"
                 value={(stats.enrolled_upcoming ?? 0).toLocaleString("ar-EG")}
                 iconName="calendarDays"
                 tone="blue"
@@ -130,7 +130,7 @@ export default function StudentProfilePage({
               />
               <StatsCard
                 variant="dark"
-                title="جلسات مكتملة"
+                title="محاضرات مكتملة"
                 value={(stats.completed_sessions ?? 0).toLocaleString("ar-EG")}
                 iconName="check"
                 tone="success"
@@ -225,8 +225,8 @@ export default function StudentProfilePage({
               <h3 className="text-sm font-black text-auth-on-surface">اختصارات سريعة</h3>
               <div className="mt-3 flex flex-wrap gap-2">
                 {[
-                  { href: "/student/sessions", label: "الجلسات", icon: "book" },
-                  { href: "/student/study-rooms", label: "غرف المذاكرة", icon: "school" },
+                  { href: "/student/sessions", label: "المحاضرات", icon: "book" },
+                  { href: "/student/study-rooms", label: "سؤال وجواب", icon: "school" },
                   { href: "/student/subscription", label: "الاشتراك", icon: "wallet" }
                 ].map((link) => (
                   <Link key={link.href} href={link.href} className={cn(studentBtnSecondary, "gap-2")}>

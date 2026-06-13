@@ -308,7 +308,8 @@ router.get("/dashboard", auth, checkRole("teacher"), async (req, res) => {
             rating: Number(tp?.rating ?? 5),
             review_count: Number(tp?.review_count ?? 0),
             bio: tp?.bio || null,
-            subjects: tp?.subjects || []
+            subjects: tp?.subjects || [],
+            verification_status: user?.verification_status || req.user.verification_status || "pending_review"
           },
           stats: {
             scheduled_sessions: scheduledCount,

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import TeacherDashboardView from "@/components/teacher/TeacherDashboardPage";
-import { logApiError, sessionsApi, teacherApi } from "@/lib/api";
+import { logApiError, sessionsApi, teacherApi, accountApi } from "@/lib/api";
 import { getStartAvailability } from "@/lib/teacher-sessions";
 
 export default function TeacherDashboardRoutePage() {
@@ -12,14 +12,22 @@ export default function TeacherDashboardRoutePage() {
   const [actionLoadingId, setActionLoadingId] = useState("");
   const [error, setError] = useState("");
 
+  const [verificationRejectReason, setVerificationRejectReason] = useState("");
+
   const loadDashboard = useCallback(async ({ silent = false } = {}) => {
     if (silent) setRefreshing(true);
     else setLoading(true);
     setError("");
 
     try {
-      const res = await teacherApi.dashboard();
+      const [res, verRes] = await Promise.all([
+        teacherApi.dashboard(),
+        accountApi.verificationStatus().catch(() => null)
+      ]);
       setData(res?.data || null);
+      const docs = verRes?.data?.documents || [];
+      const rejected = docs.find((d) => d.status === "rejected");
+      setVerificationRejectReason(rejected?.reject_reason || "");
     } catch (err) {
       logApiError("teacher/dashboard", err);
       if (!silent) setData(null);
@@ -94,6 +102,7 @@ export default function TeacherDashboardRoutePage() {
       actionLoadingId={actionLoadingId}
       onStartSession={handleStartSession}
       onEndSession={handleEndSession}
+      verificationRejectReason={verificationRejectReason}
     />
   );
 }

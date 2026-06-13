@@ -39,7 +39,7 @@ const STEPS = [
   { id: 2, title: "الملف الشخصي" }
 ];
 
-export default function RegisterForm({ redirectTo = null, levelParam = null }) {
+export default function RegisterForm({ redirectTo = null, levelParam = null, notice = null }) {
   const router = useRouter();
   const { signUpWithEmail, signInWithGoogle } = useAuth();
   const [step, setStep] = useState(1);
@@ -95,7 +95,7 @@ export default function RegisterForm({ redirectTo = null, levelParam = null }) {
     setGoogleLoading(true);
     setError("");
     try {
-      const { error: oauthError } = await signInWithGoogle({ returnTo: redirectTo });
+      const { error: oauthError } = await signInWithGoogle({ returnTo: redirectTo, intent: "register" });
       if (oauthError) {
         setError(getAuthErrorMessage(oauthError) || "تعذر المتابعة عبر Google");
       }
@@ -198,6 +198,12 @@ export default function RegisterForm({ redirectTo = null, levelParam = null }) {
   return (
     <div className="space-y-5">
       <AuthStepIndicator steps={STEPS} currentStep={step} />
+
+      {notice === "no_account" ? (
+        <div className="rounded-lg border border-md-primary/30 bg-md-primary/10 p-3 text-center text-sm text-on-surface">
+          لا يوجد حساب مسجّل بهذا البريد الإلكتروني. يرجى إنشاء حساب جديد للمتابعة.
+        </div>
+      ) : null}
 
       {error ? <div className={authErrorClass}>{error}</div> : null}
 

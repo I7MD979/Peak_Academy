@@ -20,7 +20,7 @@ export default function StudyRoomCard({ room, onJoin, joiningId, compact = false
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="text-base font-black text-auth-on-surface">{room?.subject_label || "غرفة مذاكرة"}</h3>
+          <h3 className="text-base font-black text-auth-on-surface">{room?.subject_label || "سؤال وجواب"}</h3>
           <p className="mt-1 text-sm text-auth-on-surface-variant">{room?.grade_label || "—"}</p>
         </div>
         <span

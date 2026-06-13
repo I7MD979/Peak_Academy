@@ -36,7 +36,7 @@ export default function StudentSessionsList({
         <AdminPagination
           page={page}
           totalPages={totalPages}
-          totalLabel={`${totalCount.toLocaleString("ar-EG")} جلسة`}
+          totalLabel={`${totalCount.toLocaleString("ar-EG")} محاضرة`}
           loading={loading}
           onPrev={() => onPageChange?.(page - 1)}
           onNext={() => onPageChange?.(page + 1)}

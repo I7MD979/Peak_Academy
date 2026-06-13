@@ -200,7 +200,7 @@ function StudentSubscriptionContent() {
         <div className="mx-auto max-w-2xl px-4 pt-6">
           <section className="rounded-2xl border border-peak-orange/40 bg-peak-orange/10 p-4 text-center">
             <p className="font-black text-auth-on-surface">
-              غرف المذاكرة تحتاج اشتراكاً أو تجربة مجانية
+              سؤال وجواب يحتاج اشتراكاً أو تجربة مجانية
             </p>
             <p className={cn("mt-1 text-sm", studentMuted)}>
               فعّل التجربة المجانية لمدة 30 يوم أو اشترك في إحدى الباقات للوصول.
@@ -216,7 +216,7 @@ function StudentSubscriptionContent() {
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
                 <p className="font-black text-auth-on-surface text-base">
-                  🎁 جرّب غرف المذاكرة مجاناً لمدة 30 يوم
+                  🎁 جرّب سؤال وجواب مجاناً لمدة 30 يوم
                 </p>
                 <p className={cn("text-sm mt-1", studentMuted)}>
                   بدون بطاقة ائتمان — مرة واحدة فقط لكل حساب
@@ -246,13 +246,13 @@ function StudentSubscriptionContent() {
           <section className="rounded-2xl border border-success/40 bg-success/10 p-5 text-center">
             <p className="font-black text-success text-lg">🎉 تم تفعيل التجربة!</p>
             <p className={cn("text-sm mt-1", studentMuted)}>
-              عندك 30 يوم وصول كامل لغرف المذاكرة
+              عندك 30 يوم وصول كامل لسؤال وجواب
             </p>
             <Link
               href="/student/study-rooms"
               className={cn(studentBtnPrimary, "mt-3 inline-flex")}
             >
-              اذهب لغرف المذاكرة
+              اذهب لسؤال وجواب
             </Link>
           </section>
         </div>

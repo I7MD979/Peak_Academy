@@ -1,31 +1,23 @@
-"use client";
+import { headers } from "next/headers";
+import TeacherLayoutClient from "./layout.client.jsx";
 
-import { useState } from "react";
-import TeacherSidebar from "@/components/shared/TeacherSidebar";
-import AppTopbar from "@/components/shared/AppTopbar";
-import AppLayoutFrame from "@/components/layout/AppLayoutFrame";
-import RoleGate from "@/components/layout/RoleGate";
+export const dynamic = "force-dynamic";
 
-export default function TeacherLayout({ children }) {
-  const [mobileOpen, setMobileOpen] = useState(false);
+/**
+ * Server wrapper: reads the user profile that middleware (proxy.js) already
+ * verified for this request and passes it to the client layout. This avoids a
+ * second client-side /auth/me call + full-page loader on every navigation.
+ */
+export default async function TeacherLayout({ children }) {
+  const raw = (await headers()).get("x-user-profile");
+  let initialProfile = null;
+  if (raw) {
+    try {
+      initialProfile = JSON.parse(raw);
+    } catch {
+      initialProfile = null;
+    }
+  }
 
-  return (
-    <RoleGate roles={["teacher"]}>
-      <AppLayoutFrame
-        sidebar={
-          <TeacherSidebar mobileOpen={mobileOpen} onCloseMobile={() => setMobileOpen(false)} />
-        }
-        topbar={
-          <AppTopbar
-            role="teacher"
-            variant="surface"
-            onOpenMobile={() => setMobileOpen(true)}
-            menuBreakpoint="md"
-          />
-        }
-      >
-        {children}
-      </AppLayoutFrame>
-    </RoleGate>
-  );
+  return <TeacherLayoutClient initialProfile={initialProfile}>{children}</TeacherLayoutClient>;
 }

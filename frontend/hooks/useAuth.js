@@ -15,10 +15,10 @@ export const useAuth = () => {
 
   const { user, session, loading, clearAuth } = useAuthStore();
 
-  const signInWithGoogle = async ({ returnTo } = {}) => {
+  const signInWithGoogle = async ({ returnTo, intent } = {}) => {
     const redirectTo =
       typeof window !== "undefined"
-        ? buildOAuthCallbackUrl(window.location.origin, returnTo)
+        ? buildOAuthCallbackUrl(window.location.origin, returnTo, intent)
         : undefined;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
@@ -33,7 +33,15 @@ export const useAuth = () => {
   };
 
   const signUpWithEmail = async (email, password) => {
-    const { data, error } = await supabase.auth.signUp({ email, password });
+    const emailRedirectTo =
+      typeof window !== "undefined"
+        ? buildOAuthCallbackUrl(window.location.origin)
+        : undefined;
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { emailRedirectTo },
+    });
     return { data, error };
   };
 

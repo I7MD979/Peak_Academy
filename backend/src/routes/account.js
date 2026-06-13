@@ -4,11 +4,16 @@
  * All routes require a valid JWT. Users only ever touch their own data.
  */
 import { Router } from "express";
+import { z } from "zod";
 import { auth } from "../middleware/auth.js";
 import { success, error } from "../utils/response.js";
 import { UserService } from "../services/user.service.js";
 import { UserRepository } from "../repositories/user.repository.js";
 import { supabase } from "../lib/supabase.js";
+import {
+  VerificationService,
+  assertDocTypeForRole
+} from "../services/verificationService.js";
 
 const router = Router();
 
@@ -76,6 +81,38 @@ router.get("/activity", auth, async (req, res) => {
     return success(res, { total_enrollments: totalEnrollments, active_subscription: activeSubscription });
   } catch (_err) {
     return error(res, "تعذر تحميل النشاط", 500);
+  }
+});
+
+const submitDocSchema = z.object({
+  doc_type: z.enum(["student_id", "national_id", "syndicate_card"]),
+  file_path: z.string().min(3).max(512)
+});
+
+router.get("/verification-status", auth, async (req, res) => {
+  try {
+    const status = await VerificationService.getStatus(req.user.id);
+    return success(res, status);
+  } catch (err) {
+    if (process.env.NODE_ENV !== "production") console.error("GET /account/verification-status", err);
+    return error(res, "تعذر تحميل حالة التحقق", 500);
+  }
+});
+
+router.post("/verification-documents", auth, async (req, res) => {
+  const parsed = submitDocSchema.safeParse(req.body);
+  if (!parsed.success) return error(res, "بيانات المستند غير صالحة", 400);
+
+  try {
+    assertDocTypeForRole(req.user.role, parsed.data.doc_type);
+    const doc = await VerificationService.recordSubmission(
+      req.user.id,
+      parsed.data.doc_type,
+      parsed.data.file_path
+    );
+    return success(res, { document: doc }, "تم استلام المستند — قيد المراجعة");
+  } catch (err) {
+    return error(res, err.message || "تعذر تسجيل المستند", err.status || 500);
   }
 });
 

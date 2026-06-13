@@ -309,7 +309,7 @@ export async function ensureUserProfile(
 async function fetchUsersRow(supabase, userId) {
   const full = await supabase
     .from("users")
-    .select("id, email, phone, full_name, avatar_url, role, is_active, is_verified, created_at")
+    .select("id, email, phone, full_name, avatar_url, role, is_active, is_verified, verification_status, created_at")
     .eq("id", userId)
     .maybeSingle();
 
@@ -328,7 +328,7 @@ async function fetchUsersRow(supabase, userId) {
     return null;
   }
 
-  return decryptUserFields({ ...minimal.data, avatar_url: null, is_verified: false });
+  return decryptUserFields({ ...minimal.data, avatar_url: null, is_verified: false, verification_status: "unverified" });
 }
 
 export async function fetchFullUserProfile(supabase, userId) {

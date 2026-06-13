@@ -45,9 +45,9 @@ export default function StudentSessionDetailPage({
           className="inline-flex items-center gap-1 text-sm font-bold text-peak-orange"
         >
           <Icon name="arrowRight" size={16} />
-          العودة للجلسات
+          العودة للمحاضرات
         </Link>
-        <EmptyState title={error || "الجلسة غير موجودة"} />
+        <EmptyState title={error || "المحاضرة غير موجودة"} />
       </PageContainer>
     );
   }
@@ -63,12 +63,12 @@ export default function StudentSessionDetailPage({
   return (
     <PageContainer>
       <AdminPageHeader
-        eyebrow="تفاصيل الجلسة"
+        eyebrow="تفاصيل المحاضرة"
         title={session.title}
         subtitle={session.teacher_name}
         actions={[
           {
-            label: "الجلسات",
+            label: "المحاضرات",
             icon: "book",
             variant: "secondary",
             href: "/student/sessions"
@@ -88,7 +88,7 @@ export default function StudentSessionDetailPage({
             {isLive ? <LiveBadge /> : <StatusBadge status={raw?.status} />}
             {isEnrolled ? (
               <span className="rounded-full bg-success/15 px-2.5 py-1 text-xs font-bold text-success">
-                مسجّل في الجلسة
+                مسجّل في المحاضرة
               </span>
             ) : null}
             {raw?.free_trial_available && !isEnrolled ? (
@@ -159,7 +159,7 @@ export default function StudentSessionDetailPage({
           {isEnrolled && !canJoinLive && !isCompleted && !isCancelled ? (
             <>
               <p className="w-full rounded-xl bg-success/10 px-4 py-3 text-sm font-semibold text-success">
-                أنت مسجّل في هذه الجلسة. ستتمكن من الدخول قبل موعد الحصة بـ 15 دقيقة.
+                أنت مسجّل في هذه المحاضرة. ستتمكن من الدخول قبل موعد الحصة بـ 15 دقيقة.
               </p>
               <button type="button" className={studentBtnSecondary} onClick={onCancelEnrollment}>
                 إلغاء التسجيل
@@ -169,25 +169,25 @@ export default function StudentSessionDetailPage({
 
           {isCompleted ? (
             <p className="w-full rounded-xl bg-auth-surface-low px-4 py-3 text-sm font-semibold text-auth-on-surface-variant">
-              هذه الجلسة منتهية. شكراً لمشاركتك.
+              هذه المحاضرة منتهية. شكراً لمشاركتك.
             </p>
           ) : null}
 
           {isCancelled ? (
             <p className="w-full rounded-xl bg-danger/10 px-4 py-3 text-sm font-semibold text-danger">
-              تم إلغاء هذه الجلسة.
+              تم إلغاء هذه المحاضرة.
             </p>
           ) : null}
 
           {isFull && !isEnrolled && raw?.status === "scheduled" ? (
             <p className="w-full rounded-xl bg-warning/10 px-4 py-3 text-sm font-semibold text-warning">
-              اكتمل عدد المقاعد في هذه الجلسة. جرّب جلسة أخرى من القائمة.
+              اكتمل عدد المقاعد في هذه المحاضرة. جرّب محاضرة أخرى من القائمة.
             </p>
           ) : null}
 
           {!canEnroll && !canJoinLive && !isEnrolled && raw?.status === "scheduled" && !isFull ? (
             <p className="w-full rounded-xl bg-warning/10 px-4 py-3 text-sm font-semibold text-warning">
-              موعد الجلسة قد مضى أو لا يمكن الحجز حالياً.
+              موعد المحاضرة قد مضى أو لا يمكن الحجز حالياً.
             </p>
           ) : null}
         </div>

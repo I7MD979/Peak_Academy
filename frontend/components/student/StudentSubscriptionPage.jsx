@@ -43,7 +43,7 @@ export default function StudentSubscriptionPage({
         }
         actions={[
           {
-            label: "الجلسات",
+            label: "المحاضرات",
             icon: "book",
             variant: "secondary",
             href: "/student/sessions"

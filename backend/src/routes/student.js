@@ -521,7 +521,8 @@ router.get("/dashboard", auth, checkRole("student"), async (req, res) => {
             grade_label: GRADE_LABELS[student.grade] || student.grade,
             section: student.section,
             streak_days: stats.streak_days ?? student.streak_days ?? 0,
-            link_code: student.link_code
+            link_code: student.link_code,
+            verification_status: user?.verification_status || "unverified"
           },
           stats: {
             streak_days: stats.streak_days ?? student.streak_days ?? 0,

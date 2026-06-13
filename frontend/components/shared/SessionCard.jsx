@@ -13,15 +13,15 @@ export default function SessionCard({ session, detailHref, liveHref, className }
   return (
     <article
       className={cn(
-        "rounded-2xl border border-border bg-card p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md",
+        "rounded-2xl border border-outline-variant/40 bg-surface-container p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md",
         isLive && "border-danger/30 bg-danger/5",
         className
       )}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="truncate text-base font-black text-text">{session?.title || "جلسة تعليمية"}</h3>
-          <p className="mt-1 truncate text-sm text-text-muted">{session?.teacher_name || "مدرس Peak Academy"}</p>
+          <h3 className="truncate text-base font-black text-on-surface">{session?.title || "جلسة تعليمية"}</h3>
+          <p className="mt-1 truncate text-sm text-on-surface-variant">{session?.teacher_name || "مدرس Peak Academy"}</p>
         </div>
         {isLive ? <LiveBadge /> : null}
       </div>
@@ -48,16 +48,16 @@ export default function SessionCard({ session, detailHref, liveHref, className }
 
       <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
         <div>
-          <dt className="text-xs text-text-muted">الموعد</dt>
-          <dd className="font-semibold text-text">{session?.scheduled_label || "—"}</dd>
+          <dt className="text-xs text-on-surface-variant">الموعد</dt>
+          <dd className="font-semibold text-on-surface">{session?.scheduled_label || "—"}</dd>
         </div>
         <div>
-          <dt className="text-xs text-text-muted">السعر</dt>
+          <dt className="text-xs text-on-surface-variant">السعر</dt>
           <dd className="font-bold text-accent">{session?.price_label || "—"}</dd>
         </div>
         <div className="col-span-2">
-          <dt className="text-xs text-text-muted">المقاعد</dt>
-          <dd className="font-semibold text-text">{session?.spots_label || "—"}</dd>
+          <dt className="text-xs text-on-surface-variant">المقاعد</dt>
+          <dd className="font-semibold text-on-surface">{session?.spots_label || "—"}</dd>
         </div>
       </dl>
 

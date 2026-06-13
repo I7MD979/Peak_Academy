@@ -392,7 +392,6 @@ export const studyRoomsApi = {
   // Chat
   getMessages: (roomId, params = {}) => {
     const q = new URLSearchParams();
-    if (params.channel) q.set("channel", params.channel);
     if (params.limit)   q.set("limit", params.limit);
     if (params.before)  q.set("before", params.before);
     const qs = q.toString();
@@ -531,6 +530,18 @@ export const dashboardApi = {
   adminCancelSubscription: (userId, subId) =>
     apiRequest(`/admin/users/${userId}/subscriptions/${subId}`, { method: "DELETE" }),
 
+  adminVerificationDocuments: (query = "") =>
+    apiRequest(withQuery("/admin/verification-documents", query)),
+  adminVerificationSignedUrl: (id) =>
+    apiRequest(`/admin/verification-documents/${id}/signed-url`),
+  adminVerificationApprove: (id) =>
+    apiRequest(`/admin/verification-documents/${id}/approve`, { method: "POST", body: "{}" }),
+  adminVerificationReject: (id, reason) =>
+    apiRequest(`/admin/verification-documents/${id}/reject`, {
+      method: "POST",
+      body: JSON.stringify({ reason })
+    }),
+
   // ── Staff & permissions management ──────────────────────────────────────────
   getMyPermissions: () => apiRequest("/admin/me/permissions"),
   getStaff: (query = "") => apiRequest(withQuery("/admin/staff", query)),
@@ -551,6 +562,12 @@ export const accountApi = {
     apiRequest("/account/profile", { method: "PATCH", body: JSON.stringify(body) }),
   subscriptions: () => apiRequest("/account/subscriptions"),
   activity: () => apiRequest("/account/activity"),
+  verificationStatus: () => apiRequest("/account/verification-status"),
+  submitVerificationDoc: (body) =>
+    apiRequest("/account/verification-documents", {
+      method: "POST",
+      body: JSON.stringify(body)
+    }),
   deleteAccount: () =>
     apiRequest("/account", { method: "DELETE", body: JSON.stringify({ confirm: true }) })
 };

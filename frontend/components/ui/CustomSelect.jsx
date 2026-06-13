@@ -7,14 +7,14 @@ import { cn } from "@/lib/utils";
 const VARIANT_STYLES = {
   light: {
     trigger:
-      "border-border bg-bg text-text hover:border-accent/50 focus:ring-primary focus:border-transparent",
+      "border-outline-variant/40 bg-surface-container-low text-on-surface hover:border-accent/50 hover:bg-surface-container-high focus:ring-primary focus:border-transparent",
     triggerOpen: "border-accent ring-2 ring-accent/20",
-    label: "text-text-muted",
-    menu: "border-border bg-card shadow-lg",
-    option: "text-text hover:bg-accent/10",
+    label: "text-on-surface-variant",
+    menu: "border-outline-variant/40 bg-surface-container shadow-lg",
+    option: "text-on-surface hover:bg-surface-container-high",
     optionSelected: "bg-accent/10 text-accent font-semibold",
-    chevron: "text-text-muted",
-    placeholder: "text-text-muted"
+    chevron: "text-on-surface-variant",
+    placeholder: "text-on-surface-variant"
   },
   dark: {
     trigger:

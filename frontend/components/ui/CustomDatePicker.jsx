@@ -7,17 +7,17 @@ import { cn } from "@/lib/utils";
 const VARIANT_STYLES = {
   light: {
     trigger:
-      "border-border bg-bg text-text hover:border-accent/50 focus:ring-primary focus:border-transparent",
+      "border-outline-variant/40 bg-surface-container-low text-on-surface hover:border-accent/50 hover:bg-surface-container-high focus:ring-primary focus:border-transparent",
     triggerOpen: "border-accent ring-2 ring-accent/20",
-    label: "text-text-muted",
-    popover: "border-border bg-card shadow-lg",
-    day: "text-text hover:bg-accent/10",
+    label: "text-on-surface-variant",
+    popover: "border-outline-variant/40 bg-surface-container shadow-lg",
+    day: "text-on-surface hover:bg-surface-container-high",
     daySelected: "bg-accent text-white hover:bg-accent",
     dayToday: "ring-1 ring-accent/40",
-    dayOutside: "text-text-muted/40",
-    header: "text-text",
-    nav: "text-text-muted hover:text-text hover:bg-accent/10",
-    placeholder: "text-text-muted"
+    dayOutside: "text-on-surface-variant/40",
+    header: "text-on-surface",
+    nav: "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high",
+    placeholder: "text-on-surface-variant"
   },
   dark: {
     trigger:

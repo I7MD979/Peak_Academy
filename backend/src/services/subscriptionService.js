@@ -3,6 +3,30 @@ import { normalizeSubscriptionPlans } from "../lib/subscription-plans.js";
 import { createPaymobOrder } from "./paymob.service.js";
 import { validatePromoCode, applyPromoToPrice } from "../utils/promoValidator.js";
 import { invalidateSubscriptionCaches } from "../lib/cache.js";
+import { createUserNotification } from "./notification.service.js";
+
+async function notifyParentOfSubscriptionPayment(studentId, planId) {
+  const { data: profile, error: profileErr } = await supabase
+    .from("student_profiles")
+    .select("parent_id, user:users!student_profiles_user_id_fkey(full_name)")
+    .eq("user_id", studentId)
+    .maybeSingle();
+
+  if (profileErr || !profile?.parent_id) return;
+
+  const plan = await getPlanById(planId);
+  const planName = plan?.name_ar || plan?.name || "الاشتراك الشهري";
+  const studentName = profile.user?.full_name || "الطالب";
+
+  await createUserNotification({
+    userId: profile.parent_id,
+    type: "child_subscription_paid",
+    titleAr: "تم تجديد اشتراك الطالب",
+    bodyAr: `تم دفع وتفعيل اشتراك "${planName}" لـ ${studentName} بنجاح.`,
+    actionUrl: "/parent/dashboard",
+    metadata: { student_id: studentId, plan_id: planId }
+  });
+}
 
 export async function listActivePlans() {
   const { data, error } = await supabase
@@ -125,6 +149,12 @@ export async function activateSubscriptionFromPayment(payment, paymobTxnId = "")
     if (subId) {
       const { recordSubscriptionAttribution } = await import("./roomAttribution.service.js");
       await recordSubscriptionAttribution(payment.student_id, subId);
+    }
+
+    if (!result.duplicate) {
+      await notifyParentOfSubscriptionPayment(payment.student_id, planId).catch((err) => {
+        console.warn("[subscription] parent notification failed:", err?.message || err);
+      });
     }
   }
 

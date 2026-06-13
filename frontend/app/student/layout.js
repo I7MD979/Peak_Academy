@@ -1,34 +1,24 @@
-"use client";
+import { headers } from "next/headers";
+import StudentLayoutClient from "./layout.client.jsx";
 
-import { useState } from "react";
-import StudentSidebar from "@/components/shared/StudentSidebar";
-import StudentBottomNav from "@/components/student/StudentBottomNav";
-import AppTopbar from "@/components/shared/AppTopbar";
-import AppLayoutFrame from "@/components/layout/AppLayoutFrame";
-import RoleGate from "@/components/layout/RoleGate";
+export const dynamic = "force-dynamic";
 
-export default function StudentLayout({ children }) {
-  const [mobileOpen, setMobileOpen] = useState(false);
+/**
+ * Server wrapper: reads the user profile that middleware (proxy.js) already
+ * verified for this request (role check, profile completeness, study-room
+ * access) and passes it to the client layout. This avoids a second
+ * client-side /auth/me call + full-page loader on every navigation.
+ */
+export default async function StudentLayout({ children }) {
+  const raw = (await headers()).get("x-user-profile");
+  let initialProfile = null;
+  if (raw) {
+    try {
+      initialProfile = JSON.parse(raw);
+    } catch {
+      initialProfile = null;
+    }
+  }
 
-  return (
-    <RoleGate roles={["student"]}>
-      <AppLayoutFrame
-        mobileNavPadding
-        sidebar={
-          <StudentSidebar mobileOpen={mobileOpen} onCloseMobile={() => setMobileOpen(false)} />
-        }
-        topbar={
-          <AppTopbar
-            role="student"
-            variant="surface"
-            onOpenMobile={() => setMobileOpen(true)}
-            menuBreakpoint="md"
-          />
-        }
-        footer={<StudentBottomNav className="md:hidden" />}
-      >
-        {children}
-      </AppLayoutFrame>
-    </RoleGate>
-  );
+  return <StudentLayoutClient initialProfile={initialProfile}>{children}</StudentLayoutClient>;
 }

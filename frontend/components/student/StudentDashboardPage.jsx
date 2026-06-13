@@ -16,11 +16,12 @@ import {
   studentErrorBox,
   studentMuted
 } from "@/lib/student-styles";
+import { VerificationStatusBanner } from "@/components/shared/VerificationStatusBanner";
 import { cn } from "@/lib/utils";
 
 const QUICK_ACTIONS = [
-  { href: "/student/sessions", label: "تصفح الجلسات", icon: "book", tone: "border-accent-blue/30 bg-accent-blue/10 text-accent-blue" },
-  { href: "/student/study-rooms", label: "غرف المذاكرة", icon: "school", tone: "border-success/30 bg-success/10 text-success" },
+  { href: "/student/sessions", label: "تصفح المحاضرات", icon: "book", tone: "border-accent-blue/30 bg-accent-blue/10 text-accent-blue" },
+  { href: "/student/study-rooms", label: "سؤال وجواب", icon: "school", tone: "border-success/30 bg-success/10 text-success" },
   { href: "/student/subscription", label: "الاشتراك", icon: "wallet", tone: "border-peak-orange/30 bg-peak-orange/10 text-peak-orange" },
   { href: "/student/profile", label: "ملفي الشخصي", icon: "user", tone: "border-auth-outline-variant/40 bg-auth-surface-low text-auth-on-surface-variant" }
 ];
@@ -28,7 +29,7 @@ const QUICK_ACTIONS = [
 const SECTION_TABS = [
   { key: "all", label: "الكل" },
   { key: "live", label: "مباشرة الآن" },
-  { key: "upcoming", label: "جلساتي القادمة" },
+  { key: "upcoming", label: "محاضراتي القادمة" },
   { key: "recommended", label: "مقترحة لك" }
 ];
 
@@ -43,14 +44,14 @@ function LiveBanner({ count, onView }) {
         </span>
         <div>
           <p className="font-black text-auth-on-surface">
-            {count.toLocaleString("ar-EG")} {count === 1 ? "جلسة مباشرة" : "جلسات مباشرة"} الآن
+            {count.toLocaleString("ar-EG")} {count === 1 ? "محاضرة مباشرة" : "محاضرات مباشرة"} الآن
           </p>
           <p className={cn("text-sm", studentMuted)}>ادخل فوراً قبل انتهاء البث</p>
         </div>
       </div>
       <button type="button" onClick={onView} className={cn(studentBtnPrimary, "bg-danger hover:bg-danger/90")}>
         <Icon name="live" size={18} />
-        عرض الجلسات المباشرة
+        عرض المحاضرات المباشرة
       </button>
     </div>
   );
@@ -98,13 +99,18 @@ export default function StudentDashboardPage({
 
   return (
     <div className="space-y-8">
+      <VerificationStatusBanner
+        role="student"
+        verificationStatus={profile?.verification_status}
+      />
+
       <AdminPageHeader
         eyebrow="لوحة الطالب"
         title={`مرحباً، ${firstName}!`}
         subtitle={
           profile?.grade_label
             ? `${profile.grade_label}${profile.section ? ` — ${profile.section}` : ""}`
-            : "أكمل ملفك الشخصي لتحصل على جلسات مناسبة لصفك"
+            : "أكمل ملفك الشخصي لتحصل على محاضرات مناسبة لصفك"
         }
         actions={[
           {
@@ -115,12 +121,12 @@ export default function StudentDashboardPage({
             disabled: refreshing || loading
           },
           {
-            label: "جلساتي",
+            label: "محاضراتي",
             icon: "calendarDays",
             href: "/student/sessions?tab=mine"
           },
           {
-            label: "تصفح الجلسات",
+            label: "تصفح المحاضرات",
             icon: "book",
             href: "/student/sessions"
           }
@@ -191,7 +197,7 @@ export default function StudentDashboardPage({
               <>
                 <StatsCard
                   variant="dark"
-                  title="جلسات قادمة"
+                  title="محاضرات قادمة"
                   value={(stats?.enrolled_upcoming ?? upcomingSessions.length).toLocaleString("ar-EG")}
                   iconName="calendarDays"
                   tone="blue"
@@ -205,7 +211,7 @@ export default function StudentDashboardPage({
                 />
                 <StatsCard
                   variant="dark"
-                  title="جلسات مكتملة"
+                  title="محاضرات مكتملة"
                   value={(stats?.completed_sessions ?? 0).toLocaleString("ar-EG")}
                   iconName="check"
                   tone="success"
@@ -235,7 +241,7 @@ export default function StudentDashboardPage({
           {showLive ? (
             <section className="space-y-4">
               <div className="flex items-center justify-between gap-2">
-                <h2 className="text-lg font-black text-auth-on-surface">جلسات مباشرة</h2>
+                <h2 className="text-lg font-black text-auth-on-surface">محاضرات مباشرة</h2>
                 {(stats?.live_now ?? liveSessions.length) > 0 ? (
                   <Link href="/student/sessions?tab=live" className="text-sm font-bold text-peak-orange hover:underline">
                     عرض الكل
@@ -244,8 +250,8 @@ export default function StudentDashboardPage({
               </div>
               <SessionGrid
                 sessions={liveSessions}
-                emptyTitle="لا توجد جلسات مباشرة الآن"
-                emptyHint="عند بدء مدرسك الجلسة ستظهر هنا للدخول فوراً."
+                emptyTitle="لا توجد محاضرات مباشرة الآن"
+                emptyHint="عند بدء مدرسك المحاضرة ستظهر هنا للدخول فوراً."
               />
             </section>
           ) : null}
@@ -253,15 +259,15 @@ export default function StudentDashboardPage({
           {showUpcoming ? (
             <section className="space-y-4">
               <div className="flex items-center justify-between gap-2">
-                <h2 className="text-lg font-black text-auth-on-surface">جلساتي القادمة</h2>
+                <h2 className="text-lg font-black text-auth-on-surface">محاضراتي القادمة</h2>
                 <Link href="/student/sessions?tab=mine" className="text-sm font-bold text-peak-orange hover:underline">
-                  كل جلساتي
+                  كل محاضراتي
                 </Link>
               </div>
               <SessionGrid
                 sessions={upcomingSessions}
-                emptyTitle="لا توجد جلسات قادمة"
-                emptyHint="تصفّح الجلسات المتاحة واحجز جلستك الأولى."
+                emptyTitle="لا توجد محاضرات قادمة"
+                emptyHint="تصفّح المحاضرات المتاحة واحجز محاضرتك الأولى."
               />
             </section>
           ) : null}
@@ -277,8 +283,8 @@ export default function StudentDashboardPage({
               <SessionGrid
                 sessions={recommendedSessions}
                 showEnroll
-                emptyTitle="لا توجد جلسات مقترحة حالياً"
-                emptyHint="جرّب تصفح جميع الجلسات أو عد لاحقاً."
+                emptyTitle="لا توجد محاضرات مقترحة حالياً"
+                emptyHint="جرّب تصفح جميع المحاضرات أو عد لاحقاً."
               />
             </section>
           ) : null}
@@ -287,7 +293,7 @@ export default function StudentDashboardPage({
             <section className={cn(studentCardSolid, "flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between")}>
               <div>
                 <p className="font-black text-auth-on-surface">أكمل ملفك الدراسي</p>
-                <p className={cn("mt-1 text-sm", studentMuted)}>حدّد صفك لعرض جلسات مناسبة ومقترحات أدق.</p>
+                <p className={cn("mt-1 text-sm", studentMuted)}>حدّد صفك لعرض محاضرات مناسبة ومقترحات أدق.</p>
               </div>
               <Link href="/student/profile" className={studentBtnPrimary}>
                 إكمال الملف

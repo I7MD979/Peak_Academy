@@ -40,6 +40,42 @@ async function exchangeOneTimeToken(token) {
   return res.json(); // { access_token, refresh_token, expires_in, user }
 }
 
+async function rejectNewLoginAccountAndRedirect({
+  intent,
+  redirectPath,
+  accessToken,
+  nextReturn,
+  origin,
+  supabase,
+  pendingAuthCookies
+}) {
+  if (intent !== "login" || redirectPath !== "/onboarding") return null;
+
+  try {
+    await fetch(`${getBackendUrl()}/auth/reject-new-account`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`
+      },
+      cache: "no-store",
+      signal: AbortSignal.timeout(10_000)
+    });
+  } catch (rejectErr) {
+    console.error("[callback] reject-new-account error:", rejectErr.message);
+  }
+
+  await supabase.auth.signOut();
+
+  const registerUrl = new URL("/auth/register", origin);
+  registerUrl.searchParams.set("notice", "no_account");
+  if (nextReturn) registerUrl.searchParams.set("next", nextReturn);
+
+  const response = NextResponse.redirect(registerUrl);
+  applyCookiesToResponse(response, pendingAuthCookies);
+  return response;
+}
+
 export async function GET(request) {
   const requestUrl = new URL(request.url);
   const origin = requestUrl.origin;
@@ -65,7 +101,7 @@ export async function GET(request) {
     }
   });
 
-  // ── Path 1: One-time JWT from our backend (Google OAuth) ──────────────────
+  // ── Path 1: One-time JWT from legacy backend Google OAuth (see google-auth.js) ──
   const oneTimeToken = requestUrl.searchParams.get("token");
   const code = requestUrl.searchParams.get("code");
   if (oneTimeToken && !code) {
@@ -123,8 +159,21 @@ export async function GET(request) {
     }
 
     const nextReturn = readNextParam(requestUrl.searchParams);
+    const intent = requestUrl.searchParams.get("intent");
+
     let redirectPath =
       (await resolvePostAuthPath(session.access_token, request)) || "/onboarding";
+
+    const rejected = await rejectNewLoginAccountAndRedirect({
+      intent,
+      redirectPath,
+      accessToken: session.access_token,
+      nextReturn,
+      origin,
+      supabase,
+      pendingAuthCookies
+    });
+    if (rejected) return rejected;
 
     if (redirectPath === "/onboarding" && nextReturn) {
       redirectPath = appendNextParam("/onboarding", nextReturn);

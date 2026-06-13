@@ -44,7 +44,7 @@ export default function StudentWaitingRoom({ sessionId }) {
       <div className="h-12 w-12 animate-pulse rounded-full bg-accent/20" />
       <h1 className="text-xl font-black text-primary">في انتظار بدء الحصة</h1>
       <p className="max-w-md text-sm text-auth-on-surface-variant">
-        {session?.title ? `«${session.title}»` : "الجلسة"} — المدرس لم يبدأ البث بعد. ستُفتح الغرفة تلقائياً عند البدء.
+        {session?.title ? `«${session.title}»` : "المحاضرة"} — المدرس لم يبدأ البث بعد. ستُفتح الغرفة تلقائياً عند البدء.
       </p>
       <p className="text-xs text-success">✓ تم تسجيل حضورك في غرفة الانتظار</p>
     </main>

@@ -70,6 +70,33 @@ function finalizeResponse(response, request, pathname, ctx) {
   return applySecurityHeaders(response, pathname);
 }
 
+/**
+ * Re-create the pass-through response with an extra request header carrying
+ * a minimal, server-verified user profile (role + completeness). This lets
+ * layouts/pages read the already-verified profile via `headers()` instead of
+ * making a second `/auth/me` call — the data was already fetched here and
+ * vetted against the role rules below, so it is safe to trust downstream.
+ * Cookies already queued on `prevRes` are preserved.
+ */
+function withUserProfileHeader(prevRes, request, pathname, ctx, user) {
+  const headers = new Headers(ctx.requestHeaders);
+  headers.set(
+    "x-user-profile",
+    JSON.stringify({
+      id: user.id,
+      role: user.role,
+      full_name: user.full_name,
+      profile_complete: true
+    })
+  );
+
+  const res = NextResponse.next({ request: { headers } });
+  prevRes.cookies.getAll().forEach(({ name, value }) => {
+    res.cookies.set(name, value);
+  });
+  return finalizeResponse(res, request, pathname, ctx);
+}
+
 function redirectWithCookies(url, res, pathname, request, ctx) {
   const redirect = NextResponse.redirect(url);
   res.cookies.getAll().forEach(({ name, value }) => {
@@ -207,6 +234,10 @@ export async function proxy(request) {
         return redirectWithCookies(subscribeUrl, res, pathname, request, ctx);
       }
     }
+
+    // All checks passed — hand the already-verified profile to Server Components
+    // via a request header so layouts/RoleGate don't need a second /auth/me call.
+    res = withUserProfileHeader(res, request, pathname, ctx, user);
   }
 
   if (pathname === "/dashboard" && session?.access_token) {

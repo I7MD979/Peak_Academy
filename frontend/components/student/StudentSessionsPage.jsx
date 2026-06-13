@@ -67,7 +67,7 @@ export default function StudentSessionsPage({
   if (loading && !sessions.length && !error) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center p-8">
-        <SectionLoader message="جاري تحميل الجلسات..." />
+        <SectionLoader message="جاري تحميل المحاضرات..." />
       </div>
     );
   }
@@ -75,12 +75,12 @@ export default function StudentSessionsPage({
   return (
     <div className="space-y-8">
       <AdminPageHeader
-        eyebrow="جلساتي"
-        title="تصفح الجلسات"
+        eyebrow="محاضراتي"
+        title="تصفح المحاضرات"
         subtitle={
           gradeLabel
-            ? `جلسات مناسبة لـ ${gradeLabel} — احجز أو ادخل البث المباشر`
-            : "اكتشف الجلسات المتاحة واحجز مكانك"
+            ? `محاضرات مناسبة لـ ${gradeLabel} — احجز أو ادخل البث المباشر`
+            : "اكتشف المحاضرات المتاحة واحجز مكانك"
         }
         actions={[
           {

@@ -17,6 +17,7 @@ export const PERMISSIONS = {
   PROMOTIONS_CREATE:    "promotions.create",
   PROMOTIONS_EDIT:      "promotions.edit",
   PROMOTIONS_DELETE:    "promotions.delete",
+  VERIFICATION_REVIEW:  "verification.review",
   LANDING:              "landing",
 };
 
@@ -73,6 +74,13 @@ export const PERMISSION_GROUPS = [
       { key: PERMISSIONS.PROMOTIONS_CREATE, label: "إنشاء عروض وخصومات جديدة" },
       { key: PERMISSIONS.PROMOTIONS_EDIT,   label: "تعديل العروض والخصومات" },
       { key: PERMISSIONS.PROMOTIONS_DELETE, label: "حذف العروض والخصومات" },
+    ]
+  },
+  {
+    key: "verification",
+    label: "التحقق من الهوية",
+    permissions: [
+      { key: PERMISSIONS.VERIFICATION_REVIEW, label: "مراجعة مستندات التحقق (طلاب ومدرسين)" }
     ]
   },
   {

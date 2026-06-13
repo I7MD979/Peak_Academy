@@ -15,6 +15,8 @@ export default function RegisterPage({ searchParams }) {
     buildPlanCheckoutPath(searchParams?.redirect, searchParams?.plan) ||
     sanitizeRedirectPath(searchParams?.redirect);
 
+  const notice = searchParams?.notice === "no_account" ? "no_account" : null;
+
   return (
     <AuthPageLayout>
       <AuthFormCard
@@ -37,6 +39,7 @@ export default function RegisterPage({ searchParams }) {
           redirectTo={redirectTo}
           levelParam={searchParams?.level}
           planParam={searchParams?.plan}
+          notice={notice}
         />
       </AuthFormCard>
     </AuthPageLayout>

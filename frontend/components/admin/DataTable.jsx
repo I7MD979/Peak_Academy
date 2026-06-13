@@ -4,11 +4,11 @@ import { cn } from "@/lib/utils";
 
 const VARIANT_STYLES = {
   light: {
-    wrapper: "rounded-2xl border border-border bg-card",
-    head: "border-b border-border bg-bg",
-    th: "text-text-muted",
-    row: "border-b border-border hover:bg-bg/70",
-    td: "text-text"
+    wrapper: "rounded-2xl border border-outline-variant/40 bg-surface-container",
+    head: "border-b border-outline-variant/40 bg-surface-container-low",
+    th: "text-on-surface-variant",
+    row: "border-b border-outline-variant/40 hover:bg-surface-container-high/70",
+    td: "text-on-surface"
   },
   dark: {
     wrapper: "rounded-xl border border-outline-variant bg-surface-container",
