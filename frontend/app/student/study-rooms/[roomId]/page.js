@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { studyRoomsApi } from "@/lib/api";
+import { accountApi, studyRoomsApi } from "@/lib/api";
 import { useRoomChat } from "@/hooks/useRoomChat";
 import Icon from "@/components/shared/Icon";
 import { ButtonLoader, InlineLoader } from "@/components/shared/LoadingSkeleton";
@@ -15,7 +15,8 @@ import {
   studentCardSolid,
   studentMuted
 } from "@/lib/student-styles";
-import { studyRoomVoicePath, studyRoomsListPath } from "@/lib/study-room-routes";
+import { studyRoomVoicePath, studyRoomsListPath, isTeacherStudyRoomArea } from "@/lib/study-room-routes";
+import { getTeacherTeachingGate } from "@/lib/teacher-verification";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -282,6 +283,21 @@ export default function StudyRoomPage() {
   // ── Load room info + my role + subscriptions ──────────────────────────────
   useEffect(() => {
     if (!roomId) return;
+
+    if (isTeacherStudyRoomArea(pathname)) {
+      accountApi
+        .verificationStatus()
+        .then((res) => {
+          const gate = getTeacherTeachingGate(res?.data?.verification_status || "unverified");
+          if (!gate.allowed) {
+            toast.error(gate.reason);
+            router.replace("/teacher/profile/verification");
+          }
+        })
+        .catch(() => {
+          router.replace("/teacher/profile/verification");
+        });
+    }
 
     import("@/lib/supabase/client").then(({ createClient }) => {
       const supabase = createClient();

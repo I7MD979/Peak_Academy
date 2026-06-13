@@ -7,6 +7,7 @@ import TeacherSessionsList from "@/components/teacher/TeacherSessionsList";
 import TeacherSessionsLiveBanner from "@/components/teacher/TeacherDashboardLiveBanner";
 import TeacherSessionsStats from "@/components/teacher/TeacherSessionsStats";
 import { SectionLoader } from "@/components/shared/LoadingSkeleton";
+import { VerificationStatusBanner } from "@/components/shared/VerificationStatusBanner";
 import { teacherErrorBox } from "@/lib/teacher-styles";
 
 export default function TeacherSessionsPage({
@@ -36,7 +37,8 @@ export default function TeacherSessionsPage({
   onJoin,
   selectedSession = null,
   onSelectSession,
-  onCloseDetails
+  onCloseDetails,
+  verificationStatus = "unverified"
 }) {
   const liveCount = tabCounts.live ?? 0;
 
@@ -50,6 +52,8 @@ export default function TeacherSessionsPage({
 
   return (
     <div className="space-y-8">
+      <VerificationStatusBanner role="teacher" verificationStatus={verificationStatus} />
+
       <AdminPageHeader
         eyebrow="جلساتي"
         title="إدارة جلساتك التعليمية"
@@ -116,6 +120,7 @@ export default function TeacherSessionsPage({
             onEnd={onEnd}
             onCancel={onCancel}
             onJoin={onJoin}
+            verificationStatus={verificationStatus}
           />
         </>
       ) : null}

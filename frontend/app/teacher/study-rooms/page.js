@@ -6,9 +6,11 @@ import { cn } from "@/lib/utils";
 import AdminPageHeader from "@/components/admin/AdminPageHeader";
 import PageContainer from "@/components/shared/PageContainer";
 import { SectionLoader } from "@/components/shared/LoadingSkeleton";
+import { VerificationStatusBanner } from "@/components/shared/VerificationStatusBanner";
 import { teacherBtnPrimary, teacherCardSolid, teacherMuted } from "@/lib/teacher-styles";
 import { PROFILE_UPDATED } from "@/hooks/useSidebarProfile";
-import { studyRoomsApi, teacherApi } from "@/lib/api";
+import { accountApi, studyRoomsApi, teacherApi } from "@/lib/api";
+import { getTeacherTeachingGate } from "@/lib/teacher-verification";
 
 const SUBJECT_AR = {
   math: "رياضيات", physics: "فيزياء", chemistry: "كيمياء",
@@ -29,6 +31,17 @@ export default function TeacherStudyRoomsPage() {
   const [loading, setLoading] = useState(true);
   const [joiningId, setJoiningId] = useState(null);
   const [error, setError] = useState("");
+  const [verificationStatus, setVerificationStatus] = useState("unverified");
+  const teachingGate = getTeacherTeachingGate(verificationStatus);
+
+  const loadVerification = useCallback(async () => {
+    try {
+      const res = await accountApi.verificationStatus();
+      setVerificationStatus(res?.data?.verification_status || "unverified");
+    } catch {
+      setVerificationStatus("unverified");
+    }
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -55,15 +68,23 @@ export default function TeacherStudyRoomsPage() {
 
   useEffect(() => {
     load();
-  }, [load]);
+    loadVerification();
+  }, [load, loadVerification]);
 
   useEffect(() => {
-    const reload = () => load();
+    const reload = () => {
+      load();
+      loadVerification();
+    };
     window.addEventListener(PROFILE_UPDATED, reload);
     return () => window.removeEventListener(PROFILE_UPDATED, reload);
-  }, [load]);
+  }, [load, loadVerification]);
 
   const handleJoin = async (roomId) => {
+    if (!teachingGate.allowed) {
+      setError(teachingGate.reason);
+      return;
+    }
     setJoiningId(roomId);
     try {
       const json = await studyRoomsApi.join(roomId);
@@ -99,6 +120,8 @@ export default function TeacherStudyRoomsPage() {
           { label: "تحديث", icon: "refresh", variant: "secondary", onClick: load }
         ]}
       />
+
+      <VerificationStatusBanner role="teacher" verificationStatus={verificationStatus} />
 
       {error && (
         <p className="mb-4 rounded-xl bg-danger/10 border border-danger/30 p-3 text-sm text-danger">
@@ -157,8 +180,9 @@ export default function TeacherStudyRoomsPage() {
                 <button
                   type="button"
                   onClick={() => handleJoin(room.id)}
-                  disabled={joiningId === room.id}
-                  className={cn(teacherBtnPrimary, "text-xs py-1.5 px-3")}
+                  disabled={joiningId === room.id || !teachingGate.allowed}
+                  title={!teachingGate.allowed ? teachingGate.reason : undefined}
+                  className={cn(teacherBtnPrimary, "text-xs py-1.5 px-3 disabled:opacity-50")}
                 >
                   {joiningId === room.id ? "جاري الدخول…" : "دخول ورد على الأسئلة"}
                 </button>

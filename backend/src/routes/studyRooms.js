@@ -105,7 +105,7 @@ router.get("/teacher", auth, checkRole("teacher"), async (req, res) => {
   }
 });
 
-router.post("/join-random", auth, async (req, res) => {
+router.post("/join-random", auth, requireTeacherVerified, async (req, res) => {
   // students require active trial or subscription; teachers/admins bypass
   if (req.user.role === "student") {
     const access = await hasRoomAccess(req.user.id).catch(() => false);
@@ -149,7 +149,7 @@ router.post("/join-random", auth, async (req, res) => {
   }
 });
 
-router.post("/:roomId/join", auth, async (req, res) => {
+router.post("/:roomId/join", auth, requireTeacherVerified, async (req, res) => {
   const roomId = String(req.params.roomId || "").trim();
   if (!roomId || roomId.length > 64) {
     return error(res, "معرّف الغرفة غير صالح", 400);
@@ -218,7 +218,7 @@ router.post("/:roomId/leave", auth, async (req, res) => {
 
 // ── Chat Routes ──────────────────────────────────────────────────────────────
 
-router.get("/:roomId/messages", auth, async (req, res) => {
+router.get("/:roomId/messages", auth, requireTeacherVerified, async (req, res) => {
   const { roomId } = req.params;
   const limit = Math.min(parseInt(req.query.limit) || 50, 100);
   const before = req.query.before || null;
@@ -248,7 +248,7 @@ const sendMessageSchema = z.object({
   message: "الرسالة يجب أن تحتوي على نص أو ملف"
 });
 
-router.post("/:roomId/messages", auth, async (req, res) => {
+router.post("/:roomId/messages", auth, requireTeacherVerified, async (req, res) => {
   const { roomId } = req.params;
   const parsed = sendMessageSchema.safeParse(req.body);
   if (!parsed.success) return error(res, parsed.error.errors[0].message, 400);
@@ -276,7 +276,7 @@ router.post("/:roomId/messages", auth, async (req, res) => {
   }
 });
 
-router.patch("/:roomId/messages/:messageId/resolve", auth, async (req, res) => {
+router.patch("/:roomId/messages/:messageId/resolve", auth, requireTeacherVerified, async (req, res) => {
   const { roomId, messageId } = req.params;
   try {
     await resolveQuestion(messageId, req.user.id, roomId);
@@ -286,7 +286,7 @@ router.patch("/:roomId/messages/:messageId/resolve", auth, async (req, res) => {
   }
 });
 
-router.post("/:roomId/assign-ta", auth, async (req, res) => {
+router.post("/:roomId/assign-ta", auth, requireTeacherVerified, async (req, res) => {
   const { roomId } = req.params;
   const parsed = z.object({ user_id: z.string().uuid() }).safeParse(req.body);
   if (!parsed.success) return error(res, "بيانات غير صالحة", 400);
@@ -311,7 +311,7 @@ router.post("/:roomId/voice/start", auth, requireRoomAccess, requireTeacherVerif
   }
 });
 
-router.post("/voice/:sessionId/join", auth, requireRoomAccess, async (req, res) => {
+router.post("/voice/:sessionId/join", auth, requireRoomAccess, requireTeacherVerified, async (req, res) => {
   const { sessionId } = req.params;
   const userName = req.user.full_name || req.user.email || req.user.id;
   try {
@@ -322,7 +322,7 @@ router.post("/voice/:sessionId/join", auth, requireRoomAccess, async (req, res) 
   }
 });
 
-router.post("/voice/:sessionId/end", auth, requireRoomAccess, async (req, res) => {
+router.post("/voice/:sessionId/end", auth, requireRoomAccess, requireTeacherVerified, async (req, res) => {
   const { sessionId } = req.params;
   try {
     await endVoiceSession(sessionId, req.user.id);
@@ -342,7 +342,7 @@ router.post("/voice/:sessionId/raise-hand", auth, requireRoomAccess, async (req,
   }
 });
 
-router.post("/voice/:sessionId/grant-speak", auth, requireRoomAccess, async (req, res) => {
+router.post("/voice/:sessionId/grant-speak", auth, requireRoomAccess, requireTeacherVerified, async (req, res) => {
   const { sessionId } = req.params;
   const parsed = z.object({ user_id: z.string().uuid() }).safeParse(req.body);
   if (!parsed.success) return error(res, "بيانات غير صالحة", 400);

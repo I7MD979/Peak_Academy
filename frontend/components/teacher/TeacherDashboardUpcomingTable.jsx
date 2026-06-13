@@ -6,15 +6,18 @@ import StatusBadge from "@/components/admin/StatusBadge";
 import { teacherBtnPrimary, teacherBtnSecondary, teacherCardSolid, teacherSectionTitle } from "@/lib/teacher-styles";
 import { formatDateTimeAr } from "@/lib/format";
 import { getStartAvailability } from "@/lib/teacher-sessions";
+import { getTeacherTeachingGate } from "@/lib/teacher-verification";
 import { cn } from "@/lib/utils";
 
 export default function TeacherDashboardUpcomingTable({
   sessions = [],
   loading = false,
   actionLoadingId = "",
+  verificationStatus,
   onStartSession,
   onEndSession
 }) {
+  const teachingGate = getTeacherTeachingGate(verificationStatus);
   const columns = [
     {
       key: "title",
@@ -45,9 +48,18 @@ export default function TeacherDashboardUpcomingTable({
         if (row.status === "live") {
           return (
             <div className="flex flex-wrap gap-2">
-              <Link href={`/teacher/live/${row.id}`} className={cn(teacherBtnPrimary, "bg-danger px-4 py-2 text-xs")}>
-                دخول البث
-              </Link>
+              {teachingGate.allowed ? (
+                <Link href={`/teacher/live/${row.id}`} className={cn(teacherBtnPrimary, "bg-danger px-4 py-2 text-xs")}>
+                  دخول البث
+                </Link>
+              ) : (
+                <span
+                  title={teachingGate.reason}
+                  className={cn(teacherBtnPrimary, "bg-danger px-4 py-2 text-xs opacity-50 cursor-not-allowed")}
+                >
+                  دخول البث
+                </span>
+              )}
               <button
                 type="button"
                 disabled={actionLoadingId === `end-${row.id}`}
@@ -60,7 +72,7 @@ export default function TeacherDashboardUpcomingTable({
           );
         }
 
-        const startInfo = getStartAvailability(row);
+        const startInfo = getStartAvailability(row, verificationStatus);
         return (
           <button
             type="button"

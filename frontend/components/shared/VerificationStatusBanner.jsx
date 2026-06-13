@@ -41,7 +41,7 @@ export function VerificationStatusBanner({
         <div>
           <p className="text-sm font-bold text-auth-on-surface">وثّق هويتك كمدرس</p>
           <p className="mt-1 text-xs text-auth-on-surface-variant">
-            ارفع صورة الرقم القومي (إلزامي) وكرت النقابة (اختياري) — لن تتمكن من بدء الجلسات قبل اعتماد الإدارة
+            ارفع صورة الرقم القومي (إلزامي) وكرت النقابة (اختياري) — لن تتمكن من إنشاء الجلسات أو دخول غرف الطلبة قبل اعتماد الإدارة
           </p>
         </div>
         <Link
@@ -62,7 +62,7 @@ export function VerificationStatusBanner({
           className
         )}
       >
-        حسابك قيد المراجعة — لن تتمكن من بدء جلسات صوتية أو إنشاء حصص حتى يعتمدك فريق الإدارة.
+        حسابك قيد المراجعة — لن تتمكن من إنشاء الجلسات أو دخول غرف الطلبة حتى يعتمدك فريق الإدارة.
       </div>
     );
   }

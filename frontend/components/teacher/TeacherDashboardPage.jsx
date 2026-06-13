@@ -91,6 +91,7 @@ export default function TeacherDashboardPage({
             sessions={upcomingSessions}
             loading={loading}
             actionLoadingId={actionLoadingId}
+            verificationStatus={profile?.verification_status}
             onStartSession={onStartSession}
             onEndSession={onEndSession}
           />

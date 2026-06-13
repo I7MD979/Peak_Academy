@@ -10,6 +10,7 @@ import {
   isLiveSession,
   isScheduledSession
 } from "@/lib/teacher-sessions";
+import { getTeacherTeachingGate } from "@/lib/teacher-verification";
 import { teacherBtnPrimary, teacherBtnSecondary } from "@/lib/teacher-styles";
 import { formatCurrencyEgp, formatDateTimeAr } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -21,12 +22,14 @@ export default function TeacherSessionCard({
   onStart,
   onEnd,
   onCancel,
-  onJoin
+  onJoin,
+  verificationStatus
 }) {
   const enrolled = getEnrollmentCount(session);
   const max = session.max_students || 0;
   const full = max > 0 && enrolled >= max;
-  const startInfo = getStartAvailability(session);
+  const startInfo = getStartAvailability(session, verificationStatus);
+  const teachingGate = getTeacherTeachingGate(verificationStatus);
   const isLive = isLiveSession(session);
   const isScheduled = isScheduledSession(session);
   const busyStart = actionId === `start-${session.id}`;
@@ -85,7 +88,13 @@ export default function TeacherSessionCard({
 
         {isLive ? (
           <>
-            <button type="button" onClick={() => onJoin?.(session.id)} className={cn(teacherBtnPrimary, "bg-danger px-3 py-2 text-xs")}>
+            <button
+              type="button"
+              disabled={!teachingGate.allowed}
+              title={!teachingGate.allowed ? teachingGate.reason : undefined}
+              onClick={() => teachingGate.allowed && onJoin?.(session.id)}
+              className={cn(teacherBtnPrimary, "bg-danger px-3 py-2 text-xs disabled:opacity-50")}
+            >
               دخول البث
             </button>
             <button

@@ -15,7 +15,8 @@ export default function TeacherSessionsTable({
   onStart,
   onEnd,
   onCancel,
-  onJoin
+  onJoin,
+  verificationStatus
 }) {
   const columns = [
     {
@@ -69,6 +70,7 @@ export default function TeacherSessionsTable({
           onEnd={onEnd}
           onCancel={onCancel}
           onJoin={onJoin}
+          verificationStatus={verificationStatus}
         />
       )
     }

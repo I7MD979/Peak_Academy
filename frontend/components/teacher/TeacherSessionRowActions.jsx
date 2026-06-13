@@ -5,6 +5,7 @@ import {
   isLiveSession,
   isScheduledSession
 } from "@/lib/teacher-sessions";
+import { getTeacherTeachingGate } from "@/lib/teacher-verification";
 import { teacherBtnPrimary, teacherBtnSecondary } from "@/lib/teacher-styles";
 import { cn } from "@/lib/utils";
 
@@ -15,9 +16,11 @@ export default function TeacherSessionRowActions({
   onStart,
   onEnd,
   onCancel,
-  onJoin
+  onJoin,
+  verificationStatus
 }) {
-  const startInfo = getStartAvailability(session);
+  const startInfo = getStartAvailability(session, verificationStatus);
+  const teachingGate = getTeacherTeachingGate(verificationStatus);
   const busyStart = actionId === `start-${session.id}`;
   const busyEnd = actionId === `end-${session.id}`;
   const busyCancel = actionId === `cancel-${session.id}`;
@@ -30,7 +33,13 @@ export default function TeacherSessionRowActions({
 
       {isLiveSession(session) ? (
         <>
-          <button type="button" onClick={() => onJoin?.(session.id)} className={cn(teacherBtnPrimary, "bg-danger px-3 py-2 text-xs")}>
+          <button
+            type="button"
+            disabled={!teachingGate.allowed}
+            title={!teachingGate.allowed ? teachingGate.reason : undefined}
+            onClick={() => teachingGate.allowed && onJoin?.(session.id)}
+            className={cn(teacherBtnPrimary, "bg-danger px-3 py-2 text-xs disabled:opacity-50")}
+          >
             دخول البث
           </button>
           <button

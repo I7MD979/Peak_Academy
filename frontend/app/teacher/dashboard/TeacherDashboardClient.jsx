@@ -61,7 +61,9 @@ export default function TeacherDashboardClient({ initialData = null, initialVeri
 
   const handleStartSession = async (sessionId) => {
     const session = upcomingSessions.find((item) => item.id === sessionId);
-    const startInfo = session ? getStartAvailability(session) : { canStart: true };
+    const startInfo = session
+      ? getStartAvailability(session, data?.profile?.verification_status)
+      : { canStart: true };
 
     if (!startInfo.canStart) {
       setError(startInfo.reason || "لا يمكن بدء الجلسة الآن");

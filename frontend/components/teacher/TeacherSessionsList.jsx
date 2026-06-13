@@ -20,7 +20,8 @@ export default function TeacherSessionsList({
   onStart,
   onEnd,
   onCancel,
-  onJoin
+  onJoin,
+  verificationStatus
 }) {
   if (loading) {
     return <SessionsListSkeleton />;
@@ -49,6 +50,7 @@ export default function TeacherSessionsList({
             onEnd={onEnd}
             onCancel={onCancel}
             onJoin={onJoin}
+            verificationStatus={verificationStatus}
           />
         ))}
       </div>
@@ -63,6 +65,7 @@ export default function TeacherSessionsList({
           onEnd={onEnd}
           onCancel={onCancel}
           onJoin={onJoin}
+          verificationStatus={verificationStatus}
         />
       </div>
 

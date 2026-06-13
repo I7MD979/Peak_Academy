@@ -5,8 +5,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import TeacherSessionsView from "@/components/teacher/TeacherSessionsPage";
 import { SectionLoader } from "@/components/shared/LoadingSkeleton";
-import { logApiError, sessionsApi, teacherApi } from "@/lib/api";
+import { logApiError, sessionsApi, teacherApi, accountApi } from "@/lib/api";
 import { getStartAvailability } from "@/lib/teacher-sessions";
+import { getTeacherTeachingGate } from "@/lib/teacher-verification";
 import {
   TEACHER_SESSION_EMPTY_COPY,
   TEACHER_SESSION_STATUS_TABS,
@@ -37,6 +38,8 @@ function TeacherSessionsContent() {
   const [actionId, setActionId] = useState("");
   const [closingAll, setClosingAll] = useState(false);
   const [selectedSession, setSelectedSession] = useState(null);
+  const [verificationStatus, setVerificationStatus] = useState("unverified");
+  const teachingGate = getTeacherTeachingGate(verificationStatus);
 
   const replaceUrl = useCallback(
     (patch, options) => {
@@ -98,6 +101,13 @@ function TeacherSessionsContent() {
   );
 
   useEffect(() => {
+    accountApi
+      .verificationStatus()
+      .then((res) => setVerificationStatus(res?.data?.verification_status || "unverified"))
+      .catch(() => setVerificationStatus("unverified"));
+  }, []);
+
+  useEffect(() => {
     loadTabCounts();
   }, [loadTabCounts]);
 
@@ -116,7 +126,9 @@ function TeacherSessionsContent() {
 
   const handleStart = async (id) => {
     const session = sessions.find((item) => item.id === id);
-    const startInfo = session ? getStartAvailability(session) : { canStart: true };
+    const startInfo = session
+      ? getStartAvailability(session, verificationStatus)
+      : { canStart: true };
 
     if (!startInfo.canStart) {
       toast.error(startInfo.reason || "لا يمكن بدء الجلسة الآن");
@@ -265,7 +277,14 @@ function TeacherSessionsContent() {
       onStart={handleStart}
       onEnd={handleEnd}
       onCancel={handleCancel}
-      onJoin={(id) => router.push(`/teacher/live/${id}`)}
+      onJoin={(id) => {
+        if (!teachingGate.allowed) {
+          toast.error(teachingGate.reason);
+          return;
+        }
+        router.push(`/teacher/live/${id}`);
+      }}
+      verificationStatus={verificationStatus}
       onCloseAllOpen={handleCloseAllOpen}
       onPurgeRooms={handlePurgeDailyOnly}
       selectedSession={selectedSession}

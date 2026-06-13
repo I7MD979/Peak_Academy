@@ -4,10 +4,12 @@ import Link from "next/link";
 import Icon from "@/components/shared/Icon";
 import { resolveTeacherFirstName } from "@/lib/teacher-dashboard";
 import { teacherBtnPrimary, teacherCardSolid, teacherMuted } from "@/lib/teacher-styles";
+import { getTeacherTeachingGate } from "@/lib/teacher-verification";
 import { cn } from "@/lib/utils";
 
 export default function TeacherDashboardWelcome({ profile }) {
   const firstName = resolveTeacherFirstName(profile);
+  const teachingGate = getTeacherTeachingGate(profile?.verification_status);
 
   return (
     <section className={cn(teacherCardSolid, "relative overflow-hidden p-6 md:p-8")}>
@@ -31,10 +33,17 @@ export default function TeacherDashboardWelcome({ profile }) {
           </div>
         </div>
 
-        <Link href="/teacher/sessions/new" className={cn(teacherBtnPrimary, "justify-center")}>
-          <Icon name="plus" size={18} />
-          إنشاء جلسة جديدة
-        </Link>
+        {teachingGate.allowed ? (
+          <Link href="/teacher/sessions/new" className={cn(teacherBtnPrimary, "justify-center")}>
+            <Icon name="plus" size={18} />
+            إنشاء جلسة جديدة
+          </Link>
+        ) : (
+          <Link href="/teacher/profile/verification" className={cn(teacherBtnPrimary, "justify-center")}>
+            <Icon name="shield" size={18} />
+            إكمال التحقق
+          </Link>
+        )}
       </div>
     </section>
   );

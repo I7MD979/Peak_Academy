@@ -1,3 +1,5 @@
+import { getTeacherTeachingGate } from "@/lib/teacher-verification";
+
 export function normalizeSessionStatus(status) {
   return String(status || "")
     .trim()
@@ -38,7 +40,14 @@ export function getSubjectLabel(session) {
 }
 
 /** يحدد إمكانية بدء جلسة مجدولة (قبل الموعد بـ 30 دقيقة وبعده بـ 15 دقيقة كحد أقصى). */
-export function getStartAvailability(session) {
+export function getStartAvailability(session, verificationStatus) {
+  if (verificationStatus !== undefined) {
+    const gate = getTeacherTeachingGate(verificationStatus);
+    if (!gate.allowed) {
+      return { canStart: false, reason: gate.reason };
+    }
+  }
+
   if (!isScheduledSession(session)) {
     return { canStart: false, reason: "" };
   }

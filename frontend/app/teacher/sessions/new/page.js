@@ -1,10 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { toast } from "sonner";
 import TeacherCreateSessionView from "@/components/teacher/TeacherCreateSessionPage";
-import { sessionsApi } from "@/lib/api";
+import PageContainer from "@/components/shared/PageContainer";
+import { VerificationStatusBanner } from "@/components/shared/VerificationStatusBanner";
+import { accountApi, sessionsApi } from "@/lib/api";
+import { getTeacherTeachingGate } from "@/lib/teacher-verification";
+import { teacherBtnPrimary, teacherCardSolid, teacherMuted } from "@/lib/teacher-styles";
+import { cn } from "@/lib/utils";
 import { SUBJECT_OPTIONS } from "@/lib/subjects";
 
 const GRADE_BY_LEVEL = {
@@ -78,6 +84,8 @@ function validateSessionForm(values, subjectMode, customSubject) {
 
 export default function NewSessionPage() {
   const router = useRouter();
+  const [verificationStatus, setVerificationStatus] = useState("unverified");
+  const teachingGate = getTeacherTeachingGate(verificationStatus);
   const [form, setForm] = useState(initialForm);
   const [subjectMode, setSubjectMode] = useState(SUBJECT_OPTIONS[0]?.key || "math");
   const [customSubject, setCustomSubject] = useState("");
@@ -90,6 +98,13 @@ export default function NewSessionPage() {
   }, []);
 
   const gradeOptions = GRADE_BY_LEVEL[form.school_level] || GRADE_BY_LEVEL.secondary;
+
+  useEffect(() => {
+    accountApi
+      .verificationStatus()
+      .then((res) => setVerificationStatus(res?.data?.verification_status || "unverified"))
+      .catch(() => setVerificationStatus("unverified"));
+  }, []);
 
   const handleFieldChange = (key) => (event) => {
     const value = event.target.value;
@@ -117,6 +132,11 @@ export default function NewSessionPage() {
 
   const onSubmit = async (event) => {
     event.preventDefault();
+    if (!teachingGate.allowed) {
+      toast.error(teachingGate.reason);
+      return;
+    }
+
     const errors = validateSessionForm(form, subjectMode, customSubject);
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
@@ -152,6 +172,21 @@ export default function NewSessionPage() {
       setLoading(false);
     }
   };
+
+  if (!teachingGate.allowed) {
+    return (
+      <PageContainer>
+        <VerificationStatusBanner role="teacher" verificationStatus={verificationStatus} />
+        <div className={cn(teacherCardSolid, "mt-6 p-8 text-center")}>
+          <p className="text-lg font-black text-auth-on-surface mb-2">التحقق مطلوب</p>
+          <p className={cn("text-sm mb-4", teacherMuted)}>{teachingGate.reason}</p>
+          <Link href="/teacher/profile/verification" className={teacherBtnPrimary}>
+            إكمال التحقق
+          </Link>
+        </div>
+      </PageContainer>
+    );
+  }
 
   return (
     <TeacherCreateSessionView

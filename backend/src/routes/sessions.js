@@ -715,7 +715,7 @@ router.post("/purge-daily-rooms", auth, checkRole("teacher", "admin"), async (re
   }
 });
 
-router.post("/:id/mute-all", auth, checkRole("teacher"), validateSessionId, async (req, res) => {
+router.post("/:id/mute-all", auth, checkRole("teacher"), requireTeacherVerified, validateSessionId, async (req, res) => {
   try {
     if (!(await assertTeacherOwnsSession(req.params.id, req.user.id, res))) return;
 
@@ -1209,7 +1209,7 @@ async function assertStudentEnrollmentForJoin(userId, sessionId) {
   return { ok: true };
 }
 
-router.post("/:id/join", auth, validateSessionId, async (req, res) => {
+router.post("/:id/join", auth, requireTeacherVerified, validateSessionId, async (req, res) => {
   try {
     const session = await fetchSessionForJoin(req.params.id);
     if (!session) return error(res, "الحصة غير موجودة", 404);
@@ -1252,7 +1252,7 @@ router.post("/:id/join", auth, validateSessionId, async (req, res) => {
   }
 });
 
-router.get("/:id/room", auth, validateSessionId, async (req, res) => {
+router.get("/:id/room", auth, requireTeacherVerified, validateSessionId, async (req, res) => {
   try {
     const session = await fetchSessionForJoin(req.params.id);
     if (!session) return error(res, "الجلسة غير موجودة", 404);
