@@ -30,6 +30,30 @@ export function VerificationStatusBanner({
     );
   }
 
+  if (role === "teacher" && verificationStatus === "unverified") {
+    return (
+      <div
+        className={cn(
+          "flex flex-col gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 sm:flex-row sm:items-center sm:justify-between",
+          className
+        )}
+      >
+        <div>
+          <p className="text-sm font-bold text-auth-on-surface">وثّق هويتك كمدرس</p>
+          <p className="mt-1 text-xs text-auth-on-surface-variant">
+            ارفع صورة الرقم القومي (إلزامي) وكرت النقابة (اختياري) — لن تتمكن من بدء الجلسات قبل اعتماد الإدارة
+          </p>
+        </div>
+        <Link
+          href="/teacher/profile/verification"
+          className="inline-flex shrink-0 items-center justify-center rounded-xl bg-amber-500/20 px-4 py-2 text-sm font-bold text-amber-200 hover:bg-amber-500/30"
+        >
+          رفع المستندات
+        </Link>
+      </div>
+    );
+  }
+
   if (role === "teacher" && verificationStatus === "pending_review") {
     return (
       <div
@@ -58,7 +82,7 @@ export function VerificationStatusBanner({
           ) : null}
         </div>
         <Link
-          href="/onboarding/teacher-verification"
+          href="/teacher/profile/verification"
           className="inline-flex shrink-0 items-center justify-center rounded-xl bg-danger/20 px-4 py-2 text-sm font-bold text-danger hover:bg-danger/30"
         >
           إعادة الرفع

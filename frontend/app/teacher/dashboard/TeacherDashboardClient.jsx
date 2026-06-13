@@ -28,7 +28,16 @@ export default function TeacherDashboardClient({ initialData = null, initialVeri
         teacherApi.dashboard(),
         accountApi.verificationStatus().catch(() => null)
       ]);
-      setData(res?.data || null);
+      const verStatus = verRes?.data?.verification_status;
+      setData({
+        ...(res?.data || null),
+        profile: res?.data?.profile
+          ? {
+              ...res.data.profile,
+              verification_status: verStatus || res.data.profile.verification_status || "unverified",
+            }
+          : res?.data?.profile,
+      });
       const docs = verRes?.data?.documents || [];
       const rejected = docs.find((d) => d.status === "rejected");
       setVerificationRejectReason(rejected?.reject_reason || "");
@@ -96,7 +105,17 @@ export default function TeacherDashboardClient({ initialData = null, initialVeri
 
   return (
     <TeacherDashboardView
-      profile={data?.profile}
+      profile={
+        data?.profile
+          ? {
+              ...data.profile,
+              verification_status:
+                initialVerification?.verification_status ??
+                data.profile.verification_status ??
+                "unverified",
+            }
+          : null
+      }
       stats={data?.stats}
       upcomingSessions={upcomingSessions}
       recentCompleted={recentCompleted}
