@@ -36,7 +36,7 @@ function skipAllRateLimits() {
   return disabled || !isProduction;
 }
 
-/** Paths handled by tiered limiters below — excluded from the global 120/15min bucket. */
+/** Paths handled by tiered limiters below — excluded from the global 300/15min bucket. */
 function usesTieredRateLimit(req) {
   const path = apiPath(req);
   if (isHealthPath(path)) return true;
@@ -51,13 +51,13 @@ const rateLimitMessage = {
 };
 
 /**
- * healthLimiter — 2026-06-13 (RATE_LIMIT_AUDIT.md)
+ * healthLimiter — 2026-06-13 (RATE_LIMIT_AUDIT_V2.md)
  * Purpose: Railway / uptime monitors hit /health frequently without tripping API caps.
- * Limit: 300 requests per minute per IP (production).
+ * Limit: 1000 requests per minute per IP (production).
  */
 export const healthLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: isProduction ? 300 : 10_000,
+  max: isProduction ? 1000 : 10_000,
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => skipAllRateLimits() || !isHealthPath(apiPath(req)),
@@ -65,13 +65,13 @@ export const healthLimiter = rateLimit({
 });
 
 /**
- * publicLimiter — 2026-06-13 (RATE_LIMIT_AUDIT.md)
+ * publicLimiter — 2026-06-13 (RATE_LIMIT_AUDIT_V2.md)
  * Purpose: Public marketing/data endpoints (/public/landing, etc.) without auth.
- * Limit: 150 requests per minute per IP (production).
+ * Limit: 500 requests per minute per IP (production).
  */
 export const publicLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: isProduction ? 150 : 10_000,
+  max: isProduction ? 500 : 10_000,
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => skipAllRateLimits() || !isPublicApiPath(apiPath(req)),
@@ -79,14 +79,14 @@ export const publicLimiter = rateLimit({
 });
 
 /**
- * authenticatedReadLimiter — 2026-06-13 (RATE_LIMIT_AUDIT.md)
+ * authenticatedReadLimiter — 2026-06-13 (RATE_LIMIT_AUDIT_V2.md)
  * Purpose: High-frequency authenticated reads (dashboard, profile, session list) — separate from global cap.
  * Routes: GET /auth/me, GET /student/dashboard, GET /sessions (list only).
- * Limit: 80 requests per 15 minutes per IP (production).
+ * Limit: 500 requests per 15 minutes per IP (production).
  */
 export const authenticatedReadLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: isProduction ? 80 : 10_000,
+  max: isProduction ? 500 : 10_000,
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => skipAllRateLimits() || !isAuthenticatedReadPath(req),
@@ -95,11 +95,11 @@ export const authenticatedReadLimiter = rateLimit({
 
 /**
  * Global API limiter — default bucket for all /api/* and /auth/* not covered by tiered limiters above.
- * Limit: 120 requests per 15 minutes per IP (production).
+ * Limit: 300 requests per 15 minutes per IP (production).
  */
 export const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: isProduction ? 120 : 10_000,
+  max: isProduction ? 300 : 10_000,
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => {
