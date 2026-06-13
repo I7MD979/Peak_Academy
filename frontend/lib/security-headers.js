@@ -109,14 +109,29 @@ export function buildContentSecurityPolicy() {
 
 const HSTS_VALUE = "max-age=63072000; includeSubDomains; preload";
 
+export const DEFAULT_PERMISSIONS_POLICY =
+  "camera=(), microphone=(), geolocation=(), payment=()";
+
+/** LiveKit / WebRTC pages need getUserMedia on the same origin. */
+export const MEDIA_PERMISSIONS_POLICY =
+  "camera=(self), microphone=(self), geolocation=(), payment=()";
+
+export function permissionsPolicyForPath(pathname = "/") {
+  const path = String(pathname || "/").split("?")[0];
+  if (
+    path.startsWith("/teacher/live/") ||
+    path.startsWith("/student/live/") ||
+    path.startsWith("/student/study-rooms/")
+  ) {
+    return MEDIA_PERMISSIONS_POLICY;
+  }
+  return DEFAULT_PERMISSIONS_POLICY;
+}
+
 const BASE_SECURITY_HEADERS = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "DENY" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  {
-    key: "Permissions-Policy",
-    value: "camera=(), microphone=(), geolocation=(), payment=()"
-  },
   { key: "X-DNS-Prefetch-Control", value: "off" },
   { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
   { key: "Cross-Origin-Opener-Policy", value: "same-origin" }
@@ -162,7 +177,12 @@ function productionSecurityHeaders(pathname = "/") {
 
 /** Headers for next.config (no CSP — proxy owns Content-Security-Policy). */
 export function baseHeadersForPath(pathname = "/") {
-  return [...BASE_SECURITY_HEADERS, ...productionSecurityHeaders(pathname), ...cacheHeadersForPath(pathname)];
+  return [
+    ...BASE_SECURITY_HEADERS,
+    { key: "Permissions-Policy", value: permissionsPolicyForPath(pathname) },
+    ...productionSecurityHeaders(pathname),
+    ...cacheHeadersForPath(pathname)
+  ];
 }
 
 /** @deprecated Use baseHeadersForPath in next.config; CSP via applySecurityHeaders in proxy. */
@@ -203,6 +223,7 @@ export function applySecurityHeaders(response, pathname = "/") {
   for (const { key, value } of BASE_SECURITY_HEADERS) {
     response.headers.set(key, value);
   }
+  response.headers.set("Permissions-Policy", permissionsPolicyForPath(pathname));
   for (const { key, value } of productionSecurityHeaders(pathname)) {
     response.headers.set(key, value);
   }

@@ -12,6 +12,18 @@ const nextConfig = {
   async headers() {
     return [
       {
+        source: "/teacher/live/:path*",
+        headers: baseHeadersForPath("/teacher/live/session")
+      },
+      {
+        source: "/student/live/:path*",
+        headers: baseHeadersForPath("/student/live/session")
+      },
+      {
+        source: "/student/study-rooms/:path*",
+        headers: baseHeadersForPath("/student/study-rooms/room")
+      },
+      {
         source: "/:path*",
         headers: baseHeadersForPath("/")
       },
